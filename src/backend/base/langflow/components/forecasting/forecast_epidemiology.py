@@ -1,57 +1,23 @@
 from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_text_file_to_data, retrieve_file_paths
 from langflow.custom import Component
-from langflow.io import DropdownInput, IntInput, FloatInput # BoolInput, IntInput, MessageTextInput, MultiselectInput, FloatInput
+from langflow.io import DropdownInput, IntInput, FloatInput
 from langflow.schema import Data
 from langflow.schema.dataframe import DataFrame
 from langflow.template import Output
-from langflow.field_typing.range_spec import RangeSpec
+
+# FORECAST SPECIFIC IMPORTS
+# =========================
+from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecatModelTimescale, FORECAST_COMMON_TIME_SCALE, FORECAST_MODEL_DATAFRAME_COLUMNS
+
 
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from datetime import datetime
-from enum import Enum
 
 
 # CONSTANTS
 # =========
 
-# List of forecasting types supported
-#FORECAST_EPIDEMIOLOGY_INPUT_TYPES = [
-#    "Time Based Input",
-#    "Single Input",
-#]
-
-class ForecastEpidemiologyInputTypes(str, Enum):
-    TIME_BASED = "Time Based Input"
-    SINGLE_INPUT = "Single Input"
-
-
-# List of month names and values
-FORECAST_MONTH_NAMES_AND_VALUES = {
-    "January": 1,
-    "February": 2,
-    "March": 3,
-    "April": 4,
-    "May": 5,
-    "June": 6,
-    "July": 7,
-    "August": 8,
-    "September": 9,
-    "October": 10,
-    "November": 11,
-    "December": 12,
-}
-
-FORECAST_EPIDEMIOLOGY_TIME_SCALE = [
-    "Month",
-    "Year",
-]
-
-# Columns in the forecasting model to create in Pandas dataframe
-FORECAST_EPIDEMIOLOGY_DATAFRAME_COLUMNS = [
-    "timestamp",
-    "volume"
-]
 
 
 # CLASSES
@@ -90,36 +56,15 @@ class ForecastEpidemiology(Component):
             required=True,
         ),
 
-        # Patient Count
-        IntInput(
-            name = "patient_count",
-            display_name = "Initial Patient Count",
-            info = "The initial count of patients entering the model for the forecast.",
-            value = 0,
-            required = True,
-        ),
-
         # Input Type
         DropdownInput(
             name="input_type",
             display_name="Input Type",
             info="Determines the type of forecast to generate.  'Time Based Input' generates a forecast broken down to a fixed time units (i.e. monthly).  'Single Input' generates a forecast with no breakdown.",
-            options=[op.value for op in ForecastEpidemiologyInputTypes],
+            options=[op.value for op in ForecastModelInputTypes],
             value=[],
             required = True,
             real_time_refresh = True,
-        ),
-
-        # Month Start of Fiscal Year
-        DropdownInput(
-            name="month_start_of_fiscal_year",
-            display_name="Month Start of Fiscal Year",
-            info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
-            options=list(FORECAST_MONTH_NAMES_AND_VALUES.keys()),
-            value=list(FORECAST_MONTH_NAMES_AND_VALUES.keys())[0],
-            required = False,
-            show = False,
-            dynamic = True,
         ),
 
         # Growth Rate
@@ -138,12 +83,36 @@ class ForecastEpidemiology(Component):
             name = "time_scale",
             display_name = "Time-Scale",
             info = "The granularity of the time scale for the forecast.",
-            options = FORECAST_EPIDEMIOLOGY_TIME_SCALE,
+            options = [op.value for op in ForecatModelTimescale],
             value = [],
             required = False,
             show = False,
             dynamic = True,
-        )
+            real_time_refresh = True,
+        ),
+
+        # Patient Count
+        IntInput(
+            name = "patient_count",
+            display_name = "Patient Count",
+            info = "The initial count of patients entering the model for the forecast.",
+            value = 0,
+            required = False,
+            show = False,
+            dynamic = True,
+        ),
+
+        # Month Start of Fiscal Year
+        DropdownInput(
+            name="month_start_of_fiscal_year",
+            display_name="Month Start of Fiscal Year",
+            info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
+            options=list(FORECAST_COMMON_MONTH_NAMES_AND_VALUES.keys()),
+            value=list(FORECAST_COMMON_MONTH_NAMES_AND_VALUES.keys())[0],
+            required = False,
+            show = False,
+            dynamic = True,
+        ),
     ]
 
 
@@ -160,33 +129,60 @@ class ForecastEpidemiology(Component):
     # -------------------
     def update_build_config(self, build_config, field_value, field_name = None):
 
-        # Input Type
+        # Changed field:  Input Type
         if(field_name == "input_type"):
 
             # Time Based Input
-            if(field_value == ForecastEpidemiologyInputTypes.TIME_BASED):
-                # turn on the following fields
-                build_config["month_start_of_fiscal_year"]["show"] = True
-                build_config["month_start_of_fiscal_year"]["required"] = True
-
+            if(field_value == ForecastModelInputTypes.TIME_BASED):
+                # growth_rate (OFF)
                 build_config["growth_rate"]["show"] = False
                 build_config["growth_rate"]["required"] = False
-                
+
+                # time_scale (ON)
                 build_config["time_scale"]["show"] = True
                 build_config["time_scale"]["required"] = True
-                
+
+                # patient_count (ON)
+                build_config["patient_count"]["show"] = True
+                build_config["patient_count"]["required"] = True
+
+                # month_start_of_fiscal_year (if time_scale is month ON, else OFF)
+                if(self.time_scale == ForecatModelTimescale.MONTH):
+                    build_config["month_start_of_fiscal_year"]["show"] = True
+                    build_config["month_start_of_fiscal_year"]["required"] = True
+                else:
+                    build_config["month_start_of_fiscal_year"]["show"] = False
+                    build_config["month_start_of_fiscal_year"]["required"] = False
             
             # Single Input
-            else:
-                # turn off the following fields
-                build_config["month_start_of_fiscal_year"]["show"] = False
-                build_config["month_start_of_fiscal_year"]["required"] = False
-                
+            elif(field_value == ForecastModelInputTypes.SINGLE_INPUT):
+                # growth_rate (ON)
                 build_config["growth_rate"]["show"] = True
                 build_config["growth_rate"]["required"] = True
 
+                # time_scale (OFF)
                 build_config["time_scale"]["show"] = False
                 build_config["time_scale"]["required"] = False
+                
+                # patient_count (ON)
+                build_config["patient_count"]["show"] = True
+                build_config["patient_count"]["required"] = True
+
+                # month_start_of_fiscal_year (OFF)
+                build_config["month_start_of_fiscal_year"]["show"] = False
+                build_config["month_start_of_fiscal_year"]["required"] = False
+                
+        
+        # Changed field:  Time-Scale
+        elif(field_name == "time_scale"):
+            if(field_value == ForecatModelTimescale.MONTH):
+                build_config["month_start_of_fiscal_year"]["show"] = True
+                build_config["month_start_of_fiscal_year"]["required"] = True
+
+            else:
+                build_config["month_start_of_fiscal_year"]["show"] = False
+                build_config["month_start_of_fiscal_year"]["required"] = False
+
                 
         # return updated config         
         return(build_config)
@@ -238,9 +234,5 @@ class ForecastEpidemiology(Component):
         #if((self.input_type == ForecastEpidemiologyInputTypes.SINGLE_INPUT) or (() and ()))
         
         # return the dataframe
-        return DataFrame(columns=FORECAST_EPIDEMIOLOGY_DATAFRAME_COLUMNS)
+        return DataFrame(columns=FORECAST_MODEL_DATAFRAME_COLUMNS)
     
-
-    # HELPER FUNCTIONS
-    
-

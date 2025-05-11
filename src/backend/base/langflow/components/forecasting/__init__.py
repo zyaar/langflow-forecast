@@ -1,4 +1,4 @@
-from .forecast_epidemiology import ForecastEpidemiologyComponent
+from .forecast_epidemiology import ForecastEpidemiology
 
 __all__ = [
     "ForecastEpidemiology",
