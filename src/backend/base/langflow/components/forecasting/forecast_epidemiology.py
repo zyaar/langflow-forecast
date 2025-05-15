@@ -1,18 +1,35 @@
+#####################################################################
+# forecast_epidemiology.py
+#
+# Implements the epidemiology component of the forecasting.  The epidemiology
+# component sets up a forecast based on some date/time assumptions
+# and an incident rate of patients per a timeperiod (monthly, yearly).
+# 
+# INPUTS:  None
+# OUTPUTS:  ForecastDataModel
+#
+#####################################################################
+
 from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_text_file_to_data, retrieve_file_paths
 from langflow.custom import Component
-from langflow.io import DropdownInput, IntInput, FloatInput
-from langflow.schema import Data
-from langflow.schema.dataframe import DataFrame
+from langflow.io import DropdownInput, IntInput, FloatInput, TableInput
+from langflow.schema import DataFrame
+from langflow.schema.table import EditMode
 from langflow.template import Output
 
 # FORECAST SPECIFIC IMPORTS
 # =========================
-from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecatModelTimescale, FORECAST_COMMON_TIME_SCALE, FORECAST_MODEL_DATAFRAME_COLUMNS
+from typing import cast
+from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecatModelTimescale
+from langflow.components.forecasting.common.data_model.forecast_data_model import ForecastDataModel
 
 
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from datetime import datetime
+from typing import List
+import numpy as np
+from langflow.components.forecasting.common.date_utils import gen_dates
 
 
 # CONSTANTS
@@ -43,7 +60,7 @@ class ForecastEpidemiology(Component):
             name="num_years",
             display_name="# of Years to Forecast",
             info="The number of years to include in the forecast.",
-            value=1,
+            value=5,
             required=True,
         ),
 
@@ -65,6 +82,17 @@ class ForecastEpidemiology(Component):
             value=[],
             required = True,
             real_time_refresh = True,
+        ),
+
+        # Patient Count
+        IntInput(
+            name = "patient_count",
+            display_name = "Patient Count",
+            info = "The annual count of patients entering the model for the forecast.",
+            value = 0,
+            required = False,
+            show = False,
+            dynamic = True,
         ),
 
         # Growth Rate
@@ -91,17 +119,6 @@ class ForecastEpidemiology(Component):
             real_time_refresh = True,
         ),
 
-        # Patient Count
-        IntInput(
-            name = "patient_count",
-            display_name = "Patient Count",
-            info = "The initial count of patients entering the model for the forecast.",
-            value = 0,
-            required = False,
-            show = False,
-            dynamic = True,
-        ),
-
         # Month Start of Fiscal Year
         DropdownInput(
             name="month_start_of_fiscal_year",
@@ -112,15 +129,43 @@ class ForecastEpidemiology(Component):
             required = False,
             show = False,
             dynamic = True,
+            real_time_refresh = True,
+        ),
+
+        # Patient Count Table
+        TableInput(
+            name="patient_count_table",
+            display_name="Patient Counts (by Month)",
+            info="For each time period, enter the expected number of patients entering the forecast.",
+            required=False,
+            show=False,
+            dynamic=True,
+            table_schema=[
+                {
+                    "name": "date",
+                    "display_name": "Date",
+                    "type": "date",
+                    "description": "Date of patient count",
+                    #"edit_mode": EditMode.INLINE,
+                    "disable_edit": True,
+                },
+                {
+                    "name": "patient_count_table",
+                    "display_name": "Patient Count",
+                    "type": "int",
+                    "description": "Patient count",
+                    #"edit_mode": EditMode.INLINE,
+                },
+            ],
+            value=[],
         ),
     ]
-
 
 
     # COMPONENT OUTPUTS
     # -----------------
     outputs = [
-        Output(display_name="DataFrame", name="dataframe", method="generate_forecast_model"),
+        Output(display_name="Epidemiology Forecast Model", name="epi_forecast_model", method="generate_forecast_model"),
     ]
 
 
@@ -129,11 +174,12 @@ class ForecastEpidemiology(Component):
     # -------------------
     def update_build_config(self, build_config, field_value, field_name = None):
 
-        # Changed field:  Input Type
+        # Changed field:  input_type
         if(field_name == "input_type"):
 
             # Time Based Input
             if(field_value == ForecastModelInputTypes.TIME_BASED):
+
                 # growth_rate (OFF)
                 build_config["growth_rate"]["show"] = False
                 build_config["growth_rate"]["required"] = False
@@ -142,17 +188,47 @@ class ForecastEpidemiology(Component):
                 build_config["time_scale"]["show"] = True
                 build_config["time_scale"]["required"] = True
 
-                # patient_count (ON)
-                build_config["patient_count"]["show"] = True
-                build_config["patient_count"]["required"] = True
+                # patient_count (OFF)
+                build_config["patient_count"]["show"] = False
+                build_config["patient_count"]["required"] = False
 
                 # month_start_of_fiscal_year (if time_scale is month ON, else OFF)
                 if(self.time_scale == ForecatModelTimescale.MONTH):
+
+                    # month_start_of_fiscal_year (ON)
                     build_config["month_start_of_fiscal_year"]["show"] = True
                     build_config["month_start_of_fiscal_year"]["required"] = True
-                else:
+
+                    # month_start_of_fiscal_year
+                    if(self.month_start_of_fiscal_year != []):
+                        # patient_count_table (ON)
+                        build_config["patient_count_table"]["value"] = self.generate_table_values()
+                        build_config["patient_count_table"]["show"] = True
+                        build_config["patient_count_table"]["required"] = True
+                    else:
+                        # patient_count_table (OFF)
+                        build_config["patient_count_table"]["show"] = False
+                        build_config["patient_count_table"]["required"] = False
+
+
+                elif(self.time_scale == ForecatModelTimescale.YEAR):
+                    # month_start_of_fiscal_year (OFF)
                     build_config["month_start_of_fiscal_year"]["show"] = False
                     build_config["month_start_of_fiscal_year"]["required"] = False
+
+                    # patient_count_table (ON)
+                    build_config["patient_count_table"]["value"] = self.generate_table_values()
+                    build_config["patient_count_table"]["show"] = True
+                    build_config["patient_count_table"]["required"] = True
+                
+                else:
+                    # month_start_of_fiscal_year (OFF)
+                    build_config["month_start_of_fiscal_year"]["show"] = False
+                    build_config["month_start_of_fiscal_year"]["required"] = False
+
+                    # patient_count_table (OFF)
+                    build_config["patient_count_table"]["show"] = False
+                    build_config["patient_count_table"]["required"] = False
             
             # Single Input
             elif(field_value == ForecastModelInputTypes.SINGLE_INPUT):
@@ -168,6 +244,10 @@ class ForecastEpidemiology(Component):
                 build_config["patient_count"]["show"] = True
                 build_config["patient_count"]["required"] = True
 
+                # patient_count_table (OFF)
+                build_config["patient_count_table"]["show"] = False
+                build_config["patient_count_table"]["required"] = False
+
                 # month_start_of_fiscal_year (OFF)
                 build_config["month_start_of_fiscal_year"]["show"] = False
                 build_config["month_start_of_fiscal_year"]["required"] = False
@@ -176,12 +256,45 @@ class ForecastEpidemiology(Component):
         # Changed field:  Time-Scale
         elif(field_name == "time_scale"):
             if(field_value == ForecatModelTimescale.MONTH):
+                # month_start_of_fiscal_year (ON)
                 build_config["month_start_of_fiscal_year"]["show"] = True
                 build_config["month_start_of_fiscal_year"]["required"] = True
 
-            else:
+                if(self.month_start_of_fiscal_year != []):
+                    # patient_count_table (ON)
+                    build_config["patient_count_table"]["value"] = self.generate_table_values()
+                    build_config["patient_count_table"]["show"] = True
+                    build_config["patient_count_table"]["required"] = True
+                else:
+                    build_config["patient_count_table"]["show"] = False
+                    build_config["patient_count_table"]["required"] = False
+
+            elif(field_value == ForecatModelTimescale.YEAR):
+                # month_start_of_fiscal_year (OFF)
                 build_config["month_start_of_fiscal_year"]["show"] = False
                 build_config["month_start_of_fiscal_year"]["required"] = False
+
+                # patient_count_table (ON)
+                build_config["patient_count_table"]["value"] = self.generate_table_values()
+                build_config["patient_count_table"]["show"] = True
+                build_config["patient_count_table"]["required"] = True
+            
+            else:
+                # month_start_of_fiscal_year (OFF)
+                build_config["month_start_of_fiscal_year"]["show"] = False
+                build_config["month_start_of_fiscal_year"]["required"] = False
+
+                # patient_count_table (ON)
+                build_config["patient_count_table"]["show"] = False
+                build_config["patient_count_table"]["required"] = False
+
+
+        # Changed field:  month_start_of_fiscal_year
+        elif(field_name == "month_start_of_fiscal_year"):
+                # patient_count_table (ON)
+                build_config["patient_count_table"]["value"] = self.generate_table_values()
+                build_config["patient_count_table"]["show"] = True
+                build_config["patient_count_table"]["required"] = True
 
                 
         # return updated config         
@@ -194,6 +307,7 @@ class ForecastEpidemiology(Component):
     def validate_inputs(self):
         msg = ""
 
+        # COMMON VALUE CHECKS
         # Number of Years in Forecast
         if(self.num_years < 1):
             msg += f"'\n{self.inputs[0].display_name}' must have a positive value"
@@ -202,23 +316,21 @@ class ForecastEpidemiology(Component):
         if(self.start_year < 1):
             msg += f"'\n{self.inputs[1].display_name}' must have a positive value"
 
-        
-        # Patient Count
-        if(self.patient_count < 0):
-            msg += f"'\n{self.inputs[2].display_name}' cannot be negative"
-        
-        # Input Type
-        # NO VALIDATION NEEDED
-        
-        # Month Start of Fiscal Year
-        # NO VALIDATION NEEDED
-        
-        # Growth Rate
-        # NO VALIDATION NEEDED
-        
-        # Time Scale
-        # NO VALIDATION NEEDED
 
+        # SINGLE_INPUT CHECKS
+        if(self.input_type == ForecastModelInputTypes.SINGLE_INPUT):
+            # Patient Count
+            if(self.patient_count < 1):
+                msg += f"'\n{self.inputs[3].display_name}' most be a positive number"
+
+            # Growth Rate
+            if(self.growth_rate > 0 and self.num_years < 2):
+                msg += f"'\n{self.inputs[0].display_name}' must be > 1, to have a {self.inputs[4].display_name} > 0"
+
+        # TIME_BASED CHECKS        
+        # NO VALIDATION NEEDED
+            
+        # if any errors occurred during validation, stop everything and raise an error
         if(msg != ""):
             self.status = msg
             raise ValueError(msg)
@@ -227,12 +339,102 @@ class ForecastEpidemiology(Component):
 
     # ASSOCIATED FUNCTIONS (convert inputs to outputs, i.e. biz logic)
     # --------------------
+        
+    # generate_forecast_model
+    # Output function epi_forecast_model end-point
+    # 
+    # INPUTS:
+    # OUTPUTS:
+    #   ForecastDataModel (which is automatically cast down to DataFrame)
     def generate_forecast_model(self) -> DataFrame:
         self.validate_inputs()
-
-        # determine how many time-units (rows) we will need
-        #if((self.input_type == ForecastEpidemiologyInputTypes.SINGLE_INPUT) or (() and ()))
-        
-        # return the dataframe
-        return DataFrame(columns=FORECAST_MODEL_DATAFRAME_COLUMNS)
+        patient_series = self.generate_epi_series()
+ 
+        return ForecastDataModel(
+            start_year = self.start_year,
+            num_years = self.num_years,
+            start_month=FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
+            data=patient_series,
+        )
     
+
+    # generate_epi_series
+    # Generate the patient counts for each year of the forecast period using the epi assumptions
+    # 
+    # INPUTS:
+    # OUTPUTS:
+    #   List of patient counts for each year of the forecast
+    def generate_epi_series(self) -> DataFrame:
+
+        # generate SINGLE_INPUT epi patient series
+        if(self.input_type == ForecastModelInputTypes.SINGLE_INPUT):
+            forecast_model = self.generate_single_input()
+
+        # generate TIME_BASED epi patient series
+        else:
+            forecast_model = self.generate_time_based()
+
+        return(forecast_model)
+    
+    
+    # generate_time_based
+    # Generate the epi patient counts using the TIME_BASED assumptions
+    # 
+    # INPUTS:
+    # OUTPUTS:
+    #   List of patient counts for each year of the forecast
+    def generate_time_based(self) -> DataFrame:
+        return(DataFrame(self.patient_count_table))
+
+
+    # generate_single_input
+    # Generate the epi patient counts using the SINGLE_INPUT assumptions
+    # 
+    # INPUTS:
+    # OUTPUTS:
+    #   List of patient counts for each year of the forecast
+    def generate_single_input(self) -> DataFrame:
+        # generate dates
+        time_series = gen_dates(start_year = self.start_year,
+                                num_years = self.num_years, 
+                                timescale = ForecatModelTimescale.YEAR)
+
+        # if forecast is only for 1 year, return a list with just one element, the patient count
+        if(self.num_years == 1):
+            epi_series = [self.patient_count]
+
+        # if forecast is for multiple years, but no growth rate, return num_years elements, with the patient count duplicated
+        elif(self.growth_rate == 0):
+            epi_series = [self.patient_count] * self.num_years
+        
+        # otherwise, we have multple years and a growth rate, so calculate the compounding growth from year 2 to the end
+        else:
+            epi_series = [0] * self.num_years
+            curr_patient_value = self.patient_count
+            epi_series[0] = curr_patient_value
+
+            for i in range(1, self.num_years):
+                curr_value = int(np.floor(epi_series[i-1] * (1+self.growth_rate)))
+                epi_series[i] = curr_value
+
+        forecast_model = DataFrame({ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series,
+                                    self.name: epi_series})
+        
+        return(forecast_model)
+    
+
+    # generate_table_values
+    # Generate the default values for the patient_count_table (dates and zeros for counts)
+    # 
+    # INPUTS:
+    # OUTPUTS:
+    #   List of dictionaries / one dictionary per row, looking like this:
+    #  value=[{"date": "2010-01-01", "patient_count_table": 10,},
+    #         {"date": "2010-02-01", "patient_count_table": 20,}],
+
+    def generate_table_values(self) -> List[dict]:
+        if((self.month_start_of_fiscal_year not in FORECAST_COMMON_MONTH_NAMES_AND_VALUES.keys()) or (self.num_years < 1)):
+            return([])
+
+        time_series = gen_dates(self.start_year, self.num_years, FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year], self.time_scale)
+        return([{"date": time_series[i], "patient_count_table": 0} for i in range(len(time_series))])
