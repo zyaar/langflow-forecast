@@ -22,6 +22,8 @@ from langflow.template import Output
 from typing import cast
 from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.components.forecasting.common.data_model.forecast_data_model import ForecastDataModel
+from langflow.components.forecasting.common.forms.forecast_form_updater import ForecastFormUpdater
+
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -169,134 +171,28 @@ class ForecastEpidemiology(Component):
     ]
 
 
+    # FORM UPDATE RULES
+    # -----------------
+    form_update_rules = {
+        "input_type": {
+            ForecastModelInputTypes.TIME_BASED: {"show_required": ["time_scale", "patient_count_table"], "hide": ["growth_rate", "patient_count"], "trigger_value_update": [("patient_count_table","generate_table_values")]},
+            ForecastModelInputTypes.SINGLE_INPUT: {"show_required": ["growth_rate", "patient_count"], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"], "trigger_value_update": [("patient_count_table","generate_table_values")]},
+        },
+        "time_scale": {
+            ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
+            ForecastModelTimescale.YEAR: {"hide": ["month_start_of_fiscal_year"]}
+        } 
+    }
+
+
+
 
     # UPDATE_BUILD_CONFIG (update dynamically changing fields in the form of the component)
     # -------------------
     def update_build_config(self, build_config, field_value, field_name = None):
+        forecastFormUpdater = ForecastFormUpdater()
+        build_config = forecastFormUpdater.forecast_update_fields(build_config, self.form_update_rules, generate_table_values = self.generate_table_values)
 
-        # Changed field:  input_type
-        if(field_name == "input_type"):
-
-            # Time Based Input
-            if(field_value == ForecastModelInputTypes.TIME_BASED):
-
-                # growth_rate (OFF)
-                build_config["growth_rate"]["show"] = False
-                build_config["growth_rate"]["required"] = False
-
-                # time_scale (ON)
-                build_config["time_scale"]["show"] = True
-                build_config["time_scale"]["required"] = True
-
-                # patient_count (OFF)
-                build_config["patient_count"]["show"] = False
-                build_config["patient_count"]["required"] = False
-
-                # month_start_of_fiscal_year (if time_scale is month ON, else OFF)
-                if(self.time_scale == ForecastModelTimescale.MONTH):
-
-                    # month_start_of_fiscal_year (ON)
-                    build_config["month_start_of_fiscal_year"]["show"] = True
-                    build_config["month_start_of_fiscal_year"]["required"] = True
-
-                    # month_start_of_fiscal_year
-                    if(self.month_start_of_fiscal_year != []):
-                        # patient_count_table (ON)
-                        build_config["patient_count_table"]["value"] = self.generate_table_values()
-                        build_config["patient_count_table"]["show"] = True
-                        build_config["patient_count_table"]["required"] = True
-                    else:
-                        # patient_count_table (OFF)
-                        build_config["patient_count_table"]["show"] = False
-                        build_config["patient_count_table"]["required"] = False
-
-
-                elif(self.time_scale == ForecastModelTimescale.YEAR):
-                    # month_start_of_fiscal_year (OFF)
-                    build_config["month_start_of_fiscal_year"]["show"] = False
-                    build_config["month_start_of_fiscal_year"]["required"] = False
-
-                    # patient_count_table (ON)
-                    build_config["patient_count_table"]["value"] = self.generate_table_values()
-                    build_config["patient_count_table"]["show"] = True
-                    build_config["patient_count_table"]["required"] = True
-                
-                else:
-                    # month_start_of_fiscal_year (OFF)
-                    build_config["month_start_of_fiscal_year"]["show"] = False
-                    build_config["month_start_of_fiscal_year"]["required"] = False
-
-                    # patient_count_table (OFF)
-                    build_config["patient_count_table"]["show"] = False
-                    build_config["patient_count_table"]["required"] = False
-            
-            # Single Input
-            elif(field_value == ForecastModelInputTypes.SINGLE_INPUT):
-                # growth_rate (ON)
-                build_config["growth_rate"]["show"] = True
-                build_config["growth_rate"]["required"] = True
-
-                # time_scale (OFF)
-                build_config["time_scale"]["show"] = False
-                build_config["time_scale"]["required"] = False
-                
-                # patient_count (ON)
-                build_config["patient_count"]["show"] = True
-                build_config["patient_count"]["required"] = True
-
-                # patient_count_table (OFF)
-                build_config["patient_count_table"]["show"] = False
-                build_config["patient_count_table"]["required"] = False
-
-                # month_start_of_fiscal_year (OFF)
-                build_config["month_start_of_fiscal_year"]["show"] = False
-                build_config["month_start_of_fiscal_year"]["required"] = False
-                
-        
-        # Changed field:  Time-Scale
-        elif(field_name == "time_scale"):
-            if(field_value == ForecastModelTimescale.MONTH):
-                # month_start_of_fiscal_year (ON)
-                build_config["month_start_of_fiscal_year"]["show"] = True
-                build_config["month_start_of_fiscal_year"]["required"] = True
-
-                if(self.month_start_of_fiscal_year != []):
-                    # patient_count_table (ON)
-                    build_config["patient_count_table"]["value"] = self.generate_table_values()
-                    build_config["patient_count_table"]["show"] = True
-                    build_config["patient_count_table"]["required"] = True
-                else:
-                    build_config["patient_count_table"]["show"] = False
-                    build_config["patient_count_table"]["required"] = False
-
-            elif(field_value == ForecastModelTimescale.YEAR):
-                # month_start_of_fiscal_year (OFF)
-                build_config["month_start_of_fiscal_year"]["show"] = False
-                build_config["month_start_of_fiscal_year"]["required"] = False
-
-                # patient_count_table (ON)
-                build_config["patient_count_table"]["value"] = self.generate_table_values()
-                build_config["patient_count_table"]["show"] = True
-                build_config["patient_count_table"]["required"] = True
-            
-            else:
-                # month_start_of_fiscal_year (OFF)
-                build_config["month_start_of_fiscal_year"]["show"] = False
-                build_config["month_start_of_fiscal_year"]["required"] = False
-
-                # patient_count_table (ON)
-                build_config["patient_count_table"]["show"] = False
-                build_config["patient_count_table"]["required"] = False
-
-
-        # Changed field:  month_start_of_fiscal_year
-        elif(field_name == "month_start_of_fiscal_year"):
-                # patient_count_table (ON)
-                build_config["patient_count_table"]["value"] = self.generate_table_values()
-                build_config["patient_count_table"]["show"] = True
-                build_config["patient_count_table"]["required"] = True
-
-                
         # return updated config         
         return(build_config)
 

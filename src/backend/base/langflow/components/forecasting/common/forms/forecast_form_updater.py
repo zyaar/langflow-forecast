@@ -22,7 +22,7 @@ class ForecastFormUpdater():
         SHOW_REQUIRED = "show_required"
         SHOW_OPTIONAL = "show_optional"
         HIDE = "hide"
-        TRIGGER = "trigger"
+        TRIGGER = "trigger_value_update"
 
     # forecast_show_fields
     # Given a list of variables to show , iterate over each
@@ -37,6 +37,9 @@ class ForecastFormUpdater():
     def forecast_show_fields(self, build_config, list_of_vars):
 
         for curr_var in list_of_vars:
+            if curr_var not in build_config:
+                raise ValueError(f"Uanble to run forecast_show_fields: invalid build_config field '{curr_var}'.")
+            
             build_config[curr_var]["show"] = True
         
         return(build_config)
@@ -56,6 +59,9 @@ class ForecastFormUpdater():
     def forecast_toggle_show_fields(self, build_config, list_of_vars):
 
         for curr_var in list_of_vars:
+            if curr_var not in build_config:
+                raise ValueError(f"Uanble to run forecast_toggle_show_fields: invalid build_config field '{curr_var}'.")
+            
             build_config[curr_var]["show"] = not build_config[curr_var]["show"]
         
         return(build_config)
@@ -75,6 +81,9 @@ class ForecastFormUpdater():
     def forecast_show_required_fields(self, build_config, list_of_vars):
 
         for curr_var in list_of_vars:
+            if curr_var not in build_config:
+                raise ValueError(f"Uanble to run forecast_show_required_fields: invalid build_config field '{curr_var}'.")
+            
             build_config[curr_var]["show"] = True
             build_config[curr_var]["required"] = True
         
@@ -95,6 +104,9 @@ class ForecastFormUpdater():
     def forecast_show_optional_fields(self, build_config, list_of_vars):
 
         for curr_var in list_of_vars:
+            if curr_var not in build_config:
+                raise ValueError(f"Uanble to run forecast_show_optional_fields: invalid build_config field '{curr_var}'.")
+
             build_config[curr_var]["show"] = True
             build_config[curr_var]["required"] = False
         
@@ -115,11 +127,38 @@ class ForecastFormUpdater():
     def forecast_hide_fields(self, build_config, list_of_vars):
 
         for curr_var in list_of_vars:
+            if curr_var not in build_config:
+                raise ValueError(f"Uanble to run forecast_hide_fields: invalid build_config field '{curr_var}'.")
+
             build_config[curr_var]["show"] = False
             build_config[curr_var]["required"] = False
         
         return(build_config)
 
+
+    # forecast_trigger_value_update
+    # Given a list of code snippets, iterate over each
+    # one and execute them as python code
+    # 
+    # INPUTS:
+    #   build_config: Pydantic build_config structure
+    #   list_of_updates: List of dicts, key is field to update, value is kwarg argument with the function to execute
+    #
+    # OUTPUTS:
+    def forecast_trigger_value_update(self, build_config, list_of_updates, kwargs):
+
+        for update in list_of_updates:
+            value_to_update = update[0]
+            function_to_call = update[1]
+
+            if value_to_update not in build_config:
+                raise ValueError(f"Uanble to run forecast_update_fields trigger action: invalid build_config field '{value_to_update}'.")
+
+            if function_to_call not in kwargs:
+               raise ValueError(f"Uanble to run forecast_update_fields trigger action: invalid function '{function_to_call}'.")            
+            
+            build_config[value_to_update]["value"] = kwargs[function_to_call]()
+ 
 
 
     # forecast_update_component_fields
@@ -131,6 +170,14 @@ class ForecastFormUpdater():
     #   build_config: Pydantic build_config structure
     #   biz_rules:  The structure shown below for executing the business rules on the form in the component
     #
+    # ACTIONS IMPLEMENTED:
+    #   show - show the fields
+    #   toggle - flip the show/hide for the fields from it's current state
+    #   show_required - show the fields, make them required
+    #   show_optional - show the fields, but NOT required
+    #   hide - hide the fields (and make them NOT required)
+    #   trigger - execute a piece of code (stored as a string)
+    # 
     # OUTPUTS:
     #   build_config
     #
@@ -141,12 +188,15 @@ class ForecastFormUpdater():
     #         "var_value2": {"action1": [], "action2": [], "action3": [], "action4": [], "action5": [], "action6": []},
     #     },
     #     "input_type": {
-    #         ForecastModelInputTypes.TIME_BASED: {"show": ["time_scale",], "toggle": [], "show_required": [], "show_optional": [], "hide": ["growth_rate", "patient_count"], "trigger": []},
-    #         ForecastModelInputTypes.SINGLE_INPUT: {"show": ["growth_rate", "patient_count"], "toggle": [], "show_required": [], "show_optional": [], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"], "trigger": []},
-    #     },    
-    # }
+    #         ForecastModelInputTypes.TIME_BASED: {"show": ["time_scale",], "toggle": [], "show_required": [], "show_optional": [], "hide": ["growth_rate", "patient_count"], "trigger_value_update": []},
+    #         ForecastModelInputTypes.SINGLE_INPUT: {"show": ["growth_rate", "patient_count"], "toggle": [], "show_required": [], "show_optional": [], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"], "trigger_value_update": []},
+    #     },
+    #     "time_scale": {
+    #         ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
+    #         ForecastModelTimescale.YEAR: {"hide": ["month_start_of_fiscal_year"]}
+    # } 
 
-    def forecast_update_fields(self, build_config, biz_rules, only_shown_fields = False):
+    def forecast_update_fields(self, build_config, biz_rules, only_shown_fields = False, **kwargs):
         # if there are no keys in the biz_rules, raise an error
         if(len(biz_rules.keys()) < 1):
             raise ValueError(f'Unable to run forecast_update_fields:  no biz_rules provided.')
@@ -197,7 +247,9 @@ class ForecastFormUpdater():
                         build_config = self.forecast_show_optional_fields(build_config, action_fields)
                     case self.RULE_TYPES.HIDE:
                         build_config = self.forecast_hide_fields(build_config, action_fields)
+                    case self.RULE_TYPES.TRIGGER:
+                        self.forecast_trigger_value_update(build_config, action_fields, kwargs)
                     case _:
-                        raise ValueError(f'Uanble to run forecast_update_fields: for {var_name} invalid rule {action}.')
+                        raise ValueError(f"Uanble to run forecast_update_fields: for '{var_name}' invalid action '{action}'.")
                 
         return(build_config)
