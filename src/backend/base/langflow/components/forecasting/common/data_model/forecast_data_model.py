@@ -2,7 +2,7 @@ import pandas as pd
 from langflow.schema.data import Data
 from langflow.schema.dataframe import DataFrame
 
-from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecatModelTimescale
+from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.components.forecasting.common.date_utils import gen_dates
 
 
@@ -37,7 +37,7 @@ class ForecastDataModel(DataFrame):
                 num_years: int = 5,
                 input_type: ForecastModelInputTypes = None,
                 start_month: int = FORECAST_COMMON_MONTH_NAMES_AND_VALUES["January"], # default to January start date
-                timescale: ForecatModelTimescale = None,
+                timescale: ForecastModelTimescale = None,
                 **kwargs,
                 ):
             

@@ -10,7 +10,7 @@
 
 from typing import List
 import pandas as pd
-from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecatModelTimescale
+from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelTimescale
 
 
 # FUNCTIONS
@@ -28,7 +28,7 @@ from langflow.components.forecasting.common.constants import FORECAST_COMMON_MON
 #   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
 # OUTPUTS:
 #   List of pd.Timestamps with the year end of month end dates in the forecast
-def gen_dates(start_year: int, num_years: int, start_month: int=1, timescale: ForecatModelTimescale = ForecatModelTimescale.YEAR)-> List[pd.Timestamp]:
+def gen_dates(start_year: int, num_years: int, start_month: int=1, timescale: ForecastModelTimescale = ForecastModelTimescale.YEAR)-> List[pd.Timestamp]:
     start_date = f"{start_year:04}-{start_month:02}-01"
     time_series = None
 
@@ -36,7 +36,7 @@ def gen_dates(start_year: int, num_years: int, start_month: int=1, timescale: Fo
     num_periods = num_years
 
     # set the frequency (timescale) of the dates
-    if(timescale == ForecatModelTimescale.MONTH):
+    if(timescale == ForecastModelTimescale.MONTH):
         num_periods = num_periods * 12
         time_series = pd.date_range(start_date, periods=num_periods, freq="ME")
 

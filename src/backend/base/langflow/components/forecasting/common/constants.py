@@ -33,19 +33,7 @@ class ForecastModelInputTypes(str, Enum):
     TIME_BASED = "Time Based Input"
     SINGLE_INPUT = "Single Input"
 
-# # Columns in the forecasting model to create in Pandas dataframe
-# FORECAST_COMMON_FORECAST_MODEL_COLUMNS = [
-#     "timestamp",
-#     "volume"
-# ]
 
-class ForecatModelTimescale(str, Enum):
+class ForecastModelTimescale(str, Enum):
     MONTH = "Month"
     YEAR = "Year"
-
-
-# # Columns in the forecasting model to create in Pandas dataframe
-# FORECAST_MODEL_DATAFRAME_COLUMNS = [
-#     "timestamp",
-#     "volume"
-# ]

@@ -20,7 +20,7 @@ from langflow.template import Output
 # FORECAST SPECIFIC IMPORTS
 # =========================
 from typing import cast
-from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecatModelTimescale
+from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.components.forecasting.common.data_model.forecast_data_model import ForecastDataModel
 
 
@@ -111,7 +111,7 @@ class ForecastEpidemiology(Component):
             name = "time_scale",
             display_name = "Time-Scale",
             info = "The granularity of the time scale for the forecast.",
-            options = [op.value for op in ForecatModelTimescale],
+            options = [op.value for op in ForecastModelTimescale],
             value = [],
             required = False,
             show = False,
@@ -193,7 +193,7 @@ class ForecastEpidemiology(Component):
                 build_config["patient_count"]["required"] = False
 
                 # month_start_of_fiscal_year (if time_scale is month ON, else OFF)
-                if(self.time_scale == ForecatModelTimescale.MONTH):
+                if(self.time_scale == ForecastModelTimescale.MONTH):
 
                     # month_start_of_fiscal_year (ON)
                     build_config["month_start_of_fiscal_year"]["show"] = True
@@ -211,7 +211,7 @@ class ForecastEpidemiology(Component):
                         build_config["patient_count_table"]["required"] = False
 
 
-                elif(self.time_scale == ForecatModelTimescale.YEAR):
+                elif(self.time_scale == ForecastModelTimescale.YEAR):
                     # month_start_of_fiscal_year (OFF)
                     build_config["month_start_of_fiscal_year"]["show"] = False
                     build_config["month_start_of_fiscal_year"]["required"] = False
@@ -255,7 +255,7 @@ class ForecastEpidemiology(Component):
         
         # Changed field:  Time-Scale
         elif(field_name == "time_scale"):
-            if(field_value == ForecatModelTimescale.MONTH):
+            if(field_value == ForecastModelTimescale.MONTH):
                 # month_start_of_fiscal_year (ON)
                 build_config["month_start_of_fiscal_year"]["show"] = True
                 build_config["month_start_of_fiscal_year"]["required"] = True
@@ -269,7 +269,7 @@ class ForecastEpidemiology(Component):
                     build_config["patient_count_table"]["show"] = False
                     build_config["patient_count_table"]["required"] = False
 
-            elif(field_value == ForecatModelTimescale.YEAR):
+            elif(field_value == ForecastModelTimescale.YEAR):
                 # month_start_of_fiscal_year (OFF)
                 build_config["month_start_of_fiscal_year"]["show"] = False
                 build_config["month_start_of_fiscal_year"]["required"] = False
@@ -397,7 +397,7 @@ class ForecastEpidemiology(Component):
         # generate dates
         time_series = gen_dates(start_year = self.start_year,
                                 num_years = self.num_years, 
-                                timescale = ForecatModelTimescale.YEAR)
+                                timescale = ForecastModelTimescale.YEAR)
 
         # if forecast is only for 1 year, return a list with just one element, the patient count
         if(self.num_years == 1):
