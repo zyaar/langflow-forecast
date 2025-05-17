@@ -20,7 +20,7 @@ from langflow.template import Output
 # FORECAST SPECIFIC IMPORTS
 # =========================
 from typing import cast
-from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
+from langflow.components.forecasting.common.constants import FORECAST_MIN_FORECAST_START_YEAR, FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.components.forecasting.common.data_model.forecast_data_model import ForecastDataModel
 from langflow.components.forecasting.common.forms.forecast_form_updater import ForecastFormUpdater
 from langflow.components.forecasting.common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
@@ -78,39 +78,6 @@ class ForecastEpidemiology(Component):
             real_time_refresh = True,
         ),
 
-        # Input Type
-        DropdownInput(
-            name="input_type",
-            display_name="Input Type",
-            info="Determines the type of forecast to generate.  'Time Based Input' generates a forecast broken down to a fixed time units (i.e. monthly).  'Single Input' generates a forecast with no breakdown.",
-            options=[op.value for op in ForecastModelInputTypes],
-            value="",
-            required = True,
-            real_time_refresh = True,
-        ),
-
-        # Patient Count
-        IntInput(
-            name = "patient_count",
-            display_name = "Patient Count",
-            info = "The annual count of patients entering the model for the forecast.",
-            value = 0,
-            required = False,
-            show = False,
-            dynamic = True,
-        ),
-
-        # Growth Rate
-        FloatInput(
-            name = "growth_rate",
-            display_name = "Growth Rate (percent annual)",
-            info = "The rate of growth of number of patients entering the forecast year over year.  Enter the decimal value for the percentage (i.e. for 5%% enter 0.05, 10%% enter 0.1, etc.)",
-            value = 0.0,
-            required = False,
-            show = False,
-            dynamic = True,
-        ),
-
         # Time Scale
         DropdownInput(
             name = "time_scale",
@@ -118,9 +85,8 @@ class ForecastEpidemiology(Component):
             info = "The granularity of the time scale for the forecast.",
             options = [op.value for op in ForecastModelTimescale],
             value = "",
-            required = False,
-            show = False,
-            dynamic = True,
+            required = True,
+            show = True,
             real_time_refresh = True,
         ),
 
@@ -131,17 +97,50 @@ class ForecastEpidemiology(Component):
             info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
             options=list(FORECAST_COMMON_MONTH_NAMES_AND_VALUES.keys()),
             value=list(FORECAST_COMMON_MONTH_NAMES_AND_VALUES.keys())[0],
-            required = False,
-            show = False,
-            dynamic = True,
+            required = True,
+            show = True,
             real_time_refresh = True,
+        ),
+
+        # Input Type
+        DropdownInput(
+            name = "input_type",
+            display_name = "Input Type",
+            info = "Determines the type of forecast to generate.  'Time Based Input' generates which allows for individual values to be entered at the time-scale chosen.  'Single Input' uses a base value and growth/shrink rate at the time-scale chosen.",
+            options = [op.value for op in ForecastModelInputTypes],
+            value = "",
+            required = True,
+            show = True,
+            real_time_refresh = True,
+        ),
+
+        # Patient Count
+        IntInput(
+            name="patient_count",
+            display_name="Patient Count",
+            info="The count of new patients entering the model for each time-scale period in the forecast.",
+            value=0,
+            required=False,
+            show=False,
+            dynamic=True,
+        ),
+
+        # Growth Rate
+        FloatInput(
+            name="growth_rate",
+            display_name="Growth Rate (% in the time-scale)",
+            info="The rate of growth of number of patients entering the forecast year over year.  Enter the decimal value for the percentage (i.e. for 5%% enter 0.05, 10%% enter 0.1, etc.)",
+            value=0.0,
+            required=False,
+            show=False,
+            dynamic=True,
         ),
 
         # Patient Count Table
         TableInput(
             name="patient_count_table",
-            display_name="Patient Counts (by Month)",
-            info="For each time period, enter the expected number of patients entering the forecast.",
+            display_name="Patient Counts (by Time-Scale)",
+            info="For each time-scale period, enter the expected number of patients entering the forecast.",
             required=False,
             show=False,
             dynamic=True,
@@ -178,13 +177,9 @@ class ForecastEpidemiology(Component):
     # -----------------
     form_update_rules = {
         "input_type": {
-            ForecastModelInputTypes.TIME_BASED: {"show_required": ["time_scale", "patient_count_table"], "hide": ["growth_rate", "patient_count"]},
-            ForecastModelInputTypes.SINGLE_INPUT: {"show_required": ["growth_rate", "patient_count"], "hide": ["time_scale", "month_start_of_fiscal_year", "patient_count_table"]},
+            ForecastModelInputTypes.TIME_BASED: {"show_required": ["patient_count_table"], "hide": ["growth_rate", "patient_count"]},
+            ForecastModelInputTypes.SINGLE_INPUT: {"show_required": ["growth_rate", "patient_count"], "hide": ["patient_count_table"]},
         },
-        "time_scale": {
-           ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
-           ForecastModelTimescale.YEAR: {"hide": ["month_start_of_fiscal_year"]}
-        } 
     }
 
     form_trigger_rules = {
@@ -226,35 +221,39 @@ class ForecastEpidemiology(Component):
     def validate_inputs(self):
         msg = ""
 
-        # CHECK ALL REQUIRED INPUTS
-        # input_type
-        if(self.input_type == ""):
-            msg += f'\nNo input_type selected.'
-
         # COMMON VALUE CHECKS
+
         # Number of Years in Forecast
         if(self.num_years < 1):
-            msg += f"'\n{self.inputs[0].display_name}' must have a positive value"
+            msg += f"\n'{self._inputs["num_years"].display_name}:' must have a positive value."
 
         # Start Year
-        if(self.start_year < 1):
-            msg += f"'\n{self.inputs[1].display_name}' must have a positive value"
+        if(self.start_year < FORECAST_MIN_FORECAST_START_YEAR):
+            msg += f"\n'{self._inputs["start_year"].display_name}:' cannot be earlier than {FORECAST_MIN_FORECAST_START_YEAR}."
 
-        # TIME_BASED CHECKS
+        # Time-Scale
+        if(self.time_scale == ""):
+            msg += f"\n'{self._inputs["time_scale"].display_name}:' no valid value selected."
+
+        # Input Type
         if(self.input_type == ForecastModelInputTypes.TIME_BASED):
-            # Time Scale
-            if(self.time_scale == ""):
-                msg += f'\nNo time_scale selected.'
+            # do nothing
+            True
 
         # SINGLE_INPUT CHECKS
         elif(self.input_type == ForecastModelInputTypes.SINGLE_INPUT):
             # Patient Count
             if(self.patient_count < 1):
-                msg += f"'\n{self.inputs[3].display_name}' most be a positive number"
-
+                msg += f"\n'{self._inputs["patient_count"].display_name}' must be a positive number"
+            
             # Growth Rate
             if(self.growth_rate > 0 and self.num_years < 2):
-                msg += f"'\n{self.inputs[0].display_name}' must be > 1, to have a {self.inputs[4].display_name} > 0"
+                msg += f"Positive growth rate will never be applied if '{self._inputs["num_years"].display_name}' is set to 1."
+        
+
+        else:
+           msg += f"\n'{self._inputs["input_type"].display_name}:' no valid value selected."
+
 
         # TIME_BASED CHECKS        
         # NO VALIDATION NEEDED
@@ -262,6 +261,7 @@ class ForecastEpidemiology(Component):
         # if any errors occurred during validation, stop everything and raise an error
         if(msg != ""):
             self.status = msg
+            self.stop
             raise ValueError(msg)
 
 
@@ -326,30 +326,30 @@ class ForecastEpidemiology(Component):
     def generate_single_input(self) -> DataFrame:
         # generate dates
         time_series = gen_dates(start_year = self.start_year,
-                                num_years = self.num_years, 
-                                timescale = ForecastModelTimescale.YEAR)
-
-        # if forecast is only for 1 year, return a list with just one element, the patient count
-        if(self.num_years == 1):
-            epi_series = [self.patient_count]
-
-        # if forecast is for multiple years, but no growth rate, return num_years elements, with the patient count duplicated
-        elif(self.growth_rate == 0):
-            epi_series = [self.patient_count] * self.num_years
+                                num_years = self.num_years,
+                                start_month = FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
+                                time_scale = self.time_scale)
         
-        # otherwise, we have multple years and a growth rate, so calculate the compounding growth from year 2 to the end
+        # determine the number of periods to return 
+        # (either the total years of the forecast, or the total years * 12 months per year of the forecast)
+        num_periods = self.num_years if self.time_scale == ForecastModelTimescale.YEAR else self.num_years * 12
+
+        # if there is no growth rate, return the patient count for each time period
+        if(self.growth_rate == 0):
+            epi_series = [self.patient_count] * num_periods
+
+        # if we have a growth rate, start with the initial patient count and add a growth rate to each subsequent
+        # time period
         else:
-            epi_series = [0] * self.num_years
+            epi_series = [0] * self.num_years if self.time_scale == ForecastModelTimescale.YEAR else [0] * self.num_years * 12
             curr_patient_value = self.patient_count
-            epi_series[0] = curr_patient_value
 
-            for i in range(1, self.num_years):
-                curr_value = int(np.floor(epi_series[i-1] * (1+self.growth_rate)))
-                epi_series[i] = curr_value
-
-        forecast_model = DataFrame({ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series,
-                                    self.name: epi_series})
+            for i in range(num_periods):
+                epi_series[i] = int(np.floor(curr_patient_value))
+                curr_patient_value = curr_patient_value * (1+self.growth_rate)
         
+        # return as a dataframe
+        forecast_model = DataFrame({ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series, self.name: epi_series})
         return(forecast_model)
     
 
