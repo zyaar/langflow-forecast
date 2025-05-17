@@ -1,11 +1,34 @@
-#####################################################################
-# ForecastFormUpdate
-#
-# Series of helper functions to make code cleaner in the Compoents
-# when running business rules around what fields to show, hide, make
-# required, make optional, etc.
-#
-#####################################################################
+###################################################
+# ForecastFormUpdater
+# 
+# Given a set of business rules in a structure shown below, run through the structure
+# and execute the fields per the rules.  This should reduce the amount of business logic
+# specific code written in each and every component to a simple structure that can be configured
+# 
+# ACTIONS IMPLEMENTED:
+#   show - show the fields
+#   toggle - flip the show/hide for the fields from it's current state
+#   show_required - show the fields, make them required
+#   show_optional - show the fields, but NOT required
+#   hide - hide the fields (and make them NOT required)
+# 
+# Business rules structure to feed in:
+# biz_rules = {
+#         "var_name1": {
+#                 "var_value1": {"action1": [], "action2": [], "action3": [], "action4": [], "action5": [], "action6": []},
+#                 "var_value2": {"action1": [], "action2": [], "action3": [], "action4": [], "action5": [], "action6": []},
+#         },
+#         "input_type": {
+#                 ForecastModelInputTypes.TIME_BASED: {"show": ["time_scale",], "toggle": [], "show_required": [], "show_optional": [], "hide": ["growth_rate", "patient_count"]},
+#                 ForecastModelInputTypes.SINGLE_INPUT: {"show": ["growth_rate", "patient_count"], "toggle": [], "show_required": [], "show_optional": [], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"]},
+#         },
+#         "time_scale": {
+#                 ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
+#                 ForecastModelTimescale.YEAR: {"hide": ["month_start_of_fiscal_year"]},
+#         },
+# }
+###################################################
+
 
 # COMMON IMPORTS
 # ==============
@@ -14,15 +37,15 @@ from enum import Enum
 
 
 class ForecastFormUpdater():
+    # Enum of supporting form action types
     # "show": [], "toggle": [], "show_required": [], "show_optional": [], "hide": [], "trigger": []
-    # Enum of supporting forecast types
     class RULE_TYPES(str, Enum):
         SHOW = "show"
         TOGGLE = "toggle"
         SHOW_REQUIRED = "show_required"
         SHOW_OPTIONAL = "show_optional"
         HIDE = "hide"
-        TRIGGER = "trigger_value_update"
+
 
     # forecast_show_fields
     # Given a list of variables to show , iterate over each
@@ -136,31 +159,6 @@ class ForecastFormUpdater():
         return(build_config)
 
 
-    # forecast_trigger_value_update
-    # Given a list of code snippets, iterate over each
-    # one and execute them as python code
-    # 
-    # INPUTS:
-    #   build_config: Pydantic build_config structure
-    #   list_of_updates: List of dicts, key is field to update, value is kwarg argument with the function to execute
-    #
-    # OUTPUTS:
-    def forecast_trigger_value_update(self, build_config, list_of_updates, kwargs):
-
-        for update in list_of_updates:
-            value_to_update = update[0]
-            function_to_call = update[1]
-
-            if value_to_update not in build_config:
-                raise ValueError(f"Uanble to run forecast_update_fields trigger action: invalid build_config field '{value_to_update}'.")
-
-            if function_to_call not in kwargs:
-               raise ValueError(f"Uanble to run forecast_update_fields trigger action: invalid function '{function_to_call}'.")            
-            
-            build_config[value_to_update]["value"] = kwargs[function_to_call]()
- 
-
-
     # forecast_update_component_fields
     # Given a set of business rules in a structure shown below, run through the structure
     # and execute the fields per the rules.  This should reduce the amount of business logic
@@ -168,35 +166,17 @@ class ForecastFormUpdater():
     # 
     # INPUTS:
     #   build_config: Pydantic build_config structure
-    #   biz_rules:  The structure shown below for executing the business rules on the form in the component
-    #
-    # ACTIONS IMPLEMENTED:
-    #   show - show the fields
-    #   toggle - flip the show/hide for the fields from it's current state
-    #   show_required - show the fields, make them required
-    #   show_optional - show the fields, but NOT required
-    #   hide - hide the fields (and make them NOT required)
-    #   trigger - execute a piece of code (stored as a string)
+    #   biz_rules:  The structure shown below for executing the business rules on the form in the component (see file header for examples and information)
+    #   field_value:  The value of the field currently being updated
+    #   field_name:  The name of the field currently being updated
+    #   only_shown_field:  A flag that instructs the function to only run biz rules for form fields currently flagged as "show" = True, OTHER THAN
+    #                       the field being updated (this prevents running rules on hidden fields which can mess up the logic)
     # 
     # OUTPUTS:
     #   build_config
-    #
-    # biz_rules structure:
-    # {
-    #     "var_name1": {
-    #         "var_value1": {"action1": [], "action2": [], "action3": [], "action4": [], "action5": [], "action6": []},
-    #         "var_value2": {"action1": [], "action2": [], "action3": [], "action4": [], "action5": [], "action6": []},
-    #     },
-    #     "input_type": {
-    #         ForecastModelInputTypes.TIME_BASED: {"show": ["time_scale",], "toggle": [], "show_required": [], "show_optional": [], "hide": ["growth_rate", "patient_count"], "trigger_value_update": []},
-    #         ForecastModelInputTypes.SINGLE_INPUT: {"show": ["growth_rate", "patient_count"], "toggle": [], "show_required": [], "show_optional": [], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"], "trigger_value_update": []},
-    #     },
-    #     "time_scale": {
-    #         ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
-    #         ForecastModelTimescale.YEAR: {"hide": ["month_start_of_fiscal_year"]}
-    # } 
 
-    def forecast_update_fields(self, build_config, biz_rules, only_shown_fields = False, **kwargs):
+    def forecast_update_fields(self, build_config, biz_rules, field_value, field_name, only_shown_fields=True):
+
         # if there are no keys in the biz_rules, raise an error
         if(len(biz_rules.keys()) < 1):
             raise ValueError(f'Unable to run forecast_update_fields:  no biz_rules provided.')
@@ -208,11 +188,13 @@ class ForecastFormUpdater():
             if var_name not in build_config.keys():
                 raise ValueError(f'Unable to run forecast_update_fields: {var_name} does not exist in the build_config.')
             
-            # if 'only_shown_fields' flag is on, then only check fields who are currently set-up for as "show"=True
-            if(build_config[var_name]["show"] == False):
-                continue
-            
-            # if it's a legitimate field, grab the value (var_value) of the field in build_config and
+            # if the "only_shown_fields" flag is set, check that it's EITHER:  shown=True, OR it's the field
+            # being changed (i.e. == field_name)
+            if(only_shown_fields):
+                if((build_config[var_name]["show"] != True) and (var_name != field_name)):
+                    continue
+                        
+            # Grab the value (var_value) of the field in build_config and
             # find out what business rules (if any) are assigned to that var_value
             var_value = build_config[var_name]["value"]
 
@@ -247,8 +229,6 @@ class ForecastFormUpdater():
                         build_config = self.forecast_show_optional_fields(build_config, action_fields)
                     case self.RULE_TYPES.HIDE:
                         build_config = self.forecast_hide_fields(build_config, action_fields)
-                    case self.RULE_TYPES.TRIGGER:
-                        self.forecast_trigger_value_update(build_config, action_fields, kwargs)
                     case _:
                         raise ValueError(f"Uanble to run forecast_update_fields: for '{var_name}' invalid action '{action}'.")
                 

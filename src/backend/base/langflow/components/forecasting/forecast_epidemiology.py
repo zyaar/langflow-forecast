@@ -23,6 +23,7 @@ from typing import cast
 from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.components.forecasting.common.data_model.forecast_data_model import ForecastDataModel
 from langflow.components.forecasting.common.forms.forecast_form_updater import ForecastFormUpdater
+from langflow.components.forecasting.common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 
 
 
@@ -64,6 +65,7 @@ class ForecastEpidemiology(Component):
             info="The number of years to include in the forecast.",
             value=5,
             required=True,
+            real_time_refresh = True,
         ),
 
         # Start Year
@@ -73,6 +75,7 @@ class ForecastEpidemiology(Component):
             info="The first year to forecast.  This can be a year value (i.e. 2026) or any integer (i.e. 1).  The system will simply use it as a reference point and add +1 for each year until it reaches the number of years to forecast.",
             value=datetime.now().year + 1,
             required=True,
+            real_time_refresh = True,
         ),
 
         # Input Type
@@ -81,7 +84,7 @@ class ForecastEpidemiology(Component):
             display_name="Input Type",
             info="Determines the type of forecast to generate.  'Time Based Input' generates a forecast broken down to a fixed time units (i.e. monthly).  'Single Input' generates a forecast with no breakdown.",
             options=[op.value for op in ForecastModelInputTypes],
-            value=[],
+            value="",
             required = True,
             real_time_refresh = True,
         ),
@@ -114,7 +117,7 @@ class ForecastEpidemiology(Component):
             display_name = "Time-Scale",
             info = "The granularity of the time scale for the forecast.",
             options = [op.value for op in ForecastModelTimescale],
-            value = [],
+            value = "",
             required = False,
             show = False,
             dynamic = True,
@@ -175,24 +178,44 @@ class ForecastEpidemiology(Component):
     # -----------------
     form_update_rules = {
         "input_type": {
-            ForecastModelInputTypes.TIME_BASED: {"show_required": ["time_scale", "patient_count_table"], "hide": ["growth_rate", "patient_count"], "trigger_value_update": [("patient_count_table","generate_table_values")]},
-            ForecastModelInputTypes.SINGLE_INPUT: {"show_required": ["growth_rate", "patient_count"], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"], "trigger_value_update": [("patient_count_table","generate_table_values")]},
+            ForecastModelInputTypes.TIME_BASED: {"show_required": ["time_scale", "patient_count_table"], "hide": ["growth_rate", "patient_count"]},
+            ForecastModelInputTypes.SINGLE_INPUT: {"show_required": ["growth_rate", "patient_count"], "hide": ["time_scale", "month_start_of_fiscal_year", "patient_count_table"]},
         },
         "time_scale": {
-            ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
-            ForecastModelTimescale.YEAR: {"hide": ["month_start_of_fiscal_year"]}
+           ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
+           ForecastModelTimescale.YEAR: {"hide": ["month_start_of_fiscal_year"]}
         } 
     }
 
-
+    form_trigger_rules = {
+       "patient_count_table": ("generate_table_values", ["num_years", "start_year", "input_type", "time_scale", "month_start_of_fiscal_year"]),
+    }
+    
 
 
     # UPDATE_BUILD_CONFIG (update dynamically changing fields in the form of the component)
     # -------------------
     def update_build_config(self, build_config, field_value, field_name = None):
-        forecastFormUpdater = ForecastFormUpdater()
-        build_config = forecastFormUpdater.forecast_update_fields(build_config, self.form_update_rules, generate_table_values = self.generate_table_values)
 
+        # update the fields in the form to show/hide, based on the field updated
+        forecastFormUpdater = ForecastFormUpdater()
+        build_config = forecastFormUpdater.forecast_update_fields(build_config, 
+                                                                  self.form_update_rules,
+                                                                  field_value = field_value,
+                                                                  field_name = field_name,
+                                                                  only_shown_fields=True)
+        
+        # update the calculated values of fields in the form based on the field updated        
+        forecastFormTriggerCalc = ForecastFormTriggerCalc()
+        build_config = forecastFormTriggerCalc.forecast_update_fields(build_config,
+                                                                      self.form_trigger_rules,
+                                                                      field_value=field_value,
+                                                                      field_name=field_name,
+
+                                                                      # list of all the updater functions for calculated fields
+                                                                      generate_table_values=self.generate_table_values)
+
+        
         # return updated config         
         return(build_config)
 
@@ -203,6 +226,11 @@ class ForecastEpidemiology(Component):
     def validate_inputs(self):
         msg = ""
 
+        # CHECK ALL REQUIRED INPUTS
+        # input_type
+        if(self.input_type == ""):
+            msg += f'\nNo input_type selected.'
+
         # COMMON VALUE CHECKS
         # Number of Years in Forecast
         if(self.num_years < 1):
@@ -212,9 +240,14 @@ class ForecastEpidemiology(Component):
         if(self.start_year < 1):
             msg += f"'\n{self.inputs[1].display_name}' must have a positive value"
 
+        # TIME_BASED CHECKS
+        if(self.input_type == ForecastModelInputTypes.TIME_BASED):
+            # Time Scale
+            if(self.time_scale == ""):
+                msg += f'\nNo time_scale selected.'
 
         # SINGLE_INPUT CHECKS
-        if(self.input_type == ForecastModelInputTypes.SINGLE_INPUT):
+        elif(self.input_type == ForecastModelInputTypes.SINGLE_INPUT):
             # Patient Count
             if(self.patient_count < 1):
                 msg += f"'\n{self.inputs[3].display_name}' most be a positive number"
@@ -279,6 +312,7 @@ class ForecastEpidemiology(Component):
     # INPUTS:
     # OUTPUTS:
     #   List of patient counts for each year of the forecast
+    # add another comment
     def generate_time_based(self) -> DataFrame:
         return(DataFrame(self.patient_count_table))
 

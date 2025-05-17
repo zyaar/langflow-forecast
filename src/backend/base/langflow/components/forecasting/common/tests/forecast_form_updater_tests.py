@@ -63,8 +63,8 @@ def main():
 
     form_update_rules = {
         "input_type": {
-            ForecastModelInputTypes.TIME_BASED: {"show": [], "toggle": [], "show_required": ["time_scale", "patient_count_table"], "show_optional": [], "hide": ["growth_rate", "patient_count"], "trigger_value_update": [("patient_count_table", "generate_table_values")]},
-            ForecastModelInputTypes.SINGLE_INPUT: {"show": [], "toggle": [], "show_required": ["growth_rate", "patient_count"], "show_optional": [], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"], "trigger_value_update": [("patient_count_table", "generate_table_values")]},
+            ForecastModelInputTypes.TIME_BASED: {"show": [], "toggle": [], "show_required": ["time_scale", "patient_count_table"], "show_optional": [], "hide": ["growth_rate", "patient_count"]},
+            ForecastModelInputTypes.SINGLE_INPUT: {"show": [], "toggle": [], "show_required": ["growth_rate", "patient_count"], "show_optional": [], "hide": ["time_scale", "patient_count_table", "month_start_of_fiscal_year"]},
         },
         "time_scale": {
             ForecastModelTimescale.MONTH: {"show_required": ["month_start_of_fiscal_year"]},
@@ -76,19 +76,26 @@ def main():
 
     # print the initial config
     print("Initial state")
-    forecastFormUpdater.forecast_update_fields(build_config, form_update_rules, only_shown_fields=True, generate_table_values=generate_table_values)
     print_build_config(build_config)
 
     # set input_type to TIME_BASED
     print("Updated input_type to TIME_BASED")
     build_config["input_type"]["value"] = ForecastModelInputTypes.TIME_BASED
-    forecastFormUpdater.forecast_update_fields(build_config, form_update_rules, generate_table_values=generate_table_values)
+    build_config = forecastFormUpdater.forecast_update_fields(build_config, 
+                                                              form_update_rules, 
+                                                              field_value=ForecastModelInputTypes.TIME_BASED, 
+                                                              field_name="input_type", 
+                                                              only_shown_fields=True)
     print_build_config(build_config)
 
     # set input_type to SINGLE_INPUT
     print("Updated input_type to SINGLE_INPUT")
     build_config["input_type"]["value"] = ForecastModelInputTypes.SINGLE_INPUT
-    forecastFormUpdater.forecast_update_fields(build_config, form_update_rules, generate_table_values=generate_table_values)
+    build_config = forecastFormUpdater.forecast_update_fields(build_config,
+                                                              form_update_rules, 
+                                                              field_value=ForecastModelInputTypes.SINGLE_INPUT, 
+                                                              field_name="input_type",
+                                                              only_shown_fields=True)
     print_build_config(build_config)
 
 
