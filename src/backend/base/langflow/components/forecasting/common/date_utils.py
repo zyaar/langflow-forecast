@@ -34,7 +34,7 @@ def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: F
     # set the start date to be the last day BEFORE the start of the fiscal year (i.e. subtract one day from the start_date)
     # we do this because we want all of our forecasting numbers to be done in terms of the dates-end a time period
     # not the date start
-    start_date = pd.to_datetime(f"{start_year:04}-{start_month:02}-01") - pd.Timedelta(1) 
+    start_date = pd.to_datetime(f"{start_year:04}-{start_month:02}-01") - pd.Timedelta(days=1)
  
     # set the number of time periods (either num_years, or if TIMESCALE is monthly, then num_years * 12 months/year)
     num_periods = num_years if time_scale == ForecastModelTimescale.YEAR else num_years * 12
@@ -59,7 +59,7 @@ def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: F
     return(time_series)
 
 
-        
+    
 
     
 
