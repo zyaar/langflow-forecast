@@ -32,7 +32,6 @@ from langflow.components.forecasting.common.forms.forecast_form_trigger_calc imp
 from datetime import datetime
 from typing import List
 import numpy as np
-from langflow.components.forecasting.common.date_utils import gen_dates
 
 
 # CONSTANTS
@@ -169,7 +168,7 @@ class ForecastEpidemiology(Component):
     # COMPONENT OUTPUTS
     # -----------------
     outputs = [
-        Output(display_name="Epidemiology Forecast Model", name="epi_forecast_model", method="generate_forecast_model"),
+        Output(display_name="Epidemiology Patient Flow", name="epi_forecast_model", method="generate_forecast_model"),
     ]
 
 
@@ -222,6 +221,17 @@ class ForecastEpidemiology(Component):
         msg = ""
 
         # COMMON VALUE CHECKS
+        if(not hasattr(self, "num_years")):
+            raise ValueError("Missing num_years")
+
+        if(not hasattr(self, "start_year")):
+            raise ValueError("Missing start_year")
+
+        if(not hasattr(self, "time_scale")):
+            raise ValueError("Missing time_scale")
+
+        if(not hasattr(self, "input_type")):
+            raise ValueError("Missing input_type")
 
         # Number of Years in Forecast
         if(self.num_years < 1):
@@ -278,13 +288,14 @@ class ForecastEpidemiology(Component):
     def generate_forecast_model(self) -> DataFrame:
         self.validate_inputs()
         patient_series = self.generate_epi_series()
+        patient_dataframe = DataFrame(data = patient_series)
  
-        return ForecastDataModel(
-            start_year = self.start_year,
-            num_years = self.num_years,
-            start_month=FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
-            data=patient_series,
-        )
+        return ForecastDataModel.init_forecast_data_model(patient_dataframe,
+                                                          start_year = self.start_year,
+                                                          num_years = self.num_years,
+                                                          input_type=self.input_type,
+                                                          start_month=FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
+                                                          timescale=self.time_scale)
     
 
     # generate_epi_series
@@ -325,10 +336,10 @@ class ForecastEpidemiology(Component):
     #   List of patient counts for each year of the forecast
     def generate_single_input(self) -> DataFrame:
         # generate dates
-        time_series = gen_dates(start_year = self.start_year,
-                                num_years = self.num_years,
-                                start_month = FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
-                                time_scale = self.time_scale)
+        time_series = ForecastDataModel.gen_forecast_dates(start_year = self.start_year,
+                                                           num_years = self.num_years,
+                                                           start_month = FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
+                                                           timescale = self.time_scale)
         
         # determine the number of periods to return 
         # (either the total years of the forecast, or the total years * 12 months per year of the forecast)
@@ -345,7 +356,8 @@ class ForecastEpidemiology(Component):
             curr_patient_value = self.patient_count
 
             for i in range(num_periods):
-                epi_series[i] = int(np.floor(curr_patient_value))
+                # epi_series[i] = int(np.floor(curr_patient_value))
+                epi_series[i] = curr_patient_value
                 curr_patient_value = curr_patient_value * (1+self.growth_rate)
         
         # return as a dataframe
@@ -366,5 +378,8 @@ class ForecastEpidemiology(Component):
         if((self.month_start_of_fiscal_year not in FORECAST_COMMON_MONTH_NAMES_AND_VALUES.keys()) or (self.num_years < 1)):
             return([])
 
-        time_series = gen_dates(self.start_year, self.num_years, FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year], self.time_scale)
-        return([{"date": time_series[i], "patient_count_table": 0} for i in range(len(time_series))])
+        time_series = ForecastDataModel.gen_forecast_dates(start_year = self.start_year,
+                                                           num_years = self.num_years,
+                                                           start_month = FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
+                                                           timescale = self.time_scale)
+        return([{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series[i], "patient_count_table": 0} for i in range(len(time_series))])
