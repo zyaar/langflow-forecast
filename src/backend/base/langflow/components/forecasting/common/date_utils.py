@@ -9,6 +9,7 @@
 # =======
 
 from typing import List
+import datetime as datetime
 import pandas as pd
 from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelTimescale
 
@@ -28,7 +29,7 @@ from langflow.components.forecasting.common.constants import FORECAST_COMMON_MON
 #   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
 # OUTPUTS:
 #   List of pd.Timestamps with the year end of month end dates in the forecast
-def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: ForecastModelTimescale = ForecastModelTimescale.YEAR)-> List[pd.Timestamp]:
+def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: ForecastModelTimescale = ForecastModelTimescale.YEAR)-> List[datetime.datetime]:
     time_series = None
 
     # set the start date to be the last day BEFORE the start of the fiscal year (i.e. subtract one day from the start_date)

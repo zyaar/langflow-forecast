@@ -1,6 +1,7 @@
 from typing import List
+from pandas.errors import ParserError
 import pandas as pd
-from langflow.schema.data import Data
+import numpy as np
 from langflow.schema.dataframe import DataFrame
 
 from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
@@ -38,6 +39,434 @@ class ForecastDataModel(DataFrame):
       # FUNCTIONS
       # =========
       
+      # init_forecast_data_model_single_series
+      # The simplest way to create a Data Forecast Model.  Give it one series od data (ints or floats)Given a list of ints or floats for the first series, creates a Forecast Data Model compliant dataframe by generating the dates, adding the 
+      # specific meta-data attributes and data structures to work as the basis of the forecast
+      #  
+      # INPUTS:
+      #     data - a list of int or floats (first series)
+      #     start_year - the start year for the forecast
+      #     num_years - number of years for the forecast
+      #     input_type - is the forecast type a 'Time Based Input' or 'Single Input' (may be an issue if there are both of them)
+      #     start_month - 
+      # 
+      # OUTPUTS:
+      #   DataFrame
+
+      @staticmethod
+      def init_forecast_data_model_single_series(
+            data: List[int|float],
+            start_year: int,
+            num_years: int,
+            input_type: 'ForecastModelInputTypes',
+            start_month: int,
+            timescale: ForecastModelTimescale,
+            series_name: str="",
+      ) -> DataFrame:
+            
+            # create a dates for this time series based on input values
+            time_series_dates = ForecastDataModel.gen_forecast_dates(start_year = start_year, start_month = start_month, num_years = num_years, timescale = ForecastModelTimescale.YEAR)
+
+            # bundle it and the series into a dictionary of series and create a DataFrame
+            forecast_model = DataFrame(data={ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series_dates, series_name: data})
+
+            # return with the Forecast variables added
+            return ForecastDataModel.init_forecast_data_model(forecast_model,
+                                                              start_year=start_year,
+                                                              num_years=num_years,
+                                                              input_type=input_type,
+                                                              start_month=start_month,
+                                                              timescale=timescale)
+
+
+      # init_forecast_data_model
+      # Add the ForecastDataModel specific meta-data attributes and data structures to a generic DataFrame in order for it to work as the basis of the forecast
+      #  
+      # INPUTS:
+      #     data - the dataframe which will used as the basis
+      #     start_year - the start year for the forecast
+      #     num_years - number of years for the forecast
+      #     input_type - is the forecast type a 'Time Based Input' or 'Single Input' (may be an issue if there are both of them)
+      #     start_month - 
+      # 
+      # OUTPUTS:
+      #   DataFrame df
+
+      @staticmethod
+      def init_forecast_data_model(
+            data: DataFrame,
+            start_year: int,
+            num_years: int,
+            input_type: 'ForecastModelInputTypes',
+            start_month: int,
+            timescale: ForecastModelTimescale,
+      ) -> DataFrame:
+            df = data.copy()
+
+            # if it's not already a dataframe, then create a dataframe
+            if(not isinstance(df, DataFrame)):
+                  df = DataFrame(data=df)
+
+            # fix any index situation
+            df = ForecastDataModel.fix_index_issues(df)
+
+            # set-up the additional forecasting-specific attributes inside pandas attributes (where they should be preserved)
+            df.attrs["start_year"] = start_year
+            df.attrs["num_years"] = num_years
+            df.attrs["input_type"] = input_type
+            df.attrs["start_month"] = start_month
+            df.attrs["timescale"] = timescale
+
+            return(df)
+
+      
+
+      # convert_dfs_to_forecast_models
+      # Takes a list of dfs or DataFrames and fixes some so that they can be used as forecast models
+      #  
+      # INPUTS:
+      #     datas - The list of dataframes that will be used
+      # 
+      # OUTPUTS:
+      #   List of DataFrame dfs which is Forecast Model compliant
+
+      @staticmethod
+      def convert_dfs_to_forecast_models(datas: List[DataFrame]) -> List[DataFrame]:
+            return([ForecastDataModel.convert_df_to_forecast_model(df) for df in datas])
+            
+
+      # convert_df_to_forecast_model
+      # Langflow DataFrames seem to arbitrarily convert dates types into strings and Enum types to ints, this function converts them back.
+      # Should be called before working with any DataFrames which need to be treated as Forecast Models/
+      #  
+      # INPUTS:
+      #     data - the dataframe which will used as the basis
+      # 
+      # OUTPUTS:
+      #   DataFrame df which is Forecast Model compliant
+
+      @staticmethod
+      def convert_df_to_forecast_model(data: DataFrame) -> DataFrame:
+
+           # fix any index issues that may be around
+            df = ForecastDataModel.fix_index_issues(data)
+
+            # check all pd attrs to make sure they are there and cast them
+            df.attrs["input_type"] = ForecastModelInputTypes(df.attrs["input_type"])
+            df.attrs["timescale"] = ForecastModelTimescale(df.attrs["timescale"])
+
+            return(df)
+
+            
+
+      # recalculate_forecast_df_model
+      # Recalculate the fields that can be updated, especially after data transformations. 
+      #  
+      # INPUTS:
+      #     DataFrame data
+      # 
+      # OUTPUTS:
+      #     DataFrame df
+
+      @staticmethod
+      def recalculate_forecast_data_model_attributes(data: DataFrame) -> DataFrame:
+            # make a shallow copy of df, may be revisited later      
+            df = data.copy()
+
+            # recalcuate whatever fields can be recalculated based on existing data
+            # start_year
+            df.attrs["start_year"] = ForecastDataModel.gen_start_year(df)  # start_year
+            df.attrs["num_years"] = ForecastDataModel.gen_num_years(df)    # num_years
+            df.attrs["start_month"] = ForecastDataModel.gen_start_month(df)    # start_month
+
+            return(df)
+
+            
+      # is_valid_forecast_data_model
+      # Runs a variety of checks to make sure this is a valid data forecast model 
+      #  
+      # INPUTS:
+      #     DataFrame data - forecast model DataFrame to check
+      # 
+      # OUTPUTS:
+      #     Tuple:
+      #           bool is_valid - True if valid, False if not
+      #           strg err_msg - descriptive error message of why the DataFrame is not valid, or "" if it is valid
+
+      @staticmethod
+      def is_valid_forecast_data_model(data: DataFrame) -> tuple[bool, str]:
+            # check that it's the right class
+            if(not isinstance(data, DataFrame)):
+                   return(False, f"Not DataFrame, it is a '{type(data)}'")
+            
+            # Check that we have the "dates" column and it's the right type
+            if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME not in data.columns):
+                  return(False, f"Missing '{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME}' in list of columns: {data.columns}.")
+            
+            if(data[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].dtype != np.dtype('datetime64[ns]')):
+                  return(False, f"Incorrect type for '{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME}', should be some equivalent of 'datetime64[ns]' but is actually '{data[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].dtype}'.")
+
+            if(data.index.dtype != "int"):
+                  return(False, f"Index should be some equivalent of 'int' but instead is '{data.index.dtype}'")
+            
+            # for each required attribute
+            for i in range(len(ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES)):
+                  # check that an attribute with that name exists in the pandas attributes dictionary
+                  if(ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES[i] not in data.attrs):
+                        return(False, f"That attribute '{ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES[i]}' not in the pandas.attrs of this DataFrame")
+                  
+                  # check that the attribute is the right type
+                  if(not isinstance(data.attrs[ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES[i]], ForecastDataModel.REQ_FORECAST_MODEL_ATTR_TYPES[i])):
+                        return(False, f"The attribute '{ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES[i]}' is of type '{type(data.attrs[ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES[i]])}', but is supposed to be of type '{ForecastDataModel.REQ_FORECAST_MODEL_ATTR_TYPES[i]}'")
+                  
+            return(True, "")
+
+            
+      # upsample_year_to_month
+      # Convert a DateFrame set at a yearly frequency to one set at
+      # a monthly frequency.  Divide all yearly values evenly across the months
+      #  
+      # INPUTS:
+      #     DataFrame data
+      # 
+      # OUTPUTS:
+      #   DataFrame df
+      @staticmethod
+      def upsample_yearly_to_monthly(data: DataFrame) -> DataFrame:
+            df = data.copy()
+
+            # if this is already a MONTHLY timescale then return it
+            if(df.attrs["timescale"] == ForecastModelTimescale.MONTH):
+                  return(df)
+            
+            # since all dates are YEAR-END, before we resample we have to add a new row with zero values and a date 
+            # for the year-end before the earliest year-end date in the current dfset.
+            # We do this, because, when resampling, pandas always stars with the earliest dates IN THE DATASET
+            # and samples from there.  So if we have a YEAR-END date, we need it to create the 12 months PRIOR to the
+            # first date... which means it needs an earlier date to start from (i.e. the previous year end date).
+            # If we don't do this, pandas creates month end dates starting with our first year-end.
+            # (someone who knows pandas better might have a better way to do this)
+
+            df = ForecastDataModel.convert_to_working_index(df)
+
+            # get the previous year end date, create a new row with all zeros and that date, and append to dfframe
+            new_min_date = min(df.index) - pd.DateOffset(years=1)
+            new_row = pd.DataFrame(data = [0] * len(df.columns), index=pd.DatetimeIndex([new_min_date]))
+            new_row.columns = df.columns
+            new_row = DataFrame(data=new_row)
+            df = pd.concat([df, new_row])
+            
+            # resample for ME, backfill all the NA values being generated with the annual number, and then divide by 12 (number months in a year)
+            # this will spread the YEAR-END number evenly across all previous months in that year
+            df = df.resample("ME").bfill().div(12)
+            
+            # finally get rid of the previous year end date (it's not part of the results, and it has a zero value in it)
+            df = df.loc[df.index > min(df.index)]
+            df.attrs["timescale"] = ForecastModelTimescale.MONTH
+
+            df = ForecastDataModel.convert_to_counter_index(df)
+
+            return(df)
+      
+      
+      # downsample_monthly_to_yearly
+      # Convert a ForecastDataModel set at a monthly frequency to one set at
+      # a yearly frequency.  Sums all the monthly values at a yearly level
+      # 
+      # INPUTS:
+      #   DataFrame set to 
+      #
+      # OUTPUTS:
+      #   ForecastDataModel set to yearly frequency
+      @staticmethod
+      def downsample_monthly_to_yearly(data: DataFrame) -> DataFrame:
+            # if this is already a YEARLY timescale then return it
+            if(data.attrs["timescale"] == ForecastModelTimescale.YEAR):
+                  return(data)
+            
+            df = ForecastDataModel.convert_to_working_index(data)
+
+            end_of_month = df.attrs["start_month"]-1 if df.attrs["start_month"] != 1 else 12
+            period = str("YE-"+ FORECAST_INT_TO_SHORT_MONTH_NAME[end_of_month])
+            df = df.resample(period).sum()
+            df.attrs["timescale"] = ForecastModelTimescale.YEAR
+
+
+            df = ForecastDataModel.convert_to_counter_index(df)
+            return(df)
+    
+
+
+      # combine_forecast_model
+      # Takes a list of DataFrames and combines them into a single dataframe with a
+      # total which is a sum of all the incoming ones.  Two rules which are applied:
+      # 1. Timescale - If there are multiple timescale granualarities, always go for the greatest one (i.e. MONTHLY over YEARLY)
+      # 2. 
+      # 
+      # INPUTS:
+      #   List of ForecastDataModel
+      #
+      # OUTPUTS:
+      #   ForecastDataModel
+      @staticmethod
+      def combine_forecast_models(datas: List[DataFrame], agg_col_funct="", agg_col_name="Total_", use_as_prefix=True) -> DataFrame:
+            # if only one forecast model provided, return that one
+            if(len(datas) == 1):
+                  (is_valid, err_msg) = ForecastDataModel.is_valid_forecast_data_model(datas[0])
+
+                  if(not is_valid):
+                        raise ValueError(f"Unable to combine forecast models.  In the list of inputs, #1 is not a valid forecast model: {err_msg}")
+                  
+                  return(datas[0])
+            
+            # if multiple forecast models, do the following:
+
+            # initialize a bunch of variables which will track if all the forecast parameters of
+            # the data sets align (same: start_year, num_years, input_types, etc.)
+            # In the current version, if they don't all align, we throw an error (not try to fix)
+            multiple_start_year = False
+            multiple_num_year = False
+            multiple_input_type = False
+            multiple_start_month = False
+            multiple_timescale = False
+
+            # As we iterate through the data sets validating, we will also grab a copy of the "Totals" cols from each 
+            # DataFrames being combined.  This will allow us to run an (optional) agg function later (agg_col_funct) 
+            # to create a new Total row for all of them.  The variable initialized below will hold those "Totals" cols
+            df_all_totals_col = pd.DataFrame()
+
+            # Create copies of all the input data sets
+            dfs = datas.copy()
+
+            # run the validation loop against all data sets to ensure that
+            # they all match the initial data sets input parameters (this does end up running the first)
+            # dataset against its own parameters, which will ALWAYS be a match, but necessary copy the totals column, so kept
+            for i in range(len(dfs)):
+                 # Before checking the input parameters, check that the current data set is a valid Forecasting Model
+                 (is_valid, err_msg) = ForecastDataModel.is_valid_forecast_data_model(dfs[i])
+
+                 if(is_valid == False):
+                       raise ValueError(f"Unable to combine forecast models.  In the list of inputs, #{i+1} is not a valid forecast model: {err_msg}")
+                 
+                 # in the first loop, take the forecast parameters from the first data set which will be compared to
+                 # by all subsequent data sets
+                 if(i == 0):
+                       start_year = dfs[0].attrs["start_year"]
+                       num_years = dfs[0].attrs["num_years"]
+                       input_type = dfs[0].attrs["input_type"]
+                       start_month = dfs[0].attrs["start_month"]
+                       timescale = dfs[0].attrs["timescale"]
+                  
+                  # if any of required forecast parameters DON'T match the previous loops parameters, flag an
+                  # error for which parameter doesn't match.  At the end, we will return an error message
+                  # for all flags which show true
+                 else:
+                       if(dfs[i].attrs["start_year"] != start_year):
+                             multiple_start_year = True
+                             
+                       if(dfs[i].attrs["num_years"] != num_years):
+                             multiple_num_year = True
+
+                       if(dfs[i].attrs["input_type"] != input_type):
+                             multiple_input_type = True
+
+                       if(dfs[i].attrs["start_month"] != start_month):
+                             multiple_start_month = True
+
+                       if(dfs[i].attrs["timescale"] != timescale):
+                             multiple_timescale = True
+                             
+                 # grab the last rightmost column (defined as the totals column) and put in a common dataframe
+                 df_temp = ForecastDataModel.convert_to_working_index(dfs[i])
+
+                 if(i == 0):
+                       df_all_totals_col = df_temp[df_temp.columns[-1]]
+                 else:
+                       df_all_totals_col = pd.concat([df_all_totals_col, df_temp[df_temp.columns[-1]]], axis=1)
+
+
+            # Check if there are any issues with multiples.  If any of the key attributes of the forecast don't match, then
+            # raise an error
+            errMsg = ""
+
+            if(multiple_start_year):
+                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[0]}."
+
+            if(multiple_num_year):
+                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[1]}."
+                              
+            if(multiple_input_type):
+                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[2]}."
+                              
+            if(multiple_start_month):
+                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[3]}."
+                              
+            if(multiple_timescale):
+                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[4]}."
+
+            if(errMsg != ""):
+                  raise ValueError(f"Error merging multiple Forecast Models: {errMsg}")
+         
+            # if everything is valid, we can (finally) combine the dataframes
+            dfs_out = [ForecastDataModel.convert_to_working_index(df) for df in dfs]
+            combined_pd = pd.concat(dfs_out, axis=1)
+            combined_pd = ForecastDataModel.convert_to_counter_index(combined_pd)
+
+            # run an (optional) aggregation function on all the "Total" columns of the Forcast Data Models provided
+            # (defined as the rightmost column in each of the DataFrames)
+            if(agg_col_funct != ""):
+                  if(agg_col_name == ""):
+                        raise ValueError(f"Agg_col_funct '{agg_col_funct}' provided, but invalid agg_call_name '{agg_col_name}'.")
+                  
+                  match agg_col_funct:
+                        case "sum":
+                              df_new_agg_col = df_all_totals_col.sum(axis=1)
+                        case _:
+                              raise ValueError(f"Invalid aggregation function called when merging multiple Forecast Models: {agg_col_funct}")
+                        
+                  # set-up the agg_col_name, if it's to be used as a prefix, generate a unique name by combining all the totals column names
+                  # and separating with a "-"
+                  if(use_as_prefix):
+                        agg_col_name = str(agg_col_name + "-".join(df_all_totals_col.columns))
+                  
+                  # before adding the column to the end, need to convert it into a DataFrame with the correct Forecast Build Model, so that the concat won't wipe this out
+                  df_new_agg_col = DataFrame(data=df_new_agg_col.to_frame(name=agg_col_name).reset_index(drop=False, names=[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME]))
+                  df_new_agg_col = ForecastDataModel.init_forecast_data_model(df_new_agg_col,
+                                                                              start_year = combined_pd.attrs["start_year"],
+                                                                              num_years = combined_pd.attrs["num_years"],
+                                                                              input_type = combined_pd.attrs["input_type"],
+                                                                              start_month = combined_pd.attrs["start_month"],
+                                                                              timescale = combined_pd.attrs["timescale"])
+                  #combined_pd = ForecastDataModel.convert_to_working_index(combined_pd)
+                  #df_new_agg_col = ForecastDataModel.convert_to_working_index(df_new_agg_col)
+
+                  agg_pd = pd.concat([ForecastDataModel.convert_to_working_index(combined_pd),
+                                           ForecastDataModel.convert_to_working_index(df_new_agg_col)], axis=1)
+
+                  agg_pd = ForecastDataModel.convert_to_counter_index(agg_pd)
+
+                  # validate that this is a legitimate forecast
+                  (is_valid, err_msg) = ForecastDataModel.is_valid_forecast_data_model(agg_pd)
+
+                  if(not is_valid):
+                        raise ValueError(f"Error merging multiple Forecast Models.  Resulting model is not a valid forecast model: {err_msg}")
+            
+                  return(agg_pd)
+            else:
+                  # validate that this is a legitimate forecast
+                  (is_valid, err_msg) = ForecastDataModel.is_valid_forecast_data_model(combined_pd)
+
+                  if(not is_valid):
+                        raise ValueError(f"Error merging multiple Forecast Models.  Resulting model is not a valid forecast model: {err_msg}")
+            
+                  return(combined_pd)
+
+
+
+
+      # HELPER FUNCTIONS
+      # ================
+      
       # gen_forecast_dates
       # Creates a series of dates which or compatible with the Forecast Data Model given all the standard inputs.  Added this function
       # to centralize date creation in this static class
@@ -61,347 +490,108 @@ class ForecastDataModel(DataFrame):
             return(gen_dates(start_year=start_year, num_years=num_years, start_month=start_month, time_scale=timescale))
 
 
-      # init_forecast_data_model
-      # The simplest way to create a Data Forecast Model.  Give it one series od data (ints or floats)Given a list of ints or floats for the first series, creates a Forecast Data Model compliant dataframe by generating the dates, adding the 
-      # specific meta-data attributes and data structures to work as the basis of the forecast
+      # fix_index_issues
+      # Validates that we have a plain old counting index and a 'dates' field with the pd.DateTimeIndex.  If not, tries a
+      # variety of different things to fix it, and if successful, results the fixed DataFrame.  If not, raises an error
       #  
       # INPUTS:
-      #     data - a list of int or floats (first series)
-      #     start_year - the start year for the forecast
-      #     num_years - number of years for the forecast
-      #     input_type - is the forecast type a 'Time Based Input' or 'Single Input' (may be an issue if there are both of them)
-      #     start_month - 
+      #     df_out - A DataFrame to check
       # 
       # OUTPUTS:
-      #   DataFrame df_out
+      #   df_out - A DataFrame is either fixed, or was fine to begin with
 
       @staticmethod
-      def init_forecast_data_model_single_series(
-            data: List[int|float],
-            start_year: int,
-            num_years: int,
-            input_type: 'ForecastModelInputTypes',
-            start_month: int,
-            timescale: ForecastModelTimescale,
-            series_name: str="",
-      ) -> DataFrame:
-            
-            # create a dates for this time series based on input values
-            time_series_dates = ForecastDataModel.gen_forecast_dates(start_year = start_year, start_month = start_month, num_years = num_years, timescale = ForecastModelTimescale.YEAR)
+      def fix_index_issues(data: DataFrame) -> DataFrame:
+            df = data.copy()
 
-            # bundle it and the series into a dictionary of series and create a DataFrame
-            forecast_model = DataFrame({ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series_dates, series_name: data})
+            # Check if there's a "dates" column
+            if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in df.columns):
 
-            # return with the Forecast variables added
-            return ForecastDataModel.init_forecast_data_model(forecast_model,
-                                                              start_year=start_year,
-                                                              num_years=num_years,
-                                                              input_type=input_type,
-                                                              start_month=start_month,
-                                                              timescale=timescale)
+                  # if there is, make sure or fix the type to be datetime64[ns]
+                  if(df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].dtype != np.dtype('datetime64[ns]')):
+                        df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME] = pd.to_datetime(df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME])
 
+                  # if we have the "dates" column, then make sure our index is a regular counting index
+                  df = df.reset_index(drop=True)
 
-      # init_forecast_data_model
-      # Add the ForecastDataModel specific meta-data attributes and data structures to a generic DataFrame in order for it to work as the basis of the forecast
-      #  
-      # INPUTS:
-      #     data - the dataframe which will used as the basis
-      #     start_year - the start year for the forecast
-      #     num_years - number of years for the forecast
-      #     input_type - is the forecast type a 'Time Based Input' or 'Single Input' (may be an issue if there are both of them)
-      #     start_month - 
-      # 
-      # OUTPUTS:
-      #   DataFrame df_out
+            # if we don't have a "dates" column, then check if the index is already a dates column, if it is, move it back to dates and then reset the index
+            elif(df[df.index].dtype == np.dtype('datetime64[ns]')):
+                  df = df.reset_index()
+                  df = df.rename(columns={'index': ForecastDataModel.RESERVED_COLUMN_INDEX_NAME})
 
-      @staticmethod
-      def init_forecast_data_model(
-            data: DataFrame,
-            start_year: int,
-            num_years: int,
-            input_type: 'ForecastModelInputTypes',
-            start_month: int,
-            timescale: ForecastModelTimescale,
-      ) -> DataFrame:
-            
-            # if it's not already a dataframe, then create a dataframe
-            if(not isinstance(data, DataFrame)):
-                  df_out = DataFrame(data=data)
+            # if all else fails, attempt to convert first the index to datetime, if it succeeds, move back to dates and then reset, if not, raise a ValueError
             else:
-                  df_out = data
-            
-            # if there is no legitimate index then set it to the RESERVED_COLUMN_INDEX
-            if(type(df_out.index) is not pd.DatetimeIndex):
-                  if((ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in df_out.columns) and (type(df_out[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME]) is not pd.DatetimeIndex)):
-                        df_out.set_index(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME, inplace=True)
-                  else:
-                        raise ValueError(f"Index is not a DatetimeIndex and missing DatetimeIndex column called '{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME}'")            
+                  try:
+                        df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME] = pd.to_datetime(df.index)
 
-            # set-up the additional forecasting-specific attributes inside pandas attributes (where they should be preserved)
-            df_out.attrs["start_year"] = start_year
-            df_out.attrs["num_years"] = num_years
-            df_out.attrs["input_type"] = input_type
-            df_out.attrs["start_month"] = start_month
-            df_out.attrs["timescale"] = timescale
+                        # if it succeeded, reset the index
+                        df = df.reset_index(drop=True)
+                  except (ValueError, ParserError) as errMsg:
+                        raise ValueError(f"Missing or invalid '{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME}': {errMsg}")
+                  
+            return(df)
 
-            return(df_out)
 
-      
-
-      # recalculate_forecast_data_model
-      # Recalculate the fields that can be updated, especially after data transformations. 
+      # convert_to_working_index
+      # Takes the "counter" index and turns it into a pd.DatetimeIndex for doing "work" (process which requires date manipulation)
+      # using the RESERVED_COLUMN_INDEX_NAME
       #  
       # INPUTS:
-      #     DataFrame data
+      #     df - A DataFrame to check
       # 
       # OUTPUTS:
-      #     DataFrame df_out
-
+      #   df - DataFrame with an index that is pd.Datetimeindex and NO RESERVED_COLUMN_INDEX_NAME column
       @staticmethod
-      def recalculate_forecast_data_model_attributes(data: DataFrame) -> DataFrame:
-            # make a shallow copy of df, may be revisited later      
-            df_out = data
+      def convert_to_working_index(data: DataFrame) -> DataFrame:
+            df = data.copy()
 
-            # recalcuate whatever fields can be recalculated based on existing data
-            # start_year
-            df_out.attrs["start_year"] = ForecastDataModel.gen_start_year(df_out)  # start_year
-            df_out.attrs["num_years"] = ForecastDataModel.gen_num_years(df_out)    # num_years
-            df_out.attrs["start_month"] = ForecastDataModel.start_month(df_out)    # start_month
+            df.set_index(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME, inplace=True)
+            return(df)
 
-            return(df_out)
 
-            
-      # recalculate_forecast_data_model
-      # Recalculate the fields that can be updated, especially after data transformations. 
+      # convert_to_counter_index
+      # Takes the "working" (pd.DatetimeIndex) index and turns it back to a counter index, and puts the pd.DatetimeIndex back
+      # in a 'dates' colum (i.e. RESERVED_COLUMN_INDEX_NAME)
       #  
       # INPUTS:
-      #     DataFrame data
+      #     df - DataFrame with an index that is pd.Datetimeindex and NO RESERVED_COLUMN_INDEX_NAME column
       # 
       # OUTPUTS:
-      #     DataFrame df_out
-
+      #   df_out - DataFrame with a "counter" index and a RESERVED_COLUMN_INDEX_NAME column which is type pd.Datetimeindex
       @staticmethod
-      def is_valid_forecast_data_model(data) -> bool:
-            # check that it's the right class
-            if(not isinstance(data, DataFrame)):
-                  return(False)
-            
-            # check it has an index that is a DatetimeIndex
-            if(type(data.index) is not pd.DatetimeIndex):
-                  return(False)
-            
-            # for each required attribute
-            for i in range(len(ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES)):
-                  # check that an attribute with that name exists in the pandas attributes dictionary
-                  if(ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES[i] not in data.attrs):
-                        return(False)
-                  
-                  # check that the attribute is the right type
-                  if(not isinstance(data.attrs[ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES[i]], ForecastDataModel.REQ_FORECAST_MODEL_ATTR_TYPES[i])):
-                        return(False)
-                  
-            return(True)
+      def convert_to_counter_index(data: DataFrame) -> DataFrame:
+            df = data.copy()
 
-            
-      # upsample_year_to_month
-      # Convert a DateFrame set at a yearly frequency to one set at
-      # a monthly frequency.  Divide all yearly values evenly across the months
-      #  
-      # INPUTS:
-      #     DataFrame data
-      # 
-      # OUTPUTS:
-      #   DataFrame df_out
-      @staticmethod
-      def upsample_yearly_to_monthly(data: DataFrame) -> DataFrame:
-            
-            # if this is already a MONTHLY timescale then return it
-            if(data.attrs["timescale"] == ForecastModelTimescale.MONTH):
-                  return(data)
-            
-            # since all dates are YEAR-END, before we resample we have to add a new row with zero values and a date 
-            # for the year-end before the earliest year-end date in the current dataset.
-            # We do this, because, when resampling, pandas always stars with the earliest dates IN THE DATASET
-            # and samples from there.  So if we have a YEAR-END date, we need it to create the 12 months PRIOR to the
-            # first date... which means it needs an earlier date to start from (i.e. the previous year end date).
-            # If we don't do this, pandas creates month end dates starting with our first year-end.
-            # (someone who knows pandas better might have a better way to do this)
-            
-            # get the previous year end date, create a new row with all zeros and that date, and append to dataframe
-            new_min_date = min(data.index) - pd.DateOffset(years=1)
-            new_row = pd.DataFrame(data = [0] * len(data.columns), index=pd.DatetimeIndex([new_min_date]))
-            new_row.columns = data.columns
-            new_row = DataFrame(data=new_row)
-            df_concat = pd.concat([data, new_row])
-            
-            # resample for ME, backfill all the NA values being generated with the annual number, and then divide by 12 (number months in a year)
-            # this will spread the YEAR-END number evenly across all previous months in that year
-            df_out = df_concat.resample("ME").bfill().div(12)
-            
-            # finally get rid of the previous year end date (it's not part of the results, and it has a zero value in it)
-            df_out = df_out.loc[df_out.index > min(df_out.index)]
-            df_out.attrs["timescale"] = ForecastModelTimescale.YEAR
-
-            return(df_out)
-      
-      
-      # downsample_monthly_to_yearly
-      # Convert a ForecastDataModel set at a monthly frequency to one set at
-      # a yearly frequency.  Sums all the monthly values at a yearly level
-      # 
-      # INPUTS:
-      #   DataFrame set to 
-      #
-      # OUTPUTS:
-      #   ForecastDataModel set to yearly frequency
-      @staticmethod
-      def downsample_monthly_to_yearly(data: DataFrame) -> DataFrame:
-            end_of_month = data.attrs["start_month"]-1 if data.attrs["start_month"] != 1 else 12
-            period = str("YE-"+ FORECAST_INT_TO_SHORT_MONTH_NAME[end_of_month])
-            df_out = data.resample(period).sum()
-            return(df_out)
-    
+            df.reset_index(inplace=True)
+            df = df.rename(columns={'index': ForecastDataModel.RESERVED_COLUMN_INDEX_NAME})
+            return(df)
 
 
-      # combine_forecast_model
-      # Takes a list of DataFrames and combines them into a single dataframe with a
-      # total which is a sum of all the incoming ones.  Two rules which are applied:
-      # 1. Timescale - If there are multiple timescale granualarities, always go for the greatest one (i.e. MONTHLY over YEARLY)
-      # 2. 
-      # 
-      # INPUTS:
-      #   List of ForecastDataModel
-      #
-      # OUTPUTS:
-      #   ForecastDataModel
-      @staticmethod
-      def combine_forecast_models(datas: List[DataFrame], agg_col_funct="", agg_col_name="Total_", use_as_prefix=True) -> DataFrame:
-            multiple_start_year = False
-            multiple_num_year = False
-            multiple_input_type = False
-            multiple_start_month = False
-            multiple_timescale = False
-
-            df_all_totals_col = pd.DataFrame()
-
-            # if only one forecast model provided, return that one
-            if(len(datas) == 1):
-                  return(datas[0])
-            
-            # validate that all DataFrames are valid for using as forecast data models
-            for i in range(len(datas)):
-                  if(not ForecastDataModel.is_valid_forecast_data_model(datas[i])):
-                        raise ValueError(f"Unable to combine forecast models.  In the list of inputs, #{i} is not a valid forecast model.")
-                  
-                  if(i != 0):
-                        if(datas[i].attrs["start_year"] != start_year):
-                              multiple_start_year = True
-                        
-                        if(datas[i].attrs["num_years"] != num_years):
-                              multiple_num_year = True
-
-                        if(datas[i].attrs["input_type"] != input_type):
-                              multiple_input_type = True
-
-                        if(datas[i].attrs["start_month"] != start_month):
-                              multiple_start_month = True
-
-                        if(datas[i].attrs["timescale"] != timescale):
-                              multiple_timescale = True
-
-                  # copy the current batch of values into our variables to compare to the
-                  # next batch
-                  start_year = datas[i].attrs["start_year"]
-                  num_years = datas[i].attrs["num_years"]
-                  input_type = datas[i].attrs["input_type"]
-                  start_month = datas[i].attrs["start_month"]
-                  timescale = datas[i].attrs["timescale"]
-
-                  # grab the last rightmost column (defined as the totals column) and put in a common dataframe
-                  df_all_totals_col = pd.concat([df_all_totals_col, datas[i][datas[i].columns[-1]]], axis=1)
-
-
-            # Check if there are any issues with multiples.  We have to rase an error for anything OTHER
-            # than multiple timescales (which we can address by changing everything to months)
-            errMsg = ""
-
-            if(multiple_start_year):
-                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[0]}."
-
-            if(multiple_num_year):
-                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[1]}."
-                              
-            if(multiple_input_type):
-                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[2]}."
-                              
-            if(multiple_start_month):
-                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[3]}."
-                              
-            if(multiple_timescale):
-                  errMsg += f"\nDifferent values for {ForecastDataModel.REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES[4]}."
-
-            if(errMsg != ""):
-                  raise ValueError(f"Error merging multiple Forecast Models: {errMsg}")
-         
-            # combine the dataframes
-            combined_pd = pd.concat(datas, axis=1)
-
-            # run an (optional) aggregation function on all the "Total" columns of the Forcast Data Models provided
-            # (defined as the rightmost column in each of the DataFrames)
-            if(agg_col_funct != ""):
-                  if(agg_col_name == ""):
-                        raise ValueError(f"Agg_col_funct '{agg_col_funct}' provided, but invalid agg_call_name '{agg_col_name}'.")
-                  
-                  match agg_col_funct:
-                        case "sum":
-                              df_new_agg_col = df_all_totals_col.sum(axis=1)
-                        case _:
-                              raise ValueError(f"Invalid aggregation function called when merging multiple Forecast Models: {agg_col_funct}")
-                        
-                  # set-up the agg_col_name, if it's be used as a prefix, generate a unique name by combining all the totals column names
-                  # and separating with a "-"
-                  if(use_as_prefix):
-                        agg_col_name = str(agg_col_name + "-".join(df_all_totals_col.columns))
-                  
-                  # before aggregating, need to convert it into a DataFrame with the correct Forecast Build Model, so that the concat won't wipe this out
-                  df_new_agg_col = DataFrame(data=df_new_agg_col.to_frame(name=agg_col_name).set_index(combined_pd.index))
-                  df_new_agg_col = ForecastDataModel.init_forecast_data_model(df_new_agg_col,
-                                                                              start_year = combined_pd.attrs["start_year"],
-                                                                              num_years = combined_pd.attrs["num_years"],
-                                                                              input_type = combined_pd.attrs["input_type"],
-                                                                              start_month = combined_pd.attrs["start_month"],
-                                                                              timescale = combined_pd.attrs["timescale"])
-                  combined_pd = pd.concat([combined_pd, df_new_agg_col], axis=1)
-
-
-            # validate that this is a legitimate forecast
-            if(not ForecastDataModel.is_valid_forecast_data_model(combined_pd)):
-                  raise ValueError(f"Error merging multiple Forecast Models.  Resulting model is not a valid forecast model.")
-            
-            return(combined_pd)
-
-
-
-      # HELPER FUNCTIONS
-      # ================
-      
       # start_year
       @staticmethod
       def gen_start_year(df: DataFrame) -> int:
-           # figure out start_year
-            start_year = min(df.index).dt.year
+            # since these are all end of timescale periods, need to subtract one timeperiod from the earliest date
+            if(df.attrs["timescale"] == ForecastModelTimescale.MONTH):
+                  timedelta = pd.DateOffset(month=1)
+            else:
+                  timedelta = pd.DateOffset(years=1)
+            
+            # figure out start_year
+            start_year = (min(df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME]) - timedelta).year
             return(start_year)
+      
       
       # gen_num_years
       @staticmethod
       def gen_num_years(df: DataFrame) -> int:
             # figure out the num_years
-            num_years = max(df.index).dt.year - min(df.index).dt.year
+            num_years = max(df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME]).year - min(df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME]).year + 1
             return(num_years)
+      
 
       # gen_start_month
       @staticmethod
       def gen_start_month(df: DataFrame) -> int:
             # figure out the start_month
-            start_month = min(df.index).dt.month + 1
+            start_month = min(df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME]).month + 1
             return(start_month)

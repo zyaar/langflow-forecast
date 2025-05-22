@@ -60,7 +60,7 @@ class ForecastSegment(Component):
     inputs = [
         # DataFrame inputs
         DataFrameInput(
-            name="df_in",
+            name="dfs_in",
             display_name="Patient flow data",
             info="One or more input flows.  If multiple provided, it will automatically sum up all the flows.",
             is_list = True,
@@ -75,7 +75,11 @@ class ForecastSegment(Component):
     # COMPONENT OUTPUTS
     # -----------------
     outputs = [
-        Output(display_name="out1", name="df_out_1", method="apply_segment_filter"),
+        Output(
+            name="df_out_1",
+            display_name="Unsegments patients",
+            info="This Output returns all patients who where NOT captured in the segment filters above (i.e. if the total of all segment filters is less than 100% or 1.0).",
+            method="apply_segment_filter"),
 
         #
         # TODO:  Add Output fields here
@@ -134,14 +138,11 @@ class ForecastSegment(Component):
     #   List[DataFrame] - A single merged dataframe with a total and line item of the input dataframes
     def aggregate_patient_flows(self) -> List[DataFrame]:
         self.validate_inputs()
+        dataframes_to_combine = ForecastDataModel.convert_dfs_to_forecast_models(self.dfs_in)
 
-        if(len(self.df_in) > 0):
-            return(self.df_in[0])
-        
-        else:
-            self.stop
-            raise ValueError("Error: no data provided")
-        
+        return ForecastDataModel.combine_forecast_models(datas=dataframes_to_combine,
+                                                         agg_col_funct="sum",
+                                                         agg_col_name=f"Total_{self.name}")     
     
     
     # apply_segment_filter

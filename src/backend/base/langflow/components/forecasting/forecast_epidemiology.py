@@ -145,7 +145,7 @@ class ForecastEpidemiology(Component):
             dynamic=True,
             table_schema=[
                 {
-                    "name": "date",
+                    "name": "dates",
                     "display_name": "Date",
                     "type": "date",
                     "description": "Date of patient count",
@@ -289,13 +289,14 @@ class ForecastEpidemiology(Component):
         self.validate_inputs()
         patient_series = self.generate_epi_series()
         patient_dataframe = DataFrame(data = patient_series)
- 
-        return ForecastDataModel.init_forecast_data_model(patient_dataframe,
-                                                          start_year = self.start_year,
-                                                          num_years = self.num_years,
-                                                          input_type=self.input_type,
-                                                          start_month=FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
-                                                          timescale=self.time_scale)
+
+        forecast_data_model = ForecastDataModel.init_forecast_data_model(patient_dataframe,
+                                                                         start_year=self.start_year,
+                                                                         num_years=self.num_years,
+                                                                         input_type=self.input_type,
+                                                                         start_month=FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
+                                                                         timescale=self.time_scale)
+        return(forecast_data_model)
     
 
     # generate_epi_series
@@ -361,7 +362,8 @@ class ForecastEpidemiology(Component):
                 curr_patient_value = curr_patient_value * (1+self.growth_rate)
         
         # return as a dataframe
-        forecast_model = DataFrame({ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series, self.name: epi_series})
+        # forecast_model = DataFrame({ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series, self.display_name: epi_series})
+        forecast_model = DataFrame({ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series, self.display_name: epi_series})
         return(forecast_model)
     
 
@@ -376,10 +378,10 @@ class ForecastEpidemiology(Component):
 
     def generate_table_values(self) -> List[dict]:
         if((self.month_start_of_fiscal_year not in FORECAST_COMMON_MONTH_NAMES_AND_VALUES.keys()) or (self.num_years < 1)):
-            return([])
+            raise ValueError(f"Generate_table_values:  unable to generate, invalid values for 'month_start_of_fiscal_year' of '{self.month_start_of_fiscal_year}' or num_years of '{self.num_years}'")
 
         time_series = ForecastDataModel.gen_forecast_dates(start_year = self.start_year,
                                                            num_years = self.num_years,
                                                            start_month = FORECAST_COMMON_MONTH_NAMES_AND_VALUES[self.month_start_of_fiscal_year],
                                                            timescale = self.time_scale)
-        return([{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series[i], "patient_count_table": 0} for i in range(len(time_series))])
+        return([{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series[i], self.display_name: 0} for i in range(len(time_series))])
