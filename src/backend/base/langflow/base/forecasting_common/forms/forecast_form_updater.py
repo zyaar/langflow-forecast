@@ -178,8 +178,12 @@ class ForecastFormUpdater():
     def forecast_update_fields(self, build_config, biz_rules, field_value, field_name, only_shown_fields=True):
 
         # if there are no keys in the biz_rules, raise an error
+        if(not isinstance(biz_rules, dict)):
+            raise ValueError(f'Unable to run forecast_update_fields:  no biz_rules provided, please provide at least an empty dict.')
+        
+        # if it's an empty dict then return as there are no rules to run
         if(len(biz_rules.keys()) < 1):
-            raise ValueError(f'Unable to run forecast_update_fields:  no biz_rules provided.')
+            return(build_config)
 
         # iterate over all the 'var_name's in the biz rules structure
         for var_name in biz_rules.keys(): # var_name1, var_name2, etc. etc.

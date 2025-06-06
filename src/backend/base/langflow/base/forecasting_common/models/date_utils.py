@@ -11,7 +11,7 @@
 from typing import List
 import datetime as datetime
 import pandas as pd
-from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelTimescale
+from langflow.base.forecasting_common.constants import ForecastModelTimescale
 
 
 # FUNCTIONS
@@ -58,12 +58,3 @@ def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: F
         time_series = pd.date_range(start = start_date, periods=num_periods+1, freq="12ME", inclusive = "neither")
 
     return(time_series)
-
-
-    
-
-    
-
-    
-
-    

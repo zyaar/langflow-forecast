@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np
 from langflow.schema.dataframe import DataFrame
 
-from langflow.components.forecasting.common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
-from langflow.components.forecasting.common.date_utils import gen_dates
+from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
+from langflow.base.forecasting_common.models.date_utils import gen_dates
 
 
 # FORECAST SPECIFIC IMPORTS
@@ -30,6 +30,9 @@ from datetime import datetime
 # to work as our ForecastDataModel
 class ForecastDataModel(DataFrame):
       RESERVED_COLUMN_INDEX_NAME = "dates" # name of the dates column for the forecasting model.  This must be a unique column
+      #EDITABLE_VALUES_TOKEN = np.NAN # the value to enter in the data model for cells which will be updated after the model build
+      EDITABLE_VALUES_TOKEN = 0.0 # the value to enter in the data model for cells which will be updated after the model build
+
       REQ_FORECAST_MODEL_ATTR_NAMES = ["start_year", "num_years", "input_type", "start_month", "timescale"]
       REQ_FORECAST_MODEL_ATTR_TYPES = [int, int, ForecastModelInputTypes, int, ForecastModelTimescale]
       REQ_FORECAST_MODEL_ATTR_DISPLAY_NAMES = ["Start Year", "Number of Years", "Input Type", "Start Month", "Time-scale"]
@@ -38,7 +41,33 @@ class ForecastDataModel(DataFrame):
 
       # FUNCTIONS
       # =========
+      @staticmethod
+      def generate_empty_forecast_data_model(
+            start_year: int,
+            num_years: int,
+            input_type: 'ForecastModelInputTypes',
+            start_month: int,
+            timescale: ForecastModelTimescale.MONTH,                  
+      ) -> DataFrame:
+            
+            # since there are already a lot of different methods built to create a data forecast, we're going to leverage them for convenience instead of creating yet another one,
+            # we'll create a single row forecast will all zeros for values and then delete the row
+            length_of_series = len(ForecastDataModel.gen_forecast_dates(start_year = start_year, start_month = start_month, num_years = num_years, timescale = timescale))
+            blank_series = [ForecastDataModel.EDITABLE_VALUES_TOKEN] * length_of_series
+            
+            forecast_dataframe = ForecastDataModel.init_forecast_data_model_single_series(
+                  data=blank_series,
+                  start_year = start_year,
+                  start_month = start_month,
+                  num_years = num_years,
+                  input_type = input_type,
+                  timescale = timescale,
+            )
+
+            return forecast_dataframe.drop(forecast_dataframe.columns[-1], axis=1)
+
       
+
       # init_forecast_data_model_single_series
       # The simplest way to create a Data Forecast Model.  Give it one series od data (ints or floats)Given a list of ints or floats for the first series, creates a Forecast Data Model compliant dataframe by generating the dates, adding the 
       # specific meta-data attributes and data structures to work as the basis of the forecast
@@ -65,7 +94,7 @@ class ForecastDataModel(DataFrame):
       ) -> DataFrame:
             
             # create a dates for this time series based on input values
-            time_series_dates = ForecastDataModel.gen_forecast_dates(start_year = start_year, start_month = start_month, num_years = num_years, timescale = ForecastModelTimescale.YEAR)
+            time_series_dates = ForecastDataModel.gen_forecast_dates(start_year = start_year, start_month = start_month, num_years = num_years, timescale = timescale)
 
             # bundle it and the series into a dictionary of series and create a DataFrame
             forecast_model = DataFrame(data={ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series_dates, series_name: data})
@@ -156,8 +185,110 @@ class ForecastDataModel(DataFrame):
             df.attrs["timescale"] = ForecastModelTimescale(df.attrs["timescale"])
 
             return(df)
+      
 
+      # add_col_to_model
+      # Add a new column to the data_model
+      #  
+      # INPUTS:
+      #     data - the dataframe which will used as the basis
+      #     new_col_values - list of floating points
+      #     new_col_prefix - prefix to add to the unique id to indicate the function
+      # 
+      # OUTPUTS:
+      #   DataFrame df which is Forecast Model compliant
+
+      @staticmethod
+      def add_col_to_model(data: DataFrame, new_col_values: List[float], new_col_name = "unnamed row") -> DataFrame:
+            # fix any index issues that may be around
+            df = ForecastDataModel.fix_index_issues(data)
+            df_new = pd.concat([df, pd.Series(new_col_values, name=new_col_name)], axis=1)
             
+            if(not ForecastDataModel.is_valid_forecast_data_model(df_new)):
+                  raise ValueError(f"add_col_to_model:  Error, invalid forecast data model\n{df_new}")
+            
+            return(df_new)
+
+
+      # concat_and_sum
+      # Merge all the dataframes together (unique columns only) and add a new column to the data_model
+      # with the sum of all the totals from all the dataframes
+      #  
+      # INPUTS:
+      #     data - list of dataframe whose values will be added together
+      #     new_col_name - the unique name for the column
+      #     skip_total_is_one - boolean value, if true, do NOT create a totals column if only one dataframe in the list
+      # 
+      # OUTPUTS:
+      #   DataFrame df which is Forecast Model compliant
+
+      @staticmethod
+      def concat_and_sum(datas: List[DataFrame], new_col_name = "Total", skip_total_if_one = True) -> DataFrame:
+            # list of totals ids
+            totals_ids = []
+
+            # if skip_total_if_one is true and there is only one dataframe provided, do the validation check, but then
+            # return the original dataframe without a totals column
+            if(skip_total_if_one and len(datas) < 2):
+                  # Before checking the input parameters, check that the current data set is a valid Forecasting Model
+                  (is_valid, err_msg) = ForecastDataModel.is_valid_forecast_data_model(datas[0])
+                  
+                  if(is_valid == False):
+                        raise ValueError(f"Unable to combine forecast models.  In the list of inputs, #1 is not a valid forecast model: {err_msg}")
+                  
+                  return(datas[0])
+
+                  
+            # run the validation loop against all data sets to ensure they are valid, and grab the ids from
+            # the last (i.e. total line) of each one
+            for i in range(len(datas)):
+                  summed_cols = []
+
+                  # Before checking the input parameters, check that the current data set is a valid Forecasting Model
+                  (is_valid, err_msg) = ForecastDataModel.is_valid_forecast_data_model(datas[i])
+                  
+                  if(is_valid == False):
+                        raise ValueError(f"Unable to combine forecast models.  In the list of inputs, #{i+1} is not a valid forecast model: {err_msg}")
+                  
+                  # grab the last rightmost column (defined as the totals column) and put in a common dataframe
+                  totals_ids.append(datas[i].iloc[:, -1].name)
+                  
+                  # if second or later dataset, concat with first, but only add columns not found in first
+                  if(i == 0):
+                        combined_df = datas[i].copy()
+                  else:
+                        new_cols = list(set(datas[i].columns).difference(combined_df.columns))
+                        combined_df = pd.concat([combined_df, datas[i][new_cols]], axis=1)
+
+            # create the totals column
+            combined_df = ForecastDataModel.add_col_to_model(data = combined_df,
+                                                             new_col_values= [0] * len(combined_df.index),
+                                                             new_col_name = new_col_name)
+            
+            if(not ForecastDataModel.is_valid_forecast_data_model(combined_df)):
+                  raise ValueError(f"sum_cols_add_total_to_model:  Error, new combined model is invalid forecast data model\n{combined_df}")
+            
+            return(combined_df)
+
+
+            # # if only one forecast model provided
+            # if(len(datas) == 1):
+            #       (is_valid, err_msg) = ForecastDataModel.is_valid_forecast_data_model(datas[0])
+
+            #       if(not is_valid):
+            #             raise ValueError(f"Unable to sum forecast models.  In the list of inputs, #1 is not a valid forecast model: {err_msg}")
+                  
+            #       return(datas[0])
+            
+            # # fix any index issues that may be around
+            # df = ForecastDataModel.fix_index_issues(data)
+            # df_new = pd.concat([df, pd.Series(new_col_values, name=new_col_name)], axis=1)
+            
+            # if(not ForecastDataModel.is_valid_forecast_data_model(df_new)):
+            #       raise ValueError(f"add_col_to_model:  Error, invalid forecast data model\n{df_new}")
+            
+            # return(df_new)
+
 
       # recalculate_forecast_df_model
       # Recalculate the fields that can be updated, especially after data transformations. 
@@ -251,7 +382,7 @@ class ForecastDataModel(DataFrame):
 
             # get the previous year end date, create a new row with all zeros and that date, and append to dfframe
             new_min_date = min(df.index) - pd.DateOffset(years=1)
-            new_row = pd.DataFrame(data = [0] * len(df.columns), index=pd.DatetimeIndex([new_min_date]))
+            new_row = pd.DataFrame(data = [ForecastDataModel.EDITABLE_VALUES_TOKEN] * len(df.columns), index=pd.DatetimeIndex([new_min_date]))
             new_row.columns = df.columns
             new_row = DataFrame(data=new_row)
             df = pd.concat([df, new_row])
@@ -290,7 +421,6 @@ class ForecastDataModel(DataFrame):
             period = str("YE-"+ FORECAST_INT_TO_SHORT_MONTH_NAME[end_of_month])
             df = df.resample(period).sum()
             df.attrs["timescale"] = ForecastModelTimescale.YEAR
-
 
             df = ForecastDataModel.convert_to_counter_index(df)
             return(df)
@@ -462,6 +592,21 @@ class ForecastDataModel(DataFrame):
                   return(combined_pd)
 
 
+
+
+      # update_shared_vars
+      # Take all the forecast variables in the dataframe and put it in the shared context provided by the calling object.
+      # This is used to updated the flow/graph level shared variables which components use
+      #  
+      # INPUTS:
+      # None
+      # 
+      # OUTPUTS:
+      # None
+      @staticmethod
+      def update_shared_vars(ctx, df):
+            for field_name in ForecastDataModel.REQ_FORECAST_MODEL_ATTR_NAMES:
+                  ctx[field_name] = df.attrs[field_name]
 
 
       # HELPER FUNCTIONS

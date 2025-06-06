@@ -1,8 +1,8 @@
-from langflow.components.forecasting.common.constants import FORECAST_MIN_FORECAST_START_YEAR, FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.schema.dataframe import DataFrame
 
-from langflow.components.forecasting.common.data_model.forecast_data_model import ForecastDataModel
-from langflow.components.forecasting.common.date_utils import gen_dates
+from langflow.base.forecasting_common.constants import FORECAST_MIN_FORECAST_START_YEAR, FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
+from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
+from langflow.base.forecasting_common.models.date_utils import gen_dates
 
 
 def dump_attr(df):
@@ -222,6 +222,53 @@ def main():
     print()
 
     dump_attr(double_combined_monthly_forecast_model)
+
+
+    # TEST ADDING COLUMN
+    # ------------------
+
+    print("Test adding column")
+    model_w_new_col = ForecastDataModel.add_col_to_model(double_combined_monthly_forecast_model, new_col_values=[0] * len(double_combined_monthly_forecast_model.index), new_col_name="new_col_name")
+    print(model_w_new_col)
+    print()
+
+    dump_attr(model_w_new_col)
+
+
+    # TEST CREATING AN EMPTY DATASET
+    # ------------------------------
+
+    print("Test creating an empty dataset")
+    empty_model = ForecastDataModel.generate_empty_forecast_data_model(start_year = 2000, num_years=3, start_month=1, input_type=ForecastModelInputTypes.TIME_BASED, timescale=ForecastModelTimescale.MONTH)
+    print(empty_model)
+    print()
+
+    dump_attr(empty_model)
+
+
+    # TEST "SUM'ing" TWO DATASETS
+    # ---------------------------
+
+    print("Test 'sum'ing' two datasets")
+    print()
+
+    print("data set 1:")
+    print(combined_yearly_forecast_model)
+    print()
+
+    print("data set 2:")
+    print(double_combined_yearly_forecast_model)
+    print()
+    
+    combined_df = ForecastDataModel.concat_and_sum([combined_yearly_forecast_model, double_combined_yearly_forecast_model], new_col_name="Total")
+
+    print("Combined:")
+    print(combined_df)
+    print()
+
+    dump_attr(empty_model)
+
+
 
 
 if __name__ == "__main__":

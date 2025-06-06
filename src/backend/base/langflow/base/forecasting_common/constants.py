@@ -48,7 +48,6 @@ FORECAST_INT_TO_SHORT_MONTH_NAME = {
 class ForecastModelInputTypes(str, Enum):
     TIME_BASED = "Time Based Input"
     SINGLE_INPUT = "Single Input"
-    UNKNOWN = "Unknown"
 
 
 class ForecastModelTimescale(str, Enum):

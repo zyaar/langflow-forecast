@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Backend",
+      "name": "Langflow Debugger",
       "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",

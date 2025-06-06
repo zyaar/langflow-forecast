@@ -1,6 +1,6 @@
 #from langflow.components.forecasting.common.data_model.forecast_data_model import ForecastDataModel
-from langflow.components.forecasting.common.constants import ForecastModelTimescale
-from langflow.components.forecasting.common.date_utils import gen_dates
+from langflow.base.forecasting_common.constants import ForecastModelTimescale
+from langflow.base.forecasting_common.models.date_utils import gen_dates
 
 def main():
     # test gen_dates

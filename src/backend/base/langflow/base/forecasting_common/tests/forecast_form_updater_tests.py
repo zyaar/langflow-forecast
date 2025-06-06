@@ -1,5 +1,5 @@
-from langflow.components.forecasting.common.constants import ForecastModelInputTypes, ForecastModelTimescale
-from langflow.components.forecasting.common.forms.forecast_form_updater import ForecastFormUpdater
+from langflow.base.forecasting_common.constants import ForecastModelInputTypes, ForecastModelTimescale
+from langflow.base.forecasting_common.forms.forecast_form_updater import ForecastFormUpdater
 
 # simple function to dump the build config state
 def print_build_config(config_to_print):
