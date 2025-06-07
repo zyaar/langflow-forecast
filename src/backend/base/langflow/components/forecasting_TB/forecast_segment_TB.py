@@ -224,7 +224,6 @@ class ForecastSegmentTB(Component):
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
     # -------------------
     def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
-        print(f"update_outputs: {field_name}={field_value}")
         curr_num_output_nodes = len(frontend_node["outputs"])-1
 
         # check if this is an update to the number of segments, in which case we definitely need
@@ -234,10 +233,8 @@ class ForecastSegmentTB(Component):
         if(field_name == "num_segments"):
             target_segments = field_value
         else:
-            print("start checking self.num_segments")
             target_segments = self.num_segments
-            print("finished checking self.num_segments")
-
+ 
         # check if the length of outputs is different than the value of num_segments, if not, then return
         if(target_segments != curr_num_output_nodes):
             remainder_output = frontend_node["outputs"].pop()
