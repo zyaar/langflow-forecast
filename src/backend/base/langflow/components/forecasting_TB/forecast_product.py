@@ -34,22 +34,21 @@ from typing import Any, List
 # CLASSES
 # =======
 
-# ForecastSegmentTB
-# This class represents dividing a stream of patients into a fixed number of segments, based on percentages of the total assigned at
-# each time period of the forecast
-class ForecastSegmentTB(Component):
+# ForecastTreatmentTB
+# This class represents applying a treatment regiment of products to an incoming patient flow
+class ForecastTreatmentTB(Component):
 
     # CONSTANTS
     # =========
     MAX_SEGMENTS = 100
-    SEGMENT_COL_PREFIX = "segment_"
+    SEGMENT_COL_PREFIX = "treatment_"
 
     # COMPONENT META-DATA
     # -------------------
-    display_name: str = "Segment TB"
-    description: str = "Apply a timescale specific % split critera each branch (segement, remainder) of which can be linked to a different flow."
-    icon = "Puzzle"
-    name: str = "SegmentTB"
+    display_name: str = "Treatment TB"
+    description: str = "Apply a treatment regiment of products to an incoming patient flow"
+    icon = "Syringe"
+    name: str = "TreatmentTB"
 
 
     # COMPONENT INPUTS
@@ -130,9 +129,9 @@ class ForecastSegmentTB(Component):
 
         # num_segemtns
         IntInput(
-            name="num_segments",
-            display_name = "Number of segments",
-            info="Select the total number of segments for this node.  Segments do not need to add up to 1, however, any excess will go into the remainder_patient_model",
+            name="num_products",
+            display_name = "Number of products",
+            info="Select the total number of products in this treatment.",
             value=0,
             real_time_refresh=True,
             show = True,
@@ -142,9 +141,9 @@ class ForecastSegmentTB(Component):
         
         # segmentation_table
         TableInput(
-            name="segment_table",
-            display_name="Segments",
-            info="For each segment, provide a name and (optional) percentages of total patient flow for each time period",
+            name="therapy_details",
+            display_name="Therapy Details",
+            info="Includes the pregression curve and the number and types of prescriptions provided at each time period of the progression curve",
             required=True,
             show=True,
             dynamic=True,
@@ -159,10 +158,10 @@ class ForecastSegmentTB(Component):
                     "disable_edit": True,
                 },
                 {
-                    "name": f"{SEGMENT_COL_PREFIX}1",
-                    "display_name": "Segment 1",
+                    "name": f"progression_curve",
+                    "display_name": "Progression curve",
                     "type": "float",
-                    "description": "Segment 1",
+                    "description": "For each time period, enter the % of patients from the start of the treatment who are still on the treatment.",
                     "edit_mode": EditMode.INLINE,
                     "disable_edit": False,
                 },
@@ -182,10 +181,9 @@ class ForecastSegmentTB(Component):
     # COMPONENT FORM UPDATE RULES
     # ---------------------------
     form_update_rules = {}
-    #form_trigger_rules = {}
     form_trigger_rules = [
-        (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_segments_table_def", ["num_segments", "segment_table"])),
-        (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("segment_table", "generate_table_values", ["num_segments", "segment_table"])),
+        (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_segments_table_def", ["num_products", "therapy_details"])),
+        (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("therapy_details", "generate_table_values", ["num_products", "therapy_details"])),
     ]
 
     
@@ -230,12 +228,12 @@ class ForecastSegmentTB(Component):
         # to refresh the outputs... alternatively, it could be an update to something else, but
         # there is an edge case when the component first starts the number of outputs may not match
         # the number of segments, in which case, we need to do it anyway
-        if(field_name == "num_segments"):
+        if(field_name == "num_products"):
             target_segments = field_value
         else:
-            target_segments = self.num_segments
-
-        # check if the length of outputs is different than the value of num_segments, if not, then return
+            target_segments = self.num_products
+ 
+        # check if the length of outputs is different than the value of num_products, if not, then return
         if(target_segments != curr_num_output_nodes):
             remainder_output = frontend_node["outputs"].pop()
 
@@ -252,7 +250,7 @@ class ForecastSegmentTB(Component):
 
                 for i in range(num_nodes_add):
                     curr_num = curr_num_output_nodes + (i+1)
-                    frontend_node["outputs"].append(Output(name=f"{ForecastSegmentTB.SEGMENT_COL_PREFIX}{curr_num}", display_name=f"Segment {curr_num}", method=f"update_forecast_model_segment_{curr_num}"))
+                    frontend_node["outputs"].append(Output(name=f"{ForecastTreatmentTB.SEGMENT_COL_PREFIX}{curr_num}", display_name=f"Segment {curr_num}", method=f"update_forecast_model_segment_{curr_num}"))
 
             frontend_node["outputs"].append(remainder_output)
 
@@ -313,9 +311,9 @@ class ForecastSegmentTB(Component):
         msg = ""
 
         # CHECK FOR REQUIRED INPUTS:
-        # segment_table
-        if(self.segment_table is None or not isinstance(self.segment_table, list) or len(self.segment_table) < 1):
-            msg += f"\n* Missing values for '{self.get_input_display_name("segment_table")}'."
+        # therapy_details
+        if(self.therapy_details is None or not isinstance(self.therapy_details, list) or len(self.therapy_details) < 1):
+            msg += f"\n* Missing values for '{self.get_input_display_name("therapy_details")}'."
                     
 
         # check to make sure all percentage in the segment add up to >= 100% or throw an error
@@ -343,16 +341,16 @@ class ForecastSegmentTB(Component):
         self.validate_inputs()
 
         # get segment name
-        seg_name = f"{ForecastSegmentTB.SEGMENT_COL_PREFIX}{seg_num}"
+        seg_name = f"{ForecastTreatmentTB.SEGMENT_COL_PREFIX}{seg_num}"
 
         # sum up all the inputs to create a single total line and add it to the output model
         updated_model = self.check_and_combine_forecasts()
         curr_total_values = updated_model[updated_model.columns[-1]]
 
         # get the segment table data
-        segment_table = ForecastDataModel.astype_first_all_cols(self.segment_table)
-        curr_seg_name = segment_table.columns[seg_num]
-        curr_seg_values = segment_table[curr_seg_name]
+        therapy_details = ForecastDataModel.astype_first_all_cols(self.therapy_details)
+        curr_seg_name = therapy_details.columns[seg_num]
+        curr_seg_values = therapy_details[curr_seg_name]
     
         # add the percentages for this segment as a new column in the output model
         updated_model = ForecastDataModel.add_col_to_model(updated_model, curr_seg_values.to_list(), new_col_name=f"Percent_{curr_seg_name}_{self._id}")
@@ -394,7 +392,7 @@ class ForecastSegmentTB(Component):
 
 
     # generate_table_schema
-    # Generates the schema for the segment table given the total number of segments, now available
+    # Generates the schema for the therapy details table given the total number of products, now available
     # 
     # INPUTS:
     #   build_config
@@ -404,36 +402,40 @@ class ForecastSegmentTB(Component):
     # OUTPUTS:
     #   build_config
     def generate_table_schema(self, build_config, field_value, field_name):
-        num_segments = int(field_value)
+        num_products = int(field_value)
+
+        # get the existing (or default) two columns of date and progression, these will never be variable
+        #print(build_config["therapy_details"]["table_schema"])
+        table_schema = build_config["therapy_details"]["table_schema"]["columns"][:2]
+        print(table_schema)
 
         # generate the table schema
-        # first generate the Dates column def (it will always have this)
-        table_schema = [
-            {
-                "name": str(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME),
-                "display_name": "Date",
-                "type": "date",
-                "description": "Date of for the forecast",
-                "edit_mode": EditMode.INLINE,
-                "disable_edit": True,
-            },
-        ]
+        # # first generate the Dates column def (it will always have this)
+        # table_schema = [
+        #     {
+        #         "name": str(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME),
+        #         "display_name": "Date",
+        #         "type": "date",
+        #         "description": "Date of for the forecast",
+        #         "edit_mode": EditMode.INLINE,
+        #         "disable_edit": True,
+        #     },
+        # ]
 
-        # then generate a variable number of segment column defs, depending on number of segments
-        for i in range(num_segments):
+        # then generate a variable number of product column defs, depending on number of products
+        for i in range(num_products):
             table_schema.append({
-                "name": f"{ForecastSegmentTB.SEGMENT_COL_PREFIX}{i+1}",
-                "display_name": f"Segment {i+1}",
+                "name": f"{ForecastTreatmentTB.SEGMENT_COL_PREFIX}{i+1}",
+                "display_name": f"Product {i+1} Prescriptions",
                 "type": "float",
-                "description": f"Percent of total population going to Segment {i+1}, for each time period",
+                "description": f"Number of prescriptions of product {i+1}, for the N's time period of a therapy",
                 "disable_edit": False,
                 "sortable": False,
                 "filterable": False,
                 "edit_mode": EditMode.INLINE,
             })
 
-        
-        build_config["segment_table"]["table_schema"]["columns"] = table_schema
+        build_config["therapy_details"]["table_schema"]["columns"] = table_schema
         return(build_config)
 
 
@@ -449,71 +451,78 @@ class ForecastSegmentTB(Component):
     #   build_config
     def generate_table_values(self, field_value: str, field_name: str) -> List[dict]:
         
-        num_segments = self.num_segments
-        num_cols = num_segments+1 # have to add an extra column to cover the dates column
+        num_products = self.num_products
+        num_cols = num_products + 2 # have to add an extra two columns to cover the dates and progression curve columns
 
         # get the current values in the patient_counts table
         hasOldValues = False
 
-        old_values = self.segment_table
+        old_values = self.therapy_details
         
-        if(old_values is not None and isinstance(old_values, list) and len(old_values) > 0 and len(old_values[0].keys()) > 1):
+        if(old_values is not None and isinstance(old_values, list) and len(old_values) > 0 and len(old_values[0].keys()) > 2):
             hasOldValues = True
 
-        # generate the dates needed (we'll need this regardless of whether we have old values or not)
-        dates = ForecastDataModel.gen_forecast_dates(start_year = int(self.start_year),
-                                                     start_month = int(self.start_month),
-                                                     num_years = int(self.num_years),
-                                                     timescale = ForecastModelTimescale(self.timescale))
-        num_rows = len(dates)
+        # # generate the dates needed (we'll need this regardless of whether we have old values or not)
+        # dates = ForecastDataModel.gen_forecast_dates(start_year = int(self.start_year),
+        #                                              start_month = int(self.start_month),
+        #                                              num_years = int(self.num_years),
+        #                                              timescale = ForecastModelTimescale(self.timescale))
+        # num_rows = len(dates)
 
-        # if the number of segments is zero, no need to use the old data, just generate the dates
-        if(num_segments == 0):
-            segment_table = [{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: dates[i]} for i in range(num_rows)]
-            return segment_table
+        # if the number of products is zero, no need to use the old data, return an empty list of two columns (dates, progression curve)
+        if(num_products == 0):
+            # therapy_details = [{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: dates[i]} for i in range(num_rows)]
+            return ([] * 2)
         
         # if there are no old values, generate a brand new list of dicts for the table
         if(not hasOldValues):
-            segment_table = [{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: dates[i]} for i in range(num_rows)]
+            return([] * (2 + num_products))
+            # therapy_details = [{ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: dates[i]} for i in range(num_rows)]
 
-            # add the individual segment values
-            for curr_row in segment_table:
-                for i in range(num_segments):
-                    curr_row[f"{ForecastSegmentTB.SEGMENT_COL_PREFIX}{i+1}"] = ForecastDataModel.EDITABLE_VALUES_TOKEN
-            return(segment_table)
+            # # add the individual product values
+            # for curr_row in therapy_details:
+            #     for i in range(num_products):
+            #         curr_row[f"{ForecastTreatmentTB.SEGMENT_COL_PREFIX}{i+1}"] = ForecastDataModel.EDITABLE_VALUES_TOKEN
+            # return(therapy_details)
                 
         # otherwise, resize the exist values into the new size (note: always add the dates in)
         else:
+            num_rows = len(old_values[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME])
             old_values_df = ForecastDataModel.astype_first_all_cols(old_values)    # simple helper to make sure that the datatimes of the resulting DataFrame have the first col as type datetime, and all other cols as type float
-            new_df = ForecastFormModelUtilities.refill_drataframe(new_dim_rows=num_rows, new_dim_cols=num_cols, prev_data=old_values_df, col_name_prefix=ForecastSegmentTB.SEGMENT_COL_PREFIX, dates=dates)
+            new_df = ForecastFormModelUtilities.refill_drataframe(new_dim_rows=num_rows, 
+                                                                  new_dim_cols=num_cols, 
+                                                                  prev_data=old_values_df, 
+                                                                  col_name_prefix=ForecastTreatmentTB.SEGMENT_COL_PREFIX, 
+                                                                  dates=old_values_df["dates"].to_list(),
+                                                                  progression_curve=old_values_df["progression_curve"].to_list())
             return new_df.to_data_list()
     
 
 
-    # check_segment_pcts_add_up
-    # Goes over each row of the segment percentages to ensure that the total of all segment percentages add up to less than 100%
-    # Optionally:  Will put the remainder % in the remainders 
-    # 
-    # INPUTS:
-    #
-    # OUTPUTS:
-    #   Throw error if problem, otherwise silent
+    # # check_segment_pcts_add_up
+    # # Goes over each row of the segment percentages to ensure that the total of all segment percentages add up to less than 100%
+    # # Optionally:  Will put the remainder % in the remainders 
+    # # 
+    # # INPUTS:
+    # #
+    # # OUTPUTS:
+    # #   Throw error if problem, otherwise silent
 
-    def check_segment_pcts_add_up(self):
-        segment_df = ForecastDataModel.astype_first_all_cols(self.segment_table)    # simple helper to make sure that the datatimes of the resulting DataFrame have the first col as type datetime, and all other cols as type float
-        segment_cols = segment_df.columns[1:]   # get just the segment columns (which are all columns except the date column)
+    # def check_segment_pcts_add_up(self):
+    #     segment_df = ForecastDataModel.astype_first_all_cols(self.therapy_details)    # simple helper to make sure that the datatimes of the resulting DataFrame have the first col as type datetime, and all other cols as type float
+    #     segment_cols = segment_df.columns[2:]   # get just the product columns (which are all columns except the date column)
 
-        errMsg = ""
+    #     errMsg = ""
 
-        # Go through each row in the % of total in the segments table and make sure that all the hardcoded values
-        for i in range(len(segment_df)):
-            seg_values = segment_df[segment_cols].iloc[i]
-            seg_values = seg_values[seg_values != ForecastDataModel.EDITABLE_VALUES_TOKEN]
-            seg_total = seg_values.sum()
+    #     # Go through each row in the % of total in the segments table and make sure that all the hardcoded values
+    #     for i in range(len(segment_df)):
+    #         seg_values = segment_df[segment_cols].iloc[i]
+    #         seg_values = seg_values[seg_values != ForecastDataModel.EDITABLE_VALUES_TOKEN]
+    #         seg_total = seg_values.sum()
 
-            if(seg_total > 1):
-                errMsg += f"* {segment_df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME][i]}: Total value of all segments for this time period is {seg_total} (>100%).  Please correct.\n"
+    #         if(seg_total > 1):
+    #             errMsg += f"* {segment_df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME][i]}: Total value of all segments for this time period is {seg_total} (>100%).  Please correct.\n"
 
-        if(errMsg != ""):
-            errMsg = f"Error, invalid values for segments percentages found in '{self.get_input_display_name("segment_table")}':\n" + errMsg
-            raise ValueError(errMsg)
+    #     if(errMsg != ""):
+    #         errMsg = f"Error, invalid values for segments percentages found in '{self.get_input_display_name("therapy_details")}':\n" + errMsg
+    #         raise ValueError(errMsg)
