@@ -79,11 +79,8 @@ class ForecastFormModelUtilities():
             else:
                 new_col_names = prev_data.columns.to_list()[:new_dim_cols]
 
-            print(new_col_names)
-
             data = prev_data.reindex(index=list(range(new_dim_rows)), columns = new_col_names, fill_value=default_value)
             new_df = DataFrame(data=data)
-            print(new_df)
 
         # one last step added, use kwargs to offer the ability to ovveride any existing column in the dataframe with
         # specific values as on option (this will generally cover the dates column which needs to be prefilled regardless
