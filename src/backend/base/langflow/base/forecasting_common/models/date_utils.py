@@ -10,6 +10,7 @@
 
 from typing import List
 import datetime as datetime
+from dateutil.relativedelta import relativedelta
 import pandas as pd
 from langflow.base.forecasting_common.constants import ForecastModelTimescale
 
@@ -29,6 +30,7 @@ from langflow.base.forecasting_common.constants import ForecastModelTimescale
 #   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
 # OUTPUTS:
 #   List of pd.Timestamps with the year end of month end dates in the forecast
+
 def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: ForecastModelTimescale = ForecastModelTimescale.YEAR)-> List[datetime.datetime]:
     time_series = None
 
@@ -58,3 +60,69 @@ def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: F
         time_series = pd.date_range(start = start_date, periods=num_periods+1, freq="12ME", inclusive = "neither")
 
     return(time_series)
+
+
+
+# conv_dates_monthly_to_yearly
+#
+# Given a forecast series of end-of-month dates, return the equivalent end-of-year dates 
+#
+# INPUTS:
+#   start_year = start year of the forecast
+#   num_years: number of years out to set the list
+#   start_month (optional): set the start month, used to supported fiscal years which do not start on a calendar year, default is: January
+#   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
+# OUTPUTS:
+#   List of pd.Timestamps with the year end of month end dates in the forecast
+
+def conv_dates_monthly_to_yearly(data: List[datetime.datetime] | pd.DatetimeIndex)-> List[pd.Timestamp]:
+    # convert to list type if needed
+    if(not isinstance(data, list)):
+        data = data.to_list()
+
+    # make sure that the total number of months is divisible by 12, otherwise throw an error
+    if(len(data) % 12 != 0):
+        raise ValueError(f"*   conv_dates_monthly_to_yearly:  Invalid data provided.  Number of elements in data must be a factor of 12, however, data has {len(data)} elements.")
+
+    # if everthing is good, grab the 12th element in the list (lists are 0 indexed, so it's #11), and then grab every 12th element from that point forward to get the yearly dates
+    new_dates = data[11::12]
+    return(new_dates)
+
+
+
+# conv_dates_yearly_to_monthly
+#
+# Given a forecast series of end-of-year dates, return the equivalent end_of_month dates 
+#
+# INPUTS:
+#   start_year = start year of the forecast
+#   num_years: number of years out to set the list
+#   start_month (optional): set the start month, used to supported fiscal years which do not start on a calendar year, default is: January
+#   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
+# OUTPUTS:
+#   List of pd.Timestamps with the year end of month end dates in the forecast
+
+def conv_dates_yearly_to_monthly(data: List[datetime.datetime] | pd.DatetimeIndex)-> List[datetime.datetime]:
+    
+    # convert to list type if needed
+    if(not isinstance(data, list)):
+        data = data.to_list()
+
+    # Calculate the first month-end date based on the first year_end date
+    min_date = min(data)
+    max_date = max(data)
+    num_years = len(data)
+
+    # since we use year END dates, the min value needs to be dragged back 12 months and then add 1 day
+    new_min_date = min_date - relativedelta(months=12)
+    new_dates = pd.date_range(start = new_min_date, periods=(num_years*12)+1, freq="ME", inclusive = "neither").to_list()
+    
+    
+    # if the new end_date is not the same as the old_end date, then we were probably given dates that were not evenly spaced by 12 months, so throw an error
+    # if(max(new_dates) != max_date):
+    #     raise ValueError(f"*   conv_dates_yearly_to_monthly:  Invalid data provided.  The end-of-year dates must be evenly spaced one year apart, this data is not: {data}")
+
+    return(new_dates)
+
+
+
