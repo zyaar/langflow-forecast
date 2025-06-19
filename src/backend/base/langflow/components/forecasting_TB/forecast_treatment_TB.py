@@ -358,16 +358,16 @@ class ForecastTreatmentTB(Component):
     # OUTPUT FUNCTIONS
 
     # calc_patients_on_therapy
-    # return the total number of patients on therapy at a MONTHLY level (best granularity), for use in downstream nodes
+    # return the total number of patients on therapy for use in downstream nodes
     # 
     # INPUTS:
     #   N/A
     # OUTPUTS:
-    #   DataFrame with the number of patients per month and treatment stage
+    #   DataFrame with the number of patients per timeperiod and treatment stage
     def calc_patients_on_therapy(self) -> DataFrame:
-        (pat_on_therapy_month, pat_leaving_month, therapy_details, updated_model) = self.calc_patients_therapy_common()
-
-        return(pat_on_therapy_month)
+        (pat_on_therapy, pat_leaving, therapy_details, updated_model) = self.calc_patients_therapy_common()
+        pat_on_therapy = ForecastDataModel.concat([updated_model, pat_on_therapy])
+        return(pat_on_therapy)
 
 
 
@@ -378,8 +378,9 @@ class ForecastTreatmentTB(Component):
     # OUTPUTS:
     #   DataFrame
     def calc_patients_leaving_therapy(self) -> DataFrame:
-        (pat_on_therapy_month, pat_leaving_month, therapy_details, updated_model) = self.calc_patients_therapy_common()
-        return(pat_leaving_month)
+        (pat_on_therapy, pat_leaving, therapy_details, updated_model) = self.calc_patients_therapy_common()
+        pat_leaving = ForecastDataModel.concat([updated_model, pat_leaving])
+        return(pat_leaving)
     
 
     # generate_forecast_model_segment
@@ -398,7 +399,12 @@ class ForecastTreatmentTB(Component):
                                                                                                      convert_timescale = self.timescale) # but we override with a convert to the actual timescale we have later, so that the results we provide are in the right timescale
         
         # add these results to merged model to updated_model (the merged results of forecast_in) to get the final results and return them
-        product_use_in_treatment_by_month = ForecastDataModel.concat(updated_model, product_use_in_treatment_by_month)
+        # if the current timescale YEARLY, adjust pat_on_therapy_month before concat
+        if(self.timescale != ForecastModelTimescale.MONTH):
+            pat_on_therapy_month = ForecastDataModel.monthly_to_yearly(pat_on_therapy_month)
+            pat_leaving_month = ForecastDataModel.monthly_to_yearly(pat_leaving_month) # we don't currently use this variable, but if we do, I know I won't remember to convert from monthly to yearly, so putting it in here pre-emptively
+            
+        product_use_in_treatment_by_month = ForecastDataModel.concat([updated_model, pat_on_therapy_month, product_use_in_treatment_by_month])
         return(product_use_in_treatment_by_month)
 
 

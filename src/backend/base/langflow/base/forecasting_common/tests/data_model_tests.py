@@ -74,19 +74,44 @@ def main():
     print(f"forecast_3yr_by_month_easy:\n{forecast_3yr_by_month_easy}\n")
 
 
-    # TEST TIMESCALE CONVERSION FUNCTIONS
-    # -----------------------------------
+    # TEST TIMESCALE CONVERSION FUNCTIONS (ONE COLUMN)
+    # ------------------------------------------------
 
     # Test converting a YEARLY forecast model to MONTHLY
-    print("Test converting a YEARLY forecast model to MONTHLY")
+    print("Test converting a YEARLY forecast model (one column) to MONTHLY")
     yearly_converted_to_monthly = ForecastDataModel.yearly_to_monthly(forecast_3yr_by_year_easy)
     print(f"yearly_converted_to_monthly:\n{yearly_converted_to_monthly}\n")
 
 
     # Test converting a MONTHLY forecast model to a YEARLY
-    print("Test converting a MONTHLY forecast model to a YEARLY")
+    print("Test converting a MONTHLY forecast model (one column) to a YEARLY")
     monthly_converted_to_yearly = ForecastDataModel.monthly_to_yearly(yearly_converted_to_monthly)
     print(f"monthly_converted_to_yearly:\n{monthly_converted_to_yearly}\n")
+
+
+    # TEST TIMESCALE CONVERSION FUNCTIONS (FOUR COLUMNS)
+    # ------------------------------------------------
+    forecast_3yr_by_year_easy_multi = forecast_3yr_by_year_easy.copy()
+
+    for i in range(3):
+        forecast_3yr_by_year_easy_multi[f"epi_{i}"] = forecast_3yr_by_year_easy.iloc[:,-1].values
+
+    # Test converting a YEARLY forecast model to MONTHLY
+    print("Test converting a YEARLY forecast model (four columns) to MONTHLY")
+    yearly_converted_to_monthly_multi = ForecastDataModel.yearly_to_monthly(forecast_3yr_by_year_easy_multi)
+    print(f"yearly_converted_to_monthly:\n{yearly_converted_to_monthly_multi}\n")
+
+
+    # Test converting a MONTHLY forecast model to a YEARLY
+    forecast_3yr_by_month_easy_multi = forecast_3yr_by_month_easy.copy()
+
+    for i in range(3):
+        forecast_3yr_by_month_easy_multi[f"epi_{i}"] = forecast_3yr_by_month_easy.iloc[:,-1].values
+
+
+    print("Test converting a MONTHLY forecast model (four column) to a YEARLY")
+    monthly_converted_to_yearly_multi  = ForecastDataModel.monthly_to_yearly(forecast_3yr_by_month_easy_multi)
+    print(f"monthly_converted_to_yearly_multi:\n{monthly_converted_to_yearly_multi}\n")
 
 
     # TEST COMBINING DATA SETS

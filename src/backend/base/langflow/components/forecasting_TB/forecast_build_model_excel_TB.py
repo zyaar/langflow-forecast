@@ -140,7 +140,7 @@ class ForecastBuildModelExcel(Component):
         file_path = self._adjust_file_path_with_format(file_path)
 
         dataframe = self.df
-        return self._save_dataframe(dataframe, file_path)    
+        return self._save_dataframe(dataframe, file_path) 
 
 
 
