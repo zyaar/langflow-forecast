@@ -42,7 +42,7 @@ class ForecastPricingTB(Component):
     # CONSTANTS
     # =========
     MAX_SEGMENTS = 1
-    SEGMENT_COL_PREFIX = "pricing_"
+    COL_PREFIX = "pricing_"
 
     # COMPONENT META-DATA
     # -------------------
@@ -159,7 +159,7 @@ class ForecastPricingTB(Component):
                     "disable_edit": True,
                 },
                 {
-                    "name": f"{SEGMENT_COL_PREFIX}1",
+                    "name": f"{COL_PREFIX}1",
                     "display_name": "Population retained",
                     "type": "float",
                     "description": "The price of the product.",
@@ -175,7 +175,6 @@ class ForecastPricingTB(Component):
     # -----------------
     outputs = [
         Output(display_name="Product revenue", name="product_revenue", method="update_forecast_model_retained"),
-    #    Output(display_name="Revenue", name="retained_patient_model", method="update_forecast_model_retained"),
     ]
 
 
@@ -257,7 +256,7 @@ class ForecastPricingTB(Component):
         self.validate_inputs()
 
         # get segment name
-        seg_name = f"{self.SEGMENT_COL_PREFIX}{self._id}"
+        seg_name = f"{self.COL_PREFIX}{self._id}"
 
         # sum up all the inputs to create a single total line and add it to the output model
         updated_model = self.check_and_combine_forecasts()
@@ -269,30 +268,13 @@ class ForecastPricingTB(Component):
         curr_seg_values = segment_table[curr_seg_name]
     
         # add the percentages for this segment as a new column in the output model
-        updated_model = ForecastDataModel.add_col_to_model(updated_model, curr_seg_values.to_list(), new_col_name=f"Percent_{curr_seg_name}_{self._id}")
+        updated_model = ForecastDataModel.add_col_to_model(updated_model, curr_seg_values.to_list(), new_col_name=f"Price_{curr_seg_name}_{self._id}")
 
         # add the totals for this segment (assumes the RESERVED token for editing will always "win" in multiplication, so needs to be NAN or zero)
         curr_seg_total_values = curr_total_values.multiply(curr_seg_values)
         updated_model = ForecastDataModel.add_col_to_model(updated_model,  curr_seg_total_values.to_list(), new_col_name=f"Total_{curr_seg_name}_{self._id}")
         return(updated_model)
     
-
-    # # generate_forecast_model_remainder
-    # # Add the remainder (1- segment %) and the new total to the model
-    # # 
-    # # INPUTS:
-    # # OUTPUTS:
-    # #   DataFrame
-    # def update_forecast_model_cut(self) -> DataFrame:
-    #     self.validate_inputs()
-
-    #     # combine all the inputs to create a single total line
-    #     updated_model = self.check_and_combine_forecasts()
-    #     updated_model = ForecastDataModel.add_col_to_model(updated_model, new_col_values=[0] * len(updated_model.index), new_col_name=f"Percent_Remainder_{self._id}")
-    #     updated_model = ForecastDataModel.add_col_to_model(updated_model, new_col_values=[0] * len(updated_model.index), new_col_name=f"Total_Remainder_{self._id}")
-    #     return(updated_model)
-    
-
 
     # check_and_combine_forecasts
     # Consolidate all the value checking and dataframe concat into one function
@@ -303,7 +285,6 @@ class ForecastPricingTB(Component):
     def check_and_combine_forecasts(self) -> DataFrame:
         updated_model = ForecastDataModel.concat_and_sum(datas=self.forecasts_in, new_col_name = str("Total_"+self._id), skip_total_if_one=True)
         return updated_model
-
 
 
     # generate_table_values
@@ -348,41 +329,11 @@ class ForecastPricingTB(Component):
             # add the individual segment values
             for curr_row in segment_table:
                 for i in range(num_segments):
-                    curr_row[f"{self.SEGMENT_COL_PREFIX}{i+1}"] = ForecastDataModel.EDITABLE_VALUES_TOKEN
+                    curr_row[f"{self.COL_PREFIX}{i+1}"] = ForecastDataModel.EDITABLE_VALUES_TOKEN
             return(segment_table)
                 
         # otherwise, resize the exist values into the new size (note: always add the dates in)
         else:
             old_values_df = ForecastDataModel.astype_first_all_cols(old_values)    # simple helper to make sure that the datatimes of the resulting DataFrame have the first col as type datetime, and all other cols as type float
-            new_df = ForecastFormModelUtilities.refill_drataframe(new_dim_rows=num_rows, new_dim_cols=num_cols, prev_data=old_values_df, col_name_prefix=self.SEGMENT_COL_PREFIX, dates=dates)
+            new_df = ForecastFormModelUtilities.refill_drataframe(new_dim_rows=num_rows, new_dim_cols=num_cols, prev_data=old_values_df, col_name_prefix=self.COL_PREFIX, dates=dates)
             return new_df.to_data_list()
-    
-
-
-    # # check_segment_pcts_add_up
-    # # Goes over each row of the segment percentages to ensure that the total of all segment percentages add up to less than 100%
-    # # Optionally:  Will put the remainder % in the remainders 
-    # # 
-    # # INPUTS:
-    # #
-    # # OUTPUTS:
-    # #   Throw error if problem, otherwise silent
-
-    # def check_segment_pcts_add_up(self):
-    #     segment_df = ForecastDataModel.astype_first_all_cols(self.segment_table)    # simple helper to make sure that the datatimes of the resulting DataFrame have the first col as type datetime, and all other cols as type float
-    #     segment_cols = segment_df.columns[1:]   # get just the segment columns (which are all columns except the date column)
-
-    #     errMsg = ""
-
-    #     # Go through each row in the % of total in the segments table and make sure that all the hardcoded values
-    #     for i in range(len(segment_df)):
-    #         seg_values = segment_df[segment_cols].iloc[i]
-    #         seg_values = seg_values[seg_values != ForecastDataModel.EDITABLE_VALUES_TOKEN]
-    #         seg_total = seg_values.sum()
-
-    #         if(seg_total > 1):
-    #             errMsg += f"* {segment_df[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME][i]}: Total value of all segments for this time period is {seg_total} (>100%).  Please correct.\n"
-
-    #     if(errMsg != ""):
-    #         errMsg = f"Error, invalid values for segments percentages found in '{self.get_input_display_name("segment_table")}':\n" + errMsg
-    #         raise ValueError(errMsg)

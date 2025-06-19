@@ -500,6 +500,9 @@ class ForecastDataModel(DataFrame):
             # array holding all the totals columns that need to be added up
             total_cols = None
 
+            # the order that we add the columns is important, so let's figure that out first
+            order_of_cols = []
+
             # run the validation loop against all data sets to ensure they are valid, and grab the ids from
             # the last (i.e. total line) of each one
             for i in range(len(datas)):
@@ -516,13 +519,14 @@ class ForecastDataModel(DataFrame):
                   if(i == 0):
                         combined_df = datas[i].copy()
                   else:
-                        new_cols = list(set(datas[i].columns).difference(combined_df.columns))
+                        new_cols = [colname for colname in datas[i].columns if colname not in combined_df.columns]
                         combined_df = pd.concat([combined_df, datas[i][new_cols]], axis=1)
 
             # If 2 or more totals to add up, create a totals column, otherwise, skip it
             if(total_cols is None or np.shape(total_cols)[0] < 2):
                   pass
             else:
+                  # add the totals col
                   combined_df = ForecastDataModel.add_col_to_model(data = combined_df,
                                                                   new_col_values = np.sum(total_cols, axis=0, dtype = np.float64).flatten().tolist(),
                                                                   new_col_name = new_col_name)
