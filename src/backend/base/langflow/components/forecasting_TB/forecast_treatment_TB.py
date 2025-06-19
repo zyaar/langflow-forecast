@@ -51,7 +51,7 @@ class ForecastTreatmentTB(Component):
     MAX_TREATMENT_DURATION = 240 # max treatment duration supported is 20 years
 
     # COMPONENT META-DATA
-    # -------------------
+    # ===================
     display_name: str = "Treatment TB"
     description: str = "Apply a treatment regiment of products to an incoming patient flow"
     icon = "Syringe"
@@ -59,7 +59,7 @@ class ForecastTreatmentTB(Component):
 
 
     # COMPONENT INPUTS
-    # ----------------
+    # ================
     inputs = [
         # Number of Years in Forecast
         StrInput(
@@ -192,8 +192,8 @@ class ForecastTreatmentTB(Component):
         ),
     ]
 
-    # COMPONENT OUTPUTS
-    # -----------------
+    # OUTPUTS
+    # =======
     outputs = [
         Output(display_name="# patient ON-THERAPY", name="patient_on_therapy", method="calc_patients_on_therapy"),
         Output(display_name="# patient LEAVING", name="patients_leaving_therapy", method="calc_patients_leaving_therapy"),
@@ -201,20 +201,15 @@ class ForecastTreatmentTB(Component):
 
 
 
-    # COMPONENT FORM UPDATE RULES
-    # ---------------------------
+    # FORM UPDATE RULES
+    # =================
     form_update_rules = {}
     form_trigger_rules = [
         (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_segments_table_def", ["num_products", "treatment_duration"])),
         (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("therapy_details", "generate_table_values", ["num_products", "treatment_duration"])),
     ]
 
-    
 
-
-    # UPDATE_BUILD_CONFIG
-    # Updates real_time_refreshing INPUTS fields whenever an update happens from a dynamic field
-    # -------------------
     def update_build_config(self, build_config, field_value, field_name = None):
         # update the fields in the form to show/hide, based on the field updated
         forecastFormUpdater = ForecastFormUpdater()
@@ -238,12 +233,7 @@ class ForecastTreatmentTB(Component):
 
         # return updated config         
         return(build_config)
-    
 
-
-    # UPDATE_OUTPUTS
-    # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
-    # -------------------
     def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
         curr_prod_outputs = len(frontend_node["outputs"])-self.NUM_STATIC_OUTPUTS
 
@@ -375,7 +365,8 @@ class ForecastTreatmentTB(Component):
     # OUTPUTS:
     #   DataFrame with the number of patients per month and treatment stage
     def calc_patients_on_therapy(self) -> DataFrame:
-        (pat_on_therapy_month, pat_leaving_month, therapy_details) = self.calc_patients_therapy_common()
+        (pat_on_therapy_month, pat_leaving_month, therapy_details, updated_model) = self.calc_patients_therapy_common()
+
         return(pat_on_therapy_month)
 
 
@@ -387,7 +378,7 @@ class ForecastTreatmentTB(Component):
     # OUTPUTS:
     #   DataFrame
     def calc_patients_leaving_therapy(self) -> DataFrame:
-        (pat_on_therapy_month, pat_leaving_month, therapy_details) = self.calc_patients_therapy_common()
+        (pat_on_therapy_month, pat_leaving_month, therapy_details, updated_model) = self.calc_patients_therapy_common()
         return(pat_leaving_month)
     
 
@@ -398,13 +389,16 @@ class ForecastTreatmentTB(Component):
     # OUTPUTS:
     #   DataFrame
     def update_forecast_model_segment(self, seg_num=1) -> DataFrame:
-        (pat_on_therapy_month, pat_leaving_month, therapy_details) = self.calc_forecast_model_segment_common()
+        (pat_on_therapy_month, pat_leaving_month, therapy_details, updated_model) = self.calc_forecast_model_segment_common()
         product_use_in_treatment_by_month = ForecastDataModel.calc_treatment_rx_forecast_for_product(product_name = f"{self.COL_PREFIX}{seg_num}",
                                                                                                      col_prefix = f"{self._id}_",
                                                                                                      forecast_in = pat_on_therapy_month,
                                                                                                      treatment_details = therapy_details,
                                                                                                      forecast_timescale = ForecastModelTimescale.MONTH, # we hardcode the timescale for monthly, because we will receive monthly for prev step
                                                                                                      convert_timescale = self.timescale) # but we override with a convert to the actual timescale we have later, so that the results we provide are in the right timescale
+        
+        # add these results to merged model to updated_model (the merged results of forecast_in) to get the final results and return them
+        product_use_in_treatment_by_month = ForecastDataModel.concat(updated_model, product_use_in_treatment_by_month)
         return(product_use_in_treatment_by_month)
 
 
@@ -436,7 +430,7 @@ class ForecastTreatmentTB(Component):
                                                                                                   treatment_details = therapy_details,
                                                                                                   forecast_timescale = self.timescale,
                                                                                                   keep_granular = False)
-        return (pat_on_therapy_month, pat_leaving_month, therapy_details)
+        return (pat_on_therapy_month, pat_leaving_month, therapy_details, updated_model)
     
 
 
@@ -461,7 +455,7 @@ class ForecastTreatmentTB(Component):
                                                                                                   treatment_details = therapy_details,
                                                                                                   forecast_timescale = self.timescale,
                                                                                                   keep_granular = True)
-        return (pat_on_therapy_month, pat_leaving_month, therapy_details)
+        return (pat_on_therapy_month, pat_leaving_month, therapy_details, updated_model)
 
 
 

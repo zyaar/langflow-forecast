@@ -138,7 +138,6 @@ class ForecastSummationTB(Component):
     form_trigger_rules = []
 
 
-
     # update_build_config
     # Updates real_time_refreshing INPUTS fields whenever an update happens from a dynamic field
     def update_build_config(self, build_config, field_value, field_name = None):

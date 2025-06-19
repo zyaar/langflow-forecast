@@ -1,7 +1,7 @@
 from typing import List, Tuple
 import pandas as pd
 import numpy as np
-from uuid import UUID
+import nanoid
 from langflow.schema.dataframe import DataFrame, Data
 
 from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
@@ -98,7 +98,7 @@ class ForecastDataModel(DataFrame):
             
             # create a dates for this time series based on input values
             time_series_dates = ForecastDataModel.gen_forecast_dates(start_year = start_year, start_month = start_month, num_years = num_years, timescale = timescale)
-            return DataFrame(pd.DataFrame(data={ForecastDataModel.EDITABLE_VALUES_TOKEN: time_series_dates}))
+            return DataFrame(pd.DataFrame(data = {ForecastDataModel.RESERVED_COLUMN_INDEX_NAME: time_series_dates}))
       
 
       
@@ -483,37 +483,91 @@ class ForecastDataModel(DataFrame):
 
 
 
+      # concat
+      # Merge all the dataframes together (unique columns only)
+      #  
+      # INPUTS:
+      #     data - list of dataframe whose values will be added together
+      # 
+      # OUTPUTS:
+      #   DataFrame df which is Forecast Model compliant
+
+      @staticmethod
+      def concat(datas: List[DataFrame]) -> DataFrame:
+            if(len(datas) < 1):
+                  raise ValueError(f"*  concat:  error, empty list of datasets provided.")
+
+            # if we only have one dataset and the flag to skip generating total col if only one is True,
+            # just return the existing dataset
+            if(len(datas) == 1):
+                  return(datas[0])
+
+            for i in range(len(datas)):
+                  # if second or later dataset, concat with first, but only add columns not found in first
+                  if(i == 0):
+                        combined_df = datas[i].copy()
+                  else:
+                        new_cols = [colname for colname in datas[i].columns if colname not in combined_df.columns]
+                        combined_df = pd.concat([combined_df, datas[i][new_cols]], axis=1)             
+            return(combined_df)
+
+
+
       # concat_and_sum
       # Merge all the dataframes together (unique columns only) and add a new column to the data_model
       # with the sum of all the totals from all the dataframes
       #  
       # INPUTS:
       #     data - list of dataframe whose values will be added together
-      #     new_col_name - the unique name for the column
+      #     new_col_name - the unique name for the column, if empty, function will generate a unique name
       #     skip_total_if_one - boolean value, if true, do NOT create a totals column if only one dataframe in the list
       # 
       # OUTPUTS:
       #   DataFrame df which is Forecast Model compliant
 
       @staticmethod
-      def concat_and_sum(datas: List[DataFrame], new_col_name = "Total", skip_total_if_one = True) -> DataFrame:
+      def concat_and_sum(datas: List[DataFrame], new_col_name: str = None, skip_total_if_one: bool = True) -> DataFrame:
+            if(len(datas) < 1):
+                  raise ValueError(f"*  concat_and_sum:  error, empty list of datasets provided.")
+
+            # if we only have one dataset and the flag to skip generating total col if only one is True,
+            # just return the existing dataset
+            if(len(datas) == 1 and skip_total_if_one):
+                  return(datas[0])
+            
+            # if no new_col_name provided, generate one automatically
+            if(new_col_name is None):
+                  new_col_name = f"Total_{nanoid.generate(size=5)}"
+
             # array holding all the totals columns that need to be added up
             total_cols = None
-
-            # the order that we add the columns is important, so let's figure that out first
-            order_of_cols = []
+            total_cols_names = []
 
             # run the validation loop against all data sets to ensure they are valid, and grab the ids from
             # the last (i.e. total line) of each one
             for i in range(len(datas)):
+                  total_col_name = datas[i].iloc[:, -1].name
+                  total_col_values = np.array([datas[i].iloc[:, -1]])
 
                   # grab the last rightmost column (defined as the totals column) and put in a common dataframe
                   # if the rightmost column is the 'dates' column, it means the dataset is empty and can be ignored
-                  if(datas[i].iloc[:, -1].name != ForecastDataModel.RESERVED_COLUMN_INDEX_NAME):
+                  if(total_col_name != ForecastDataModel.RESERVED_COLUMN_INDEX_NAME):
+
+                        # if this is the first time we're adding a column to total_cols, then add it in
                         if(total_cols is None):
-                              total_cols = np.array([datas[i].iloc[:, -1]])
+                              total_cols = total_col_values
+                              total_cols_names.append(total_col_name)
+
+                        # if this is NOT the first time, then append (concat) to the the rest of the totals
+                        # columns
                         else:
-                              total_cols = np.concatenate([total_cols, [datas[i].iloc[:, -1]]], axis=0)
+                              # WEIRD EDGE CASE TO HANDLE:  if the name of the totals column for one of the dataframes being
+                              # concatenated already exists in the df_combined, raise an error and stop (we may change
+                              # this in the future if there is some good reason to allow this)
+                              if(total_col_name in total_cols_names):
+                                    raise ValueError(f"*  concat_and_sum:  error, duplicate total_column names, trying to add: '{total_col_name}', to: {total_cols_names}")
+
+                              total_cols = np.concatenate([total_cols, total_col_values], axis=0)
                   
                   # if second or later dataset, concat with first, but only add columns not found in first
                   if(i == 0):
@@ -591,25 +645,31 @@ class ForecastDataModel(DataFrame):
       # by taking the annual values and dividing them by twelve and spreading that over over 12 columns
       #  
       # INPUTS:
-      #     pd.Series of Yearly numbers (no Date index needed)
+      #     pd.Series of Yearly numbers (only supports integers and floats)
       # OUTPUTS:
       #   pd.Series - a series with the MONTHLY numbers that align to those same yearly numbers
 
       @staticmethod
       def yearly_to_monthly(data: pd.Series | pd.DataFrame) -> pd.Series | pd.DataFrame:
             num_years = len(data.index)
-            data.index = list(range(1, num_years+1))
 
+            # pd.Series version:
             # simplest way to do this which is not dependent on having a datetime for an index is simply repeat
             # the data series 12 times (number of months in a year) and then divide all the values by 12
             if(isinstance(data, pd.Series)):
+                  # make sure these are integer or float columns, otherwise throw an error
+                  if(not pd.api.types.is_integer_dtype(data) and not  pd.api.types.is_float_dtype(data)):
+                        raise ValueError(f"*  yearly_to_monthly:  Invalid dtype for pd.Series = {data.dtype}.  Only integer and float supported.")
+
                   data_out = data.repeat(12)/12
 
-            # if dataframe, have to check if Date columns is there
+            # pd.DateFrame version:
+            # same as above, however, has to handle multiple integer and/or float columns.  Has to also handle the one Date column
+            # we can have (at the very beginning)
             else:
                   has_date_col = False
 
-                  # code to handle if there is a date column
+                  # if there is a date column, remove it, handle it separately, ahead of the expansion to monthly
                   if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in data.columns):
                         has_date_col = True
                         new_date_col = conv_dates_yearly_to_monthly(data = data[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME])
@@ -617,12 +677,12 @@ class ForecastDataModel(DataFrame):
 
                   data_out = data.iloc[np.repeat(np.arange(len(data)), 12)]/12
 
-                  # if we had a date col, add the new dates back in
+                  # if there was a date col, add the newly handled dates back in
                   if(has_date_col):
                         data_out.insert(0, ForecastDataModel.RESERVED_COLUMN_INDEX_NAME, new_date_col)
 
-            data_out.index = list(range(num_years*12))
-            #data_out.index = list(range(1, (num_years*12)+1))
+            # finally, regardless of pd.Series or pd.Dataframe, we regenerate the index the same way
+            data_out.index = list(range(len(data_out)))
             return(data_out)
       
 
@@ -641,7 +701,7 @@ class ForecastDataModel(DataFrame):
             has_date_col = False
 
             # we don't deal with datetime indexes in this function, but we do work with 1 index instead of 0 index (for months and years)
-            data.index = list(range(1, len(data)+1))
+            data.index = list(range(0, len(data)))
 
             # Special code for a DataFrame to handle the Date column
             if(isinstance(data, pd.DataFrame) and ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in data.columns):
