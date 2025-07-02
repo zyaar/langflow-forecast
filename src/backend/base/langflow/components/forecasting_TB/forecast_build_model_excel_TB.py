@@ -20,6 +20,7 @@ from langflow.schema import Data, DataFrame, Message
 
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
+from enum import Enum
 import json
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
