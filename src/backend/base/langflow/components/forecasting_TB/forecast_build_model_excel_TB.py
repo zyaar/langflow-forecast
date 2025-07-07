@@ -15,7 +15,8 @@ from langflow.base.forecasting_common.models.forecast_data_model import Forecast
 from langflow.base.forecasting_common.forms.forecast_form_updater import ForecastFormUpdater
 from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
-from langflow.schema import Data, DataFrame, Message
+from langflow.base.forecasting_common.models.forecast_data_packet import ForecastDataPacket
+from langflow.schema import Data, DataFrame
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -24,12 +25,13 @@ from enum import Enum
 import json
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
+import pickle
 
 import pandas as pd
 
 from langflow.custom import Component
 from langflow.io import (
-    DataFrameInput,
+    DataInput,
     Output,
     StrInput,
 )
@@ -60,12 +62,13 @@ class ForecastBuildModelExcel(Component):
     # ================
 
     inputs = [
-        DataFrameInput(
-            name="df",
-            display_name="DataFrame",
-            info="The DataFrame to save.",
+        DataInput(
+            name=f"forecast_in",
+            display_name=f"Forecast",
+            info=f"Time-based forecast Data",
             dynamic=True,
-            show=True,
+            real_time_refresh=True,
+            is_list = True,
         ),
         StrInput(
             name="file_path",
@@ -140,8 +143,8 @@ class ForecastBuildModelExcel(Component):
 
         file_path = self._adjust_file_path_with_format(file_path)
 
-        dataframe = self.df
-        return self._save_dataframe(dataframe, file_path) 
+        data_packet = self.forecast_in
+        return self._save_data_packet(data_packet, file_path) 
 
 
 
@@ -175,7 +178,7 @@ class ForecastBuildModelExcel(Component):
     #   Path - PurePath class to save file
     def _adjust_file_path_with_format(self, path: Path) -> Path:
         file_extension = path.suffix.lower().lstrip(".")
-        return Path(f"{path}.xlsx").expanduser() if file_extension not in ["xlsx", "xls"] else path
+        return Path(f"{path}.pickle").expanduser() if file_extension not in ["pickle"] else path
     
 
 
@@ -189,4 +192,18 @@ class ForecastBuildModelExcel(Component):
     #   Confirmation message
     def _save_dataframe(self, dataframe: DataFrame, path: Path) -> str:
         dataframe.to_excel(path, index=False, engine="openpyxl")
+        return f"DataFrame saved successfully as '{path}'"
+    
+    # _save_data_packet
+    # HELPER FUNCTION:  save a data_packet to a pickle file
+    # 
+    # INPUTS:
+    #   data_packet - data_packet used to generate the forecast
+    #   path - file path to save the data_packet
+    #
+    # OUTPUTS:
+    #   Confirmation message
+    def _save_data_packet(self, data_packet: Data, path: Path) -> str:
+        #dataframe.to_excel(path, index=False, engine="openpyxl")
+        ForecastDataPacket.pickle_data_packet(data_packet = data_packet, path = path)
         return f"DataFrame saved successfully as '{path}'"

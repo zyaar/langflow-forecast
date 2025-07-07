@@ -52,27 +52,15 @@ class ForecastMetaDataFrameSchema(str, Enum):
 # The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
 class ForecastMetaDataSeriesSchema(str, Enum):
     ID = "id"
-    STEP_TYPE = "step_type"
+    STEP_TYPE = "step_type" # this maps to the different component types in forecasting
     ACTION = "action"
     DATA_TYPE = "data_type"
     DISPLAY_TYPE = "display_type"
     DISPLAY_NAME = "display_name"
-    VALIDATION = "validation"
-    PRED = "pred"
-    ARGS = "args"
-    OBJS = "objs"
-
-
-# class ForecastDataSeriesMetaDataSchemaTypes(str, Enum):
-#     STEP_TYPE = "ForecastDataSeriesMetaDataStepTypes"
-#     ACTION = "ForecastDataSeriesMetaDataAction"
-#     DATA_TYPE = "ForecastDataSeriesMetaDataDataType"
-#     DISPLAY_TYPE = "ForecastDataSeriesMetaDataDataType"
-#     DISPLAY_NAME = "str"
-#     VALIDATION = "list"
-#     PRED = "list[str]"
-#     ARGS = "list[str]"
-#     OBJS = "list"
+    VALIDATION = "validation" # a list of validation directives
+    PRED = "pred" # predecessors, a set of column ids necessary for the action
+    ARGS = "args" # any additional values necessary for actions, or validations
+    OBJS = "objs" # any additional objects which are required for this step
 
 
 # Enum of STEP_TYPE
@@ -89,10 +77,11 @@ class ForecastDataSeriesMetaDataStepTypes(str, Enum):
 # Enum of ACTION
 # Within in forecast step, what different actions are taken
 class ForecastDataSeriesMetaDataAction(str, Enum):
-    DATES = "dates"
-    INPUT = "input"
-    SUM = "sum"
-    PROD = "prod"
+    DATES = "dates" 
+    INPUT = "input" # set-up an input row for data entry
+    SUM = "sum" # sum up a series of col ids (in preds) or constants
+    PROD = "prod" # multiply a series of col ids (preds) or constants
+    SUB = "sub"  # subtract a series of col ids (preds) or constants
 
 
 # Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
@@ -111,6 +100,7 @@ class ForecastDataSeriesMetaDataDataType(str, Enum):
 # The different types of data validations allowed
 class ForecastDataSeriesMetaDataValidationSchema(str, Enum):
     INPUT_RESTRICTION = "input_restriction"
+    VALUE_CHECK = "value_check"
 
 
 # Enum of INPUT_RESTRICTION
@@ -118,6 +108,11 @@ class ForecastDataSeriesMetaDataValidateInputRestrictions(str, Enum):
     READ_WRITE = "read_write"
     READ_ONLY = "read_only"
     TOKEN_CHECK = "token_check"
+
+
+# Enum of VALUE_CHECK
+class ForecastDataSeriesMetaDataValidateValueChecks(str, Enum):
+    LESS_EQUAL_THAN = "less_equal_than"
 
 
 
@@ -149,6 +144,7 @@ class ForecastMetaDataSeries():
                 self.meta_data[attrib] = kwargs.get(attrib)
             else:
                 self.meta_data[attrib] = None
+
 
 
     # set_forecast_meta_data
@@ -207,7 +203,7 @@ class ForecastMetaDataSeries():
             meta_data_attribs[attrib] = self.meta_data[attrib]
 
         return meta_data_attribs
-
+    
 
 
     # __str__
@@ -239,8 +235,8 @@ class ForecastMetaDataFrame():
 
     # INSTANCE VARIABLES
     # ------------------
-    # meta_data - stores all the meta-data for this instance
-    # model - stores all model data (ForecastMetaDataFrame)
+    # meta_data - stores all the forecast meta-data for this instance
+    # model - {dict} stores all meta data for the specific columsn of the model (ForecastMetaDataSeries)
 
 
     # __init__
@@ -278,7 +274,7 @@ class ForecastMetaDataFrame():
 
     def set_col_meta_data(self, col: int | str, meta_data_attribs: dict):
         if(isinstance(col, int)):
-            col = self.model.keys()[col]
+            col = list(self.model.keys())[col]
 
         self.model[col].set_forecast_meta_data_bulk(meta_data_attribs)
 
@@ -294,7 +290,7 @@ class ForecastMetaDataFrame():
 
     def get_col_meta_data(self, col: int | str) -> dict:
         if(isinstance(col, int)):
-            col = self.model.keys()[col]
+            col = list(self.model.keys())[col]
 
         return self[col].get_forecast_meta_data_bulk()
     
@@ -344,6 +340,86 @@ class ForecastMetaDataFrame():
 
 
 
+    # concat_and_sum
+    # Equivalent to forecast_data_model concat_and_sum, combines all the meta_datas using the concat function and,
+    # if there is more than one data_object, adds a totals instruction line as well
+    #  
+    # INPUTS:
+    #   datas:  List of ForecastMetaDataSeries or ForecastMetaDataFrames to combine
+    #   series_id:  If there ends up being a totals line, what is the unique ID to provide it
+    #   display_name:  If there ends up being a totals line, what is the display name to provide it
+    #   verify_integrity (optional: False) - Ensure that no columns have the same key (otherwise, it will write over the previous col value)
+    #   drop_dups (optional:  False) - Drops columns with the same key (if this is set, verify_integrity is ignored)
+    # 
+    # OUTPUTS:
+    #   ForecastMetaDataFrame will all the elements combined
+
+    @staticmethod
+    def concat_and_sum(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], series_id: str, step_type: ForecastDataSeriesMetaDataStepTypes, display_name: str, verify_integrity: bool = False, drop_dups: bool = False, **kwargs) -> Type['ForecastMetaDataFrame']:
+        if(datas is None or len(datas) < 1):
+            raise ValueError("*  concat_and_sum:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
+
+        # if there is only 1 element provided, no need to calculate and add total, simply run the concat with deduping of rows
+        if len(datas) < 2:
+            # we run concat even though there is one elements, because if that elements is a Series, concat will convert to a Frame
+            meta_data = ForecastMetaDataFrame.concat(objs = datas, verify_integrity = verify_integrity, drop_dups = drop_dups)
+        else:
+            # get the ids of the last rows of all the meta_data fields, they will before the predecessor input into the totals
+            list_of_pred_ids = ForecastMetaDataFrame._get_list_of_last_ids(datas = datas)
+
+            # generate the instructions for the totals row
+            meta_data_sum_series = ForecastMetaDataSeries(id = series_id,
+                                                          step_type = step_type,
+                                                          action = ForecastDataSeriesMetaDataAction.SUM,
+                                                          data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                          display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                          display_name = display_name,
+                                                          validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                          pred = list_of_pred_ids)
+            
+            # concat the list of data_objects provided (unpacked using '*') and the new totals line Series into one ForecastMetaDataFrame
+            meta_data = ForecastMetaDataFrame.concat(objs = [*datas, meta_data_sum_series], verify_integrity = verify_integrity, drop_dups = drop_dups)
+
+        return(meta_data)
+
+
+
+    # _get_list_of_last_ids
+    # Go through 
+    #  
+    # INPUTS:
+    #   List of ForecastMetaDataSeries or ForecastMetaDataFrames to combine
+    # 
+    # OUTPUTS:
+    #   List of IDs
+
+    @staticmethod
+    def _get_list_of_last_ids(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']]) -> list[str]:
+        list_of_ids = []
+
+        if(datas is None or len(datas) < 1):
+            raise ValueError("*  _get_list_of_last_ids:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
+
+        # iterate over all the data_objects in datas grabbing the last id
+        for data_obj in datas:
+
+            # handle the case that the data_obj is a ForecastMetaDataFrame
+            if isinstance(data_obj, ForecastMetaDataFrame):
+                # get the id of the last key in the model (the last column of ForecastMetaDataSeries to be added)
+                list_of_ids.append(list(data_obj.model.keys())[-1])
+
+            # handle the cast that the data_obj is ForecastMetaDataSeries
+            else:
+                list_of_ids.append(data_obj.meta_data[ForecastMetaDataSeriesSchema.ID])
+
+        return(list_of_ids)
+
+
+
+
+
+
+
     # concat
     # Combine the meta_data from two or more ForecastMetaDataSeries or ForecastMetaDataFrames, designed to look similar to Pandas Concat
     #  
@@ -359,6 +435,9 @@ class ForecastMetaDataFrame():
     def concat(objs: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], verify_integrity = False, drop_dups = False, **kwargs) -> Type['ForecastMetaDataFrame']:
         results_frame = ForecastMetaDataFrame()
         read_df = False
+
+        if(objs is None or len(objs) < 1):
+            raise ValueError("*  concat:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
 
         # grab the next object off the list
         for obj in objs:
@@ -382,7 +461,7 @@ class ForecastMetaDataFrame():
                     results_frame = ForecastMetaDataFrame._append_cols(src_frame = obj, dest_frame = results_frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
                     read_df = True
 
-            # handle the cast that the next object is a ForecastMetaDataSeries
+            # handle the case that the next object is a ForecastMetaDataSeries
             else:
                 results_frame = ForecastMetaDataFrame._append_col(src_series = obj, dest_frame = results_frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
 
@@ -473,7 +552,7 @@ class ForecastMetaDataFrame():
             if(drop_dups and key_exists):
                 return dest_frame
             elif(verify_integrity and key_exists):
-                raise ValueError(f"*  _append_col:  col '{key}' already exists in ForecastMetaDataFrame")
+                raise ValueError(f"*  _append_col:  col '{key}' already exists in ForecastMetaDataFrame\n\n{dest_frame}\n\n{src_series}\n")
             
         dest_frame.model[key] = src_series
         return dest_frame
@@ -499,7 +578,7 @@ class ForecastMetaDataFrame():
 
         # iterate on all columns and print their meta-data
         for col_key in self.model.keys():
-            results += f"\nCol '{col_key}':\n{self.model[col_key]}"
+            results += f"\n\nCol '{col_key}':\n{self.model[col_key]}"
 
         return results
 

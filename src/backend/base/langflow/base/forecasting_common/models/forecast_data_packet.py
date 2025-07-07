@@ -1,0 +1,112 @@
+#####################################################################
+# forecast_data_packet.py
+#
+# Implements a static class with routines to bundle and unbundle
+# the Data packet object which holds that DataFrame and the ForecastMetaDataFrame
+#
+#####################################################################
+
+from langflow.schema.dataframe import DataFrame, Data
+import json
+from pathlib import Path
+import pickle
+
+
+# FORECAST SPECIFIC IMPORTS
+# =========================
+from langflow.base.forecasting_common.constants import ForecastModelInputTypes, ForecastModelTimescale
+from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
+from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
+                                                                        ForecastMetaDataFrame, 
+                                                                        ForecastMetaDataSeriesSchema, 
+                                                                        ForecastMetaDataFrameSchema,
+                                                                        ForecastDataSeriesMetaDataStepTypes, 
+                                                                        ForecastDataSeriesMetaDataAction, 
+                                                                        ForecastDataSeriesMetaDataDataType, 
+                                                                        ForecastDataSeriesMetaDataValidationSchema, 
+                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions)
+
+
+# COMPONENT SPECIFIC IMPORTS
+# ==========================
+#from datetime import datetime
+#from enum import Enum
+#import numpy as np
+import pandas as pd
+
+
+
+# CONSTANTS
+# =========
+
+
+
+# CLASSES
+# =======
+
+class ForecastDataPacket():
+    @staticmethod
+    def gen_data_packet(dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, text_key: str = "data_packet") -> Data:
+        # use the id from the last column as the text_key, should be the same in both dataframe and meta_data
+        # or something has gone wrong
+        last_id_dataframe = dataframe.columns[-1]
+        last_id_meta_data = list(meta_data.model.keys())[-1]
+
+        if last_id_dataframe != last_id_meta_data:
+            raise ValueError(f"* gen_data_packet: error, final cols of dataframe and meta-data do not have the same IDs:  dataframe = '{last_id_dataframe}', meta-data = '{last_id_meta_data}'.")
+
+        # bundle all this together into a data packet
+        new_packet = Data(data={"data": dataframe, "meta_data": meta_data}, text_key=last_id_dataframe, default_value = "data missing")
+        return(new_packet)
+
+
+    
+    @staticmethod
+    def unpack_data_packets(data_packets: list[Data]) -> tuple[list[DataFrame], list[ForecastMetaDataFrame]]:
+        dataframes = []
+        meta_datas = []
+
+        # iterate over the entire list of data_packets and break into two lists, one for the dataframes,
+        # one for the ForecastMetaDataFrames
+        for data_packet in data_packets:
+            (dataframe, meta_data) = ForecastDataPacket.unpack_data_packet(data_packet)
+            dataframes.append(dataframe)
+            meta_datas.append(meta_data)
+
+        return(dataframes, meta_datas)    
+
+
+    
+    @staticmethod
+    def unpack_data_packet(data_packet: Data) -> tuple[DataFrame, ForecastMetaDataFrame]:
+        dataframe = data_packet.data["data"]
+        meta_data = data_packet.data["meta_data"]
+
+        # make sure the last text_key, the last column id of the dataframe, and the last column id of the meta-data all match
+        # otherwise raise an error as something has gone wrong
+        last_id_dataframe = dataframe.columns[-1]
+        last_id_meta_data = list(meta_data.model.keys())[-1]
+        text_key = data_packet.text_key
+
+        if (last_id_dataframe != last_id_meta_data) or (last_id_dataframe != text_key):
+            raise ValueError(f"* unpack_data_packet: error, final cols of dataframe and meta-data do not have the same IDs:  dataframe = '{last_id_dataframe}', meta-data = '{last_id_meta_data}', text_key = '{text_key}'.")
+
+        return(dataframe, meta_data)
+    
+
+
+    @staticmethod
+    def pickle_data_packet(data_packet: Data, path: Path):
+        with open(path, 'wb') as dest_file:
+            pickle.dump(data_packet, dest_file)
+
+
+
+    @staticmethod
+    def unpickle_data_packet(path: Path) -> Data:
+        with open(path, 'rb') as src_file:
+            data_packet = pickle.load(src_file)
+        
+        return data_packet
+
+        

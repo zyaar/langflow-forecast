@@ -9,202 +9,170 @@
 #
 #####################################################################
 
+
 from langflow.custom import Component
-from langflow.io import StrInput, DataFrameInput, IntInput, TableInput
-from langflow.schema import DataFrame
+from langflow.io import StrInput, DataInput, IntInput, TableInput
+from langflow.schema import DataFrame, Data
 from langflow.schema.table import EditMode
 from langflow.template import Output
 from langflow.field_typing.range_spec import RangeSpec
 
 # FORECAST SPECIFIC IMPORTS
 # =========================
+from langflow.base.forecasting_common.components.forecast_component import ForecastComponent
 from langflow.base.forecasting_common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
 from langflow.base.forecasting_common.forms.forecast_form_updater import ForecastFormUpdater
 from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
 
+from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
+                                                                        ForecastMetaDataFrame, 
+                                                                        ForecastMetaDataSeriesSchema, 
+                                                                        ForecastMetaDataFrameSchema,
+                                                                        ForecastDataSeriesMetaDataStepTypes, 
+                                                                        ForecastDataSeriesMetaDataAction, 
+                                                                        ForecastDataSeriesMetaDataDataType, 
+                                                                        ForecastDataSeriesMetaDataValidationSchema, 
+                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions,
+                                                                        ForecastDataSeriesMetaDataValidateValueChecks)
+
 
 
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
-from typing import Any, List
+from typing import List
+import pandas as pd
+import nanoid
 
 
 # CLASSES
 # =======
 
-# ForecastPricingTB
-# This class represents converting a series of Product Rx / SKU orders in to a revenue stream by applying price
-class ForecastSummationTB(Component):
+# ForecastSummationTB
+# Adds all the input streams together and results a new row with a total
+class ForecastSummationTB(ForecastComponent):
 
-    # CONSTANTS
-    # =========
-    MAX_SEGMENTS = 1
-    SEGMENT_COL_PREFIX = "total_"
+    # CONFIG CONSTANTS
+    # ================
 
-    # COMPONENT META-DATA
-    # ===================
-    display_name: str = "Summation TB"
-    description: str = "Sum up all the inputs provided and create a new totals line in the output."
-    icon = "Sigma"
-    name: str = "SummationTB"
+    # COMPONENT INFO
+    display_name: str = f"Summation TB"
+    description: str = f"Sum up all the inputs provided and create a new totals line in the output."
+    icon: str = f"Sigma"
+    name: str = f"SummationTB"
+
+    #INPUT / OUTPUT INFO
+    VAR_IN_DISPLAY_NAME = "Forecast(s)"
+    VAR_IN_INFO = "Time-based forecast Data"
+
+    VAR_OUT_DISPLAY_NAME = "Total"
+    VAR_OUT_INFO = "Total of all incoming streams"
+    VAR_OUT_HIDDEN = False
+
+    # BUILDER INFO
+    VAR_STEP_TYPE = ForecastDataSeriesMetaDataStepTypes.SUMMATION
+    VAR_ACTION_FUNCT = ForecastDataSeriesMetaDataAction.SUM
+    VAR_VALIDATION_FUNCTS = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}]
+    VAR_PRED = []
+    VAR_ARGS = None
+    VAR_OBJS = None
 
 
     # COMPONENT INPUTS
-    # ================
-    inputs = [
-        # Number of Years in Forecast
-        StrInput(
-            name="num_years",
-            display_name="# of Years to Forecast",
-            info="The number of years to include in the forecast.",
-            required=True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
+    # ----------------
+    inputs = []
 
-        # Start Year
-        StrInput(
-            name="start_year",
-            display_name="Start Year",
-            info="The first year to forecast.  This can be a year value (i.e. 2026) or any integer (i.e. 1).  The system will simply use it as a reference point and add +1 for each year until it reaches the number of years to forecast.",
-            required=True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
-
-        # Time Scale
-        StrInput(
-            name = "timescale",
-            display_name = "Time-Scale",
-            info = "The granularity of the time scale for the forecast.",
-            required = True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
-
-        # Month Start of Fiscal Year
-        StrInput(
-            name="start_month",
-            display_name="Month Start of Fiscal Year",
-            info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
-            required = True,
-            show = True,
-            #dynamic = True,
-            #real_time_refresh = True,
-            advanced=True,
-        ),
-
-        # Input Type
-        StrInput(
-            name = "input_type",
-            display_name = "Input Type",
-            info = "Determines the type of forecast to generate.  'Time Based Input' generates which allows for individual values to be entered at the time-scale chosen.  'Single Input' uses a base value and growth/shrink rate at the time-scale chosen.",
-            required = True,
-            show = True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
-
-
-        # dataframes in List[DataFrame]
-        DataFrameInput(
-            name="forecasts_in",
-            display_name="Forecast(s)",
-            info="Time Based forecast(s) DataFrame(s)",
-            dynamic=True,
-            real_time_refresh=True,
-            is_list = True,
-        ),
-    ]
 
 
     # COMPONENT OUTPUTS
-    # =================
-    outputs = [
-        Output(display_name="Total", name="total", method="update_forecast_model"),
-    ]
+    # -----------------
+    outputs = []
 
 
 
-    # FORM UPDATE RULES
-    # =================
+    # COMPONENT FORM UPDATE RULES
+    # ---------------------------
     form_update_rules = {}
     form_trigger_rules = []
 
 
-    # update_build_config
-    # Updates real_time_refreshing INPUTS fields whenever an update happens from a dynamic field
-    def update_build_config(self, build_config, field_value, field_name = None):
+    # INSTANCE ATTRIBUTES
+    # generated during the __init__
+    # -----------------------------
+    # inputs - (list) InputTypes for the component
+    # outputs - (list) OutputTypes for the component
 
-        # update the fields in the form to show/hide, based on the field updated
-        forecastFormUpdater = ForecastFormUpdater()
-        build_config = forecastFormUpdater.forecast_update_fields(build_config, 
-                                                                  self.form_update_rules,
-                                                                  field_value = field_value,
-                                                                  field_name = field_name,
-                                                                  only_shown_fields=True)
-        
-        # update the calculated values of fields in the form based on the field updated        
-        forecastFormTriggerCalc = ForecastFormTriggerCalc()
-        build_config = forecastFormTriggerCalc.execute_trigger(build_config=build_config,
-                                                               form_trigger_rules=self.form_trigger_rules,
-                                                               field_value=field_value,
-                                                               field_name=field_name,)
 
-        # return updated config         
-        return(build_config)
-    
+    # __init__
+    # --------
+    def __init__(self, **kwargs) -> None:
+        # generates some instance variables instead of using class variables, this allows us to customize
+        # this instance variables in the children of this abstract class without having to rewrite all the
+
+        # set-up inputs and outputs with the child class's configuration variables
+        self.inputs = self.gen_inputs()
+        self.outputs = self.gen_outputs()
+
+        super().__init__(**kwargs)
     
 
-    # OUTPUT FUNCTIONS
-    # ================
+    # GENERATE INPUTS / OUTPUTS
+    # -------------------------
+    def gen_inputs(self) -> list:
+        inputs_list = [
+            # common forecast inputs
+            *ForecastComponent.inputs,
 
-    # update_forecast_model
-    # Return the summation of all the input streams
-    # 
-    # INPUTS:
-    # OUTPUTS:
-    #   DataFrame
-    def update_forecast_model(self) -> DataFrame:
-        # run input validation
-        self.validate_inputs()
+            # dataframes in List[DataFrame]
+            DataInput(
+                name=f"forecasts_in",
+                display_name=f"{self.VAR_IN_DISPLAY_NAME}",
+                info=f"{self.VAR_IN_INFO}",
+                dynamic=True,
+                real_time_refresh=True,
+                is_list = True,
+            ),
+        ]
 
-        # sum up all the inputs to create a single total line and add it to the output model
-        updated_model = self.check_and_combine_forecasts()
-        return(updated_model)
+        return(inputs_list)
     
+
+    def gen_outputs(self) -> list:
+        outputs_list = [
+            Output(display_name=f"{self.VAR_OUT_DISPLAY_NAME}", info = f"{self.VAR_OUT_INFO}", name=f"var_out", method=f"calc_var_out", hidden=f"{self.VAR_OUT_HIDDEN}"),        
+        ]
+
+        return(outputs_list)
 
 
     # INPUT VALIDATION
-    # ================
+    # ----------------
     def validate_inputs(self):
-        msg = ""
-
-        # TODO:  ADD COMPONENT SPECIFIC CODE HERE
-            
-        # if any errors occurred during validation, stop everything and raise an error
-        if(msg != ""):
-            self.status = msg
-            self.stop
-            raise ValueError(msg)
+        pass
 
 
+    # OUTPUT FUNCTIONS
+    # ----------------
 
-    # HELPER FUNCTIONS
-    # ================
-
-    # check_and_combine_forecasts
-    # Consolidate all the value checking and dataframe concat into one function
-    # 
+    # calc_var_out
+    # run the summation function and return the results
+    #
     # INPUTS:
+    #   NA
+    #
     # OUTPUTS:
-    #   DataFrame
-    def check_and_combine_forecasts(self) -> DataFrame:
-        updated_model = ForecastDataModel.concat_and_sum(datas=self.forecasts_in, new_col_name = str("Total_"+self._id), skip_total_if_one=True)
-        return updated_model
+    #   data_packet - Data with dataframe and meta-data
+
+    def calc_var_out(self) -> Data:
+        self.validate_inputs()
+
+        # sum up all the inputs to create a single total line and add it to the output model
+        (updated_model, updated_meta_data) = self.check_and_combine_forecasts(totals_id = f"{self._id}_Total", 
+                                                                              totals_display_name = f"{self.VAR_IN_DISPLAY_NAME}", 
+                                                                              step_type = self.VAR_STEP_TYPE)                                                                                                                                                                                    
+                                                                                                                                                                                            # get the id for the curr_totals row (the total patients coming into the segment component, whether it was just generated above or not), 
+        # bundle the packet together for forwarding to next component(s)
+        data_packet = self.gen_data_packet(dataframe = updated_model, meta_data = updated_meta_data)
+        return(data_packet)
+    

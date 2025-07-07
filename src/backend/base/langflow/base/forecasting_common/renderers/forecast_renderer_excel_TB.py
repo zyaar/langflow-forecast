@@ -10,7 +10,7 @@
 #####################################################################
 
 
-from typing import List, Tuple
+from typing import List, Dict, Tuple, Any
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -21,6 +21,16 @@ from langflow.schema.dataframe import DataFrame, Data
 # =========================
 from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
+from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
+                                                                        ForecastMetaDataFrame, 
+                                                                        ForecastMetaDataSeriesSchema, 
+                                                                        ForecastMetaDataFrameSchema,
+                                                                        ForecastDataSeriesMetaDataStepTypes, 
+                                                                        ForecastDataSeriesMetaDataAction, 
+                                                                        ForecastDataSeriesMetaDataDataType, 
+                                                                        ForecastDataSeriesMetaDataValidationSchema, 
+                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions,
+                                                                        ForecastDataSeriesMetaDataValidateValueChecks)
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -30,46 +40,16 @@ import shutil
 from openpyxl import Workbook, worksheet, cell, load_workbook
 from openpyxl.styles import Protection
 
-
+# CONFIG STUFF
+FORECAST_EXCEL_PROTECT_WORKSHEET = False
 
 
 # CLASSES
 # =======
 
-# Enum of supporting DataModel Schema
-class ForecastModelSchema(str, Enum):
-    ACTION = "action"
-    ID = "id"
-    PRED = "pred"
-    DISPLAY_NAME = "display_name"
 
-
-
-# Enum of supporting render action types
-class ForecastModelActions(str, Enum):
-    DATES = "dates"
-    VALUE_INPUT = "value_input"
-    MULTIPLY_PRED = "multiply_pred"
-    SUM_PRED = "sum_pred"
-
-# Enum of supported ForecastDataModel data types
-# Internally ForecastDataModel only has dates and floats, this is really how it should show
-# those internal types (for example: a float rendered as an INT might now show the decimals)
-class ForecastDataModelRenderType(str, Enum):
-    INT = "int"
-    FLOAT = "float"
-    DATE = "date"
-    PERCENT = "percent"
-    CURRENCY = "currency"
-
-
-# Enum of of the different types of input restrictions
-class ForecastRenderInputRestrictions(str, Enum):
-    READ_WRITE = "read_write"
-    READ_ONLY = "read_only"
-    TOKEN_CHECK = "token_check"
-
-
+# IdToCellReferenceMap
+# map ForecastMetaDataFrame id's to the cell locations that they represent
 class IdToCellReferenceMap():
     # INSTANCE VARIABLES
     # id_to_ref_map - a dictionary which maps all ForecastDataModel IDs to the tab and the cell reference of their rows in excel
@@ -80,7 +60,7 @@ class IdToCellReferenceMap():
 
     def add(self, id: str, tab_name: str, cell_ref: str):
         if(id in self.id_to_ref_map.keys()):
-            raise ValueError(f"* add: error, id '{id}' already exists in map:\n{self.id_to_ref_map.keys()}")
+            raise ValueError(f"* add: error, id {id} already exists in map:\n{self.id_to_ref_map.keys()}")
 
         self.id_to_ref_map[id] = {"tab": tab_name, "ref": cell_ref}
 
@@ -91,7 +71,7 @@ class IdToCellReferenceMap():
             cell_ref = full_ref["ref"]
             return(tab_name, cell_ref)
         except:
-            raise ValueError(f"* get: error, id '{id}' not found in map:\n{self.id_to_ref_map.keys()}")
+            raise ValueError(f"* get: error, id {id} not found in map:\n{self.id_to_ref_map.keys()}")
 
 
 
@@ -114,18 +94,19 @@ class ForecastRendererExcelTB():
 
     # styles
     EXCEL_STYLES_WORKSHEET_HEADER = "Headline 1"
+    EXCEL_ROW_HEADER_LABEL = "Row Header Label"
 
     # READ/WRITE
     EXCEL_STYLES_READ_WRITE_INT = "Input"
     EXCEL_STYLES_READ_WRITE_FLOAT = "Input"
-    EXCEL_STYLES_READ_WRITE_DATE = "Input"
+    EXCEL_STYLES_READ_WRITE_DATE = "Input Date"
     EXCEL_STYLES_READ_WRITE_PERCENT = "Input"
     EXCEL_STYLES_READ_WRITE_CURRENCY = "Input"
 
     # READ ONLY
     EXCEL_STYLES_READ_ONLY_INT = "Normal"
     EXCEL_STYLES_READ_ONLY_FLOAT = "Normal"
-    EXCEL_STYLES_READ_ONLY_DATE = "Normal"
+    EXCEL_STYLES_READ_ONLY_DATE = "Read Only Date"
     EXCEL_STYLES_READ_ONLY_PERCENT = "Normal"
     EXCEL_STYLES_READ_ONLY_CURRENCY = "Normal"
 
@@ -169,9 +150,14 @@ class ForecastRendererExcelTB():
     #   N/A
 
     def __init__(self,
-                 output_location: str, 
+                 data_frame: DataFrame | pd.DataFrame,
+                 meta_data:  ForecastMetaDataFrame,
+                 output_location: str,
                  template_location: str = None):
 
+        self.data_frame = data_frame
+        self.meta_data = meta_data
+        
         self.output_location = output_location
 
         if(template_location is None):
@@ -184,29 +170,25 @@ class ForecastRendererExcelTB():
 
 
     
-    # RENDER INTERFACE FUNCTIONS
+    # BUILDER INTERFACE FUNCTIONS
     # ==========================
 
     # render_player
     # RENDER INTERFACE:  render a player and return to the caller function 
     #  
     # INPUTS:
-    #     data - a list of int or floats (first series)
-    #     start_year - the start year for the forecast
-    #     num_years - number of years for the forecast
-    #     input_type - is the forecast type a 'Time Based Input' or 'Single Input' (may be an issue if there are both of them)
-    #     start_month - 
+    #   TBD
     # 
     # OUTPUTS:
-    #   DataFrame
-    def render_player(self, start_year, start_month, num_periods, timescale, forecast_model, *args, **kwargs):
+    #   TBD
+    def render_player(self):
 
         # save these as instance variables
-        self.start_year = start_year
-        self.start_month = start_month
-        self.num_periods = num_periods
-        self.timescale = timescale
-        self.forecast_model = forecast_model
+        self.start_year = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_YEAR]
+        self.start_month = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_MONTH]
+        self.num_periods = self.meta_data.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS]
+        self.timescale = self.meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]
+        self.input_type = self.meta_data.meta_data[ForecastMetaDataFrameSchema.INPUT_TYPE]
 
         # initial setup when rendering
         self._initialize_new_render()
@@ -215,12 +197,91 @@ class ForecastRendererExcelTB():
         self._build_model_excel()
 
         # save the model
-        self._finalize_new_render(self.output_location)
+        self._finalize_new_render()
 
 
-    # MAIN RENDER FUNCTIONS
-    # =====================
 
+    # action_DATES
+    # RENDER INTERFACE:  handle the DATES action by creating a row of dates
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_DATES(self, id: str):
+        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
+        curr_df_col = self.data_frame[id] # get current DataFrame col
+
+        self._add_values_row(id = id,
+                             tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
+                             values = curr_df_col.to_list(), 
+                             type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
+                             restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
+                             curr_row_meta_data = curr_meta_col,
+                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        
+
+
+    # action_INPUT
+    # RENDER INTERFACE:  handle the INPUT action by putting a row of values and blank cells for entering data
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_INPUT(self, id: str):
+        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
+        curr_df_col = self.data_frame[id] # get current DataFrame col
+
+        self._add_values_row(id = id,
+                             tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
+                             values = curr_df_col.to_list(), 
+                             type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
+                             restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
+                             curr_row_meta_data = curr_meta_col,
+                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+    
+
+
+    # action_SUM
+    # RENDER INTERFACE:  handle the SUM action by creating a row SUM'd variables based on the PREDs provided
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_SUM(self, id: str):
+        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
+        curr_df_col = self.data_frame[id] # get current DataFrame col
+
+        self._add_sum_row(id = id,
+                          tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
+                          values = curr_df_col.to_list(),
+                          preds = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.PRED], 
+                          type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
+                          restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
+                          curr_row_meta_data = curr_meta_col,
+                          row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+
+
+
+
+    # BUILDER INTERNAL FUNCTIONS
+    # ==========================
+
+    # _initialize_new_render
+    # All the excel specific set-up steps to start the process of building a new player:
+    # copy the template, open a new workbook object, set-up the initial tabs, 
+    #  set-up the id to cell references tracking structures, etc.
+    #  
+    # INPUTS:
+    #   TBD
+    # 
+    # OUTPUTS:
+    #   TBD
     def _initialize_new_render(self):
         # create new workbook or copy template
         if(self.hasTemplate):
@@ -254,10 +315,17 @@ class ForecastRendererExcelTB():
 
         
 
-
-
-    def _finalize_new_render(self, output_location: str):
-        self.player_model.save(output_location)
+    # _finalize_new_render
+    # All the excel specific steps to finalize the new player, mostly saving it to a target file location
+    # TODO:  extend this to add save to sharepoint functionality
+    #  
+    # INPUTS:
+    #   TBD
+    # 
+    # OUTPUTS:
+    #   TBD
+    def _finalize_new_render(self):
+        self.player_model.save(self.output_location)
 
         # TODO:  figure out what the return here, the intent is to provide a way to
         # return things in realtime if a renderer doesn't save to a file (for example a dynamic JSON file)
@@ -265,22 +333,104 @@ class ForecastRendererExcelTB():
         return(self.player_model)
 
 
-
-
     
+    # _build_model_excel
+    # The main dispathcher for the builder, iterates over all the rows in the ForecastMetaDataFrame model, and dispatches
+    # different functions the handle the different ACTIONS to build the excel player
+    #  
+    # INPUTS:
+    #   TBD
+    # 
+    # OUTPUTS:
+    #   TBD
     def _build_model_excel(self):
-        print(f"forecast_model:\n{self.forecast_model}")
+        model = self.meta_data.model
 
         # iterate through the forecast model, column by column, dispatching as needed
-        for i in range(len(self.forecast_model)):
-            curr_row = self.forecast_model[self.forecast_model.columns[i]]
+        for id in model:
+            # get the next ForecastMetaDataSeries in the model
+            curr_col = model[id] # get the current ForecastMetaDataSeries
 
-            # determine the action
-            print(curr_row.attrs[str(ForecastModelSchema.ACTION)])
+            print(f"{id}:  {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
+
+            # dispatch based on the action
+            match curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]:
+                case ForecastDataSeriesMetaDataAction.DATES:
+                    #print("DATES")
+                    self.action_DATES(id)
+
+                case ForecastDataSeriesMetaDataAction.INPUT:
+                    #print("INPUT")
+                    self.action_INPUT(id)
+
+                case ForecastDataSeriesMetaDataAction.SUM:
+                    #print("SUM")
+                    self.action_SUM(id)
+
+                case ForecastDataSeriesMetaDataAction.PROD:
+                    #print("PROD")
+                    self.action_INPUT(id)  # TODO
+
+                case ForecastDataSeriesMetaDataAction.SUB:
+                    #print("SUB")
+                    self.action_INPUT(id)  # TODO
+
+                case _:
+                    raise ValueError(f"*  _build_model_excel:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
+             
+            print(f"{id}:  Finished")
 
 
-    # RENDER PRIMITIVES
-    # =================
+
+    # _build_validation_excel
+    # The validation rules dispathcher for the builder, takes the current cell and iterates over all the elements in a list of 
+    # validation elements rules, dispatching the different functions the handle the different validation needs of that cell
+    #  
+    # INPUTS:
+    #   curr_cell - openpyxl Cell object, the current cell being working on
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def _build_validation_excel(self, curr_cell_meta_data: ForecastMetaDataSeries, curr_cell: cell, validation_rules: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]]):
+        for rule in validation_rules:
+            rule_type = list(rule.keys())[0]
+            rule_value = rule[rule_type]
+            print("unpacking rule:")
+            print(f"{rule_type} = {rule_value}")
+
+            match rule_type:
+                case ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION:
+                    self._add_input_restrictions(curr_cell = curr_cell,
+                                                 data_type =  curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE],
+                                                 display_type = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
+                                                 restriction = rule_value)
+
+                    #data_type = curr_cell.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]
+                    #input_restriction_type = curr_cell.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]
+                    #self._add_input_restrictions(curr_cell = curr_cell, data_type = data_type, restriction = input_restriction_type)
+
+                case ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK:
+                    self._dispatch_value_checks(curr_cell_meta_data, curr_cell, rule_value)
+
+                case _:
+                    raise ValueError(f"*  _build_validation_excel:  Unknown validation rule {rule}")
+
+
+
+
+
+    # RULE VALIDATION
+    # ===============
+
+    # TODO
+    def _dispatch_value_checks(self, curr_cell_meta_data: ForecastMetaDataSeries, curr_cell: cell, rule_value: ForecastDataSeriesMetaDataValidateValueChecks):
+        print(f"Ignoring: ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: {rule_value}")
+
+
+
+    # EXCEL PRIMITIVES
+    # ================
 
     # _add_values_row
     # Add a row of values to the model
@@ -295,7 +445,7 @@ class ForecastRendererExcelTB():
     # OUTPUTS:
     #   worksheet
 
-    def _add_values_row(self, id: str, tab_name: str, values: list, type: ForecastDataModelRenderType, restriction: ForecastRenderInputRestrictions):
+    def _add_values_row(self, id: str, tab_name: str, values: list, type: ForecastDataSeriesMetaDataDataType, restriction: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]], curr_row_meta_data: ForecastMetaDataSeries, row_name: str = None):
         if(tab_name not in self.row_trackers.keys()):
             raise ValueError(f"* add_input_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
         
@@ -304,112 +454,105 @@ class ForecastRendererExcelTB():
         curr_row = self.row_trackers[tab_name]
         num_values_to_add = len(values)
 
+        curr_col = self.EXCEL_START_COL
+
+        # add row label if provided
+        if(row_name is not None):
+            curr_cell = ws.cell(row = curr_row, column = curr_col)
+            self._add_label(value = row_name, curr_cell = curr_cell)
+        
+        # move to next cell regardless so that all cells line up
+        curr_col += 1
+
         # go cell by cell adding the row values
         for i in range(num_values_to_add):
-            curr_cell = ws.cell(row = curr_row, column = i + self.EXCEL_START_COL)
+            curr_cell = ws.cell(row = curr_row, column = curr_col)
             curr_cell.value = values[i]
-            self._add_input_restrictions(curr_cell, type, restriction)
+            curr_col += 1
+
+            # once the cell is created, add in the validation rules
+            self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, validation_rules = restriction)
+
         
         # increment the row_tracker for this tab
         self._track_add_row(id = id, tab_name = tab_name, cell_ref = curr_row)
 
+
     
-    # EXCEL PRIMITIVES
-    # ================
-    
-    # handles the boilerplate bookkeeping whenever a new row is added to the model
-    def _track_add_row(self, id, tab_name, cell_ref):
-        # add the id of the row to our mapper
-        self.id_cellref_map.add(id = id, tab_name = tab_name, cell_ref = cell_ref)
 
-        # increment our row tracker for this tab, so we know location of next row to add
-        self.row_trackers[tab_name] += 1
+    # _add_sum_row
+    # Add a row of SUM() formulas
+    #  
+    # INPUTS:
+    #   
+    #   tab = the tab to add it to
+    #   values = the series of values to add
+    #   type = the data type (for formatting purposes)
+    #   restrictions = the set of restrictions on data entry
+    # 
+    # OUTPUTS:
+    #   worksheet
 
+    def _add_sum_row(self, id: str, tab_name: str, values: list, preds: list[str], type: ForecastDataSeriesMetaDataDataType, restriction: ForecastDataSeriesMetaDataValidateInputRestrictions, curr_row_meta_data: ForecastMetaDataSeries, row_name: str = None):
 
-    # handles setting any formatting and read/write access based on the input restrictions to this cell
-    def _add_input_restrictions(self, curr_cell: cell, render: ForecastDataModelRenderType, restriction: ForecastRenderInputRestrictions):
-
-        # if token check is requested, the figure out if the current value matches the ForecastDataModel approved editable values token
-        # if it does, make it read_write, otherwise make it read only
-        if(restriction == ForecastRenderInputRestrictions.TOKEN_CHECK):
-            if(curr_cell.value == ForecastDataModel.EDITABLE_VALUES_TOKEN):
-                restriction = ForecastRenderInputRestrictions.READ_WRITE
-            else:
-                restriction = ForecastRenderInputRestrictions.READ_ONLY
-
-        # based on the restriction and the data type, apply cell protection and the appropriate style
-        match restriction:
-            case ForecastRenderInputRestrictions.READ_WRITE:
-                match render:
-                    case ForecastDataModelRenderType.INT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_INT
-                    case ForecastDataModelRenderType.FLOAT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_FLOAT
-                    case ForecastDataModelRenderType.DATE:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_DATE
-                    case ForecastDataModelRenderType.PERCENT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_PERCENT
-                    case ForecastDataModelRenderType.CURRENCY:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_CURRENCY
-                    case _:
-                        raise ValueError(f"* _add_input_restrictions:  invalid Data Model Render type '{type}' requested for cell at '{curr_cell.coordinate}'")
-                    
-                curr_cell.protection = Protection(locked = False, hidden = False)
-
-
-            case ForecastRenderInputRestrictions.READ_ONLY:
-                match render:
-                    case ForecastDataModelRenderType.INT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_INT
-                    case ForecastDataModelRenderType.FLOAT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_FLOAT
-                    case ForecastDataModelRenderType.DATE:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_DATE
-                    case ForecastDataModelRenderType.PERCENT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_PERCENT
-                    case ForecastDataModelRenderType.CURRENCY:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_CURRENCY
-                    case _:
-                        raise ValueError(f"* _add_input_restrictions:  invalid Data Model Render type '{type}' requested for cell at '{curr_cell.coordinate}'")
-                    
-                curr_cell.protection = Protection(locked = True, hidden = False)
-
-            case _:
-                raise ValueError(f"* _add_input_restrictions:  invalid input restriction type '{restriction}' requested for cell at '{curr_cell.coordinate}'")
-
-
-
-    # HELPER FUNCTIONS 
-    # ================
-
-    # _initialize_new_render HELPERS
-    # ------------------------------
-
-
-    # _finalize_new_render HELPERS
-    # ----------------------------
-
-
-    # _build_new_renderer HELPERS
-    # ---------------------------
-    def _generate_core_tabs(self):
-        # remove the first worksheet
-        #ws = self.get_ws(0)
-        #self.player_model.remove(ws)
-
-        # get the number of worksheets in workbook
-        self.template_num_sheets = len(self.player_model.sheetnames)
+        if(tab_name not in self.row_trackers.keys()):
+            raise ValueError(f"* add_input_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
         
+        # set-up for the adding
+        ws = self.player_model[tab_name]
+        curr_row = self.row_trackers[tab_name]
 
-        # generate the core tabs of the model
-        for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
-            self.create_ws(tab)
+        curr_col = self.EXCEL_START_COL # start column for the row
 
-        print(f"sheetnames:{self.player_model.sheetnames}")
+        # add row name if provided
+        if(row_name is not None):
+            curr_cell = ws.cell(row = curr_row, column = curr_col)
+            self._add_label(value = row_name, curr_cell = curr_cell)
+        
+        # move to next cell regardless so that all cells line up
+        curr_col += 1
+
+        # set our current cell to start writing
+        curr_ws = self.player_model[tab_name]
+        curr_row = self.row_trackers[tab_name]
+        curr_cell = curr_ws.cell(row = curr_row, column = curr_col)
+
+        # Get the starting cell objects for all preds
+        curr_cell_refs = []
+
+        for i in range(len(preds)):
+            print(f"i = {i}")
+            (tab_name, row_num) = self.id_cellref_map.get(preds[i])
+            ws = self.player_model[tab_name]
+            cell = ws.cell(row = row_num, column = curr_col)
+            curr_cell_refs.append(cell) # can get fully qualified location as: f"'{cell.parent.title}'!{cell.coordinate}"
+
+
+        # iterate over each column, building the SUM formula for it as we go
+        for i in range(len(values)):
+            list_of_refs = [f"'{cell.parent.title}'!{cell.coordinate}" for cell in curr_cell_refs] # get a list of all the curr_column coordinates
+            cell_formula = f"=SUM({",".join(list_of_refs)})" # build the cell formula string (as described above: f"'{cell.parent.title}'!{cell.coordinate}")
+            curr_cell.value = cell_formula
+
+            # once the cell is created, add in the validation rules
+            self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, validation_rules = restriction)
+
+
+            # shift everything to the right in preparation for the next loop
+            curr_cell_refs = [cell.offset(row=0, column=1) for cell in curr_cell_refs] # move all coordinates over to the right
+            curr_cell = curr_cell.offset(row=0, column=1)
+
+        # increment the row_tracker for this tab
+        self._track_add_row(id = id, tab_name = tab_name, cell_ref = curr_row)
+
+
+
 
     
-    # OTHER HELPERS
-    # -------------
+    # EXCEL HELPERS
+    # =============
+    
+    # WORKSHEET
 
     # create_ws
     # Standardizes the creation of a tab, including adding headers and anything else need
@@ -424,9 +567,12 @@ class ForecastRendererExcelTB():
         ws = self.safe_create_ws(tab)
         ws['A1'] = tab
         ws['A1'].style = self.EXCEL_STYLES_WORKSHEET_HEADER
-        ws.protection.sheet = True
+
+        if FORECAST_EXCEL_PROTECT_WORKSHEET:
+            self.protect_ws(ws)
 
         return(ws)
+
 
 
     # safe_create_ws
@@ -449,6 +595,7 @@ class ForecastRendererExcelTB():
         return(ws)
 
 
+
     # remove_ws
     # Simple convenience function to remove a sheet by either index or name using get_ws
     #  
@@ -459,6 +606,8 @@ class ForecastRendererExcelTB():
     #   None
     def remove_ws(self, tab: str | int):
         self.player_model.remove(self.get_ws(tab))
+
+
 
     # get_ws
     # Simple convenience function to enable all other worksheet functions to access a worksheet by name or index
@@ -477,6 +626,128 @@ class ForecastRendererExcelTB():
             raise ValueError(f"*  get_ws:  invalid 'tab' type: {type(tab)}, value: {tab}")
         
         return(ws)
+
+
+
+    # _generate_core_tabs
+    # Create the initial set of tabs required by the player
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def _generate_core_tabs(self):
+        # remove the first worksheet
+        #ws = self.get_ws(0)
+        #self.player_model.remove(ws)
+
+        # get the number of worksheets in workbook
+        self.template_num_sheets = len(self.player_model.sheetnames)
+        
+
+        # generate the core tabs of the model
+        for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
+            self.create_ws(tab)
+
+        print(f"sheetnames:{self.player_model.sheetnames}")
+
+
+
+    # protect_ws
+    # Protect a worksheet
+    #  
+    # INPUTS:
+    #   ws - Worksheet object
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def protect_ws(self, ws: worksheet):
+        ws.protection.formatColumns = False
+        ws.protection.formatRows = False
+        ws.protection.sheet = True
+
+
+
+
+    # LABELS
+
+    def _add_label(self, value: str, curr_cell: cell):
+        curr_cell.value = value
+        curr_cell.style = self.EXCEL_ROW_HEADER_LABEL
+        curr_cell.protection = Protection(locked = True, hidden = False)
+
+    
+
+    # STYLES
+
+    # handles setting any formatting and read/write access based on the input restrictions to this cell
+    def _add_input_restrictions(self, curr_cell: cell, data_type: ForecastDataSeriesMetaDataDataType, display_type: ForecastDataSeriesMetaDataDataType, restriction: ForecastDataSeriesMetaDataValidateInputRestrictions):
+
+        # if token check is requested, the figure out if the current value matches the ForecastDataModel approved editable values token
+        # if it does, make it read_write, otherwise make it read only
+        if(restriction == ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK):
+            if(curr_cell.value == ForecastDataModel.EDITABLE_VALUES_TOKEN):
+                restriction = ForecastDataSeriesMetaDataValidateInputRestrictions.READ_WRITE
+            else:
+                restriction = ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY
+
+        # based on the restriction and the data type, apply cell protection and the appropriate style
+        match restriction:
+            case ForecastDataSeriesMetaDataValidateInputRestrictions.READ_WRITE:
+                match display_type:
+                    case ForecastDataSeriesMetaDataDataType.INT:
+                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_INT
+                    case ForecastDataSeriesMetaDataDataType.FLOAT:
+                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_FLOAT
+                    case ForecastDataSeriesMetaDataDataType.DATE:
+                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_DATE
+                    case ForecastDataSeriesMetaDataDataType.PCT:
+                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_PERCENT
+                    case ForecastDataSeriesMetaDataDataType.CURRENCY:
+                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_CURRENCY
+                    case _:
+                        raise ValueError(f"\n* _add_input_restrictions:  invalid Data Model display_type '{display_type}' requested for cell at '{curr_cell.coordinate}'")
+                    
+                curr_cell.protection = Protection(locked = False, hidden = False)
+
+
+            case ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY:
+                match display_type:
+                    case ForecastDataSeriesMetaDataDataType.INT:
+                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_INT
+                    case ForecastDataSeriesMetaDataDataType.FLOAT:
+                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_FLOAT
+                    case ForecastDataSeriesMetaDataDataType.DATE:
+                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_DATE
+                    case ForecastDataSeriesMetaDataDataType.PCT:
+                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_PERCENT
+                    case ForecastDataSeriesMetaDataDataType.CURRENCY:
+                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_CURRENCY
+                    case _:
+                        raise ValueError(f"\n* _add_input_restrictions:  invalid Data Model display_type '{display_type}' requested for cell at '{curr_cell.coordinate}'")
+                    
+                curr_cell.protection = Protection(locked = True, hidden = False)
+
+            case _:
+                raise ValueError(f"\n* _add_input_restrictions:  invalid input restriction type '{restriction}' requested for cell at '{curr_cell.coordinate}'")
+
+
+
+    # HELPER FUNCTIONS 
+    # ================
+
+    # handles the boilerplate bookkeeping whenever a new row is added to the model
+    def _track_add_row(self, id, tab_name, cell_ref):
+        # add the id of the row to our mapper
+        self.id_cellref_map.add(id = id, tab_name = tab_name, cell_ref = cell_ref)
+
+        # increment our row tracker for this tab, so we know location of next row to add
+        self.row_trackers[tab_name] += 1
+
+
 
 
     

@@ -25,6 +25,23 @@ def main():
 
 
 
+    # Create a ForecastMetaDataSeries with meta_data through __init__
+    print("Create a ForecastMetaDataSeries with meta_data through __init__")
+    print("---------------------------------------------------------------")
+    test_series_1000 = ForecastMetaDataSeries(id = "123",
+                                              step_type = ForecastDataSeriesMetaDataStepTypes.EPIDEMIOLOGY,
+                                              action = ForecastDataSeriesMetaDataAction.DATES,
+                                              data_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                              display_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                              display_name = "Dates (end-of)",
+                                              validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                              pred = ["pred"],
+                                              args = ["args"],
+                                              objs = ["objs"],)
+    print(f"{test_series_1000}\n\n")
+
+
+
     # Add meta_data (ALL DATA)
     print("Add meta_data (ALL DATA)")
     print("------------------------")
@@ -34,10 +51,11 @@ def main():
                                          data_type = ForecastDataSeriesMetaDataDataType.DATE,
                                          display_type = ForecastDataSeriesMetaDataDataType.DATE,
                                          display_name = "Dates (end-of)",
-                                         validation = list[ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY],
-                                         pred = list["pred"],
-                                         args = list["args"],
-                                         objs = list["objs"],)
+                                         #validation = list[ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY],
+                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                         pred = ["pred"],
+                                         args = ["args"],
+                                         objs = ["objs"],)
     print(f"{test_series_1}\n\n")
 
 
@@ -52,7 +70,7 @@ def main():
                                          data_type = ForecastDataSeriesMetaDataDataType.INT,
                                          display_type = ForecastDataSeriesMetaDataDataType.INT,
                                          display_name = "Newly Incident Stage IV Patients",
-                                         validation = list[ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK],)
+                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],)
     print(f"{test_series_2}\n\n")
 
 

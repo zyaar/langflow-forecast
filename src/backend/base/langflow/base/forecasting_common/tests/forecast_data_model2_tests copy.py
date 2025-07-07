@@ -30,10 +30,10 @@ def main():
                                          data_type = ForecastDataSeriesMetaDataDataType.DATE,
                                          display_type = ForecastDataSeriesMetaDataDataType.DATE,
                                          display_name = "Dates (end-of)",
-                                         validation = list[ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY],
-                                         pred = list["pred"],
-                                         args = list["args"],
-                                         objs = list["objs"],)
+                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                         pred = ["pred"],
+                                         args = ["args"],
+                                         objs = ["objs"],)
     print(test_series_1)
 
 
@@ -47,7 +47,7 @@ def main():
                                          data_type = ForecastDataSeriesMetaDataDataType.INT,
                                          display_type = ForecastDataSeriesMetaDataDataType.INT,
                                          display_name = "Newly Incident Stage IV Patients",
-                                         validation = list[ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK],)
+                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],)
     print(test_series_2)
 
 

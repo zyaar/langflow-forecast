@@ -6,7 +6,7 @@
 #
 #####################################################################
 
-#from typing import List, Tuple
+from typing import List, Dict, Any
 #import nanoid
 #from langflow.schema.dataframe import DataFrame, Data
 
@@ -160,10 +160,10 @@ class ForecastDataSeries(pd.Series):
                                data_type: ForecastDataSeriesMetaDataDataType, 
                                display_type: ForecastDataSeriesMetaDataDataType,
                                display_name: str,
-                               validation: list,
-                               pred: list[str] = None, 
-                               args: list = None, 
-                               objs: list = None,):
+                               validation: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]],
+                               pred: List[str] = None, 
+                               args: List = None, 
+                               objs: List = None,):
         
         # store all the meta-data as attrbiutes in the Pandas Series
         self.step_type = step_type
