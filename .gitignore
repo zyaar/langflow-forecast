@@ -283,3 +283,6 @@ src/frontend/temp
 *.xlsx
 *.pickle
 output*.json
+excel_player_template - Copy.xlsx:Zone.Identifier
+.gitignore
+output - Copy.json:Zone.Identifier
