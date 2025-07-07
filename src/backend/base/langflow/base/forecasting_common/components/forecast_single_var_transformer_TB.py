@@ -393,7 +393,7 @@ class ForecastSingleVarTransformerTB(ForecastComponent):
                                                                     data_type = self.VAR_OUT_TYPE,
                                                                     display_type = self.VAR_OUT_DISPLAY_TYPE,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [col_total_in_id],
+                                                                    pred = [col_total_in_id, self.var_col_input_id],
                                                                     args = None,
                                                                     objs = None)
         
