@@ -281,3 +281,5 @@ src/frontend/temp
 # Excel output files
 *.xls
 *.xlsx
+*.pickle
+output*.json
