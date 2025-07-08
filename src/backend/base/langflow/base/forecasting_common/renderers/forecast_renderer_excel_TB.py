@@ -38,8 +38,14 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 from datetime import datetime
 from enum import Enum
 import shutil
-from openpyxl import Workbook, worksheet, cell, load_workbook
+from openpyxl import Workbook, worksheet, load_workbook
+from openpyxl.cell.cell import Cell
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import Protection
+from langflow.base.forecasting_common.renderers.forecast_excel_validation_builder import (ForecastExcelDataTypeToValidationMap,
+                                                                                          ForecastExcelValidationRanges,
+                                                                                          ForecastExcelValidationRuleBuilder)
+
 
 # CONFIG STUFF
 FORECAST_EXCEL_PROTECT_WORKSHEET = False
@@ -64,25 +70,36 @@ class IdToCellReferenceMap():
     # INSTANCE VARIABLES
     # id_to_ref_map - a dictionary which maps all ForecastDataModel IDs to the tab and the cell reference of their rows in excel
 
-    def __init__(self):
-        # create instance variables
-        self.id_to_ref_map = {}
+    # __init__ function, does nothing right now
+    id_to_ref_map = {}
 
-    def add(self, id: str, tab_name: str, cell_ref: str):
+    def __init__(self):
+        pass
+
+    # Add a new entry to the map: id is the key, tab_name and cell references are the values
+    # TODO:  change the returned value of 'Any' into the name of the 'cell' object
+    def add(self, id: str, tab_name: str, cell_ref: Cell):
         if(id in self.id_to_ref_map.keys()):
-            raise ValueError(f"* add: error, id {id} already exists in map:\n{self.id_to_ref_map.keys()}")
+            raise ValueError(f"\n* IdToCellReferenceMap.add: error, id {id} already exists in map:\n{self.id_to_ref_map.keys()}")
 
         self.id_to_ref_map[id] = {"tab": tab_name, "ref": cell_ref}
 
-    def get(self, id: str) -> Tuple[str, str]:
+
+    # Given an id, return the: tab_name, cell object pointing to the start of row
+    # TODO:  change the returned value of 'Any' into the name of the 'cell' object
+    def get(self, id: str) -> Tuple[str, Any]:
         try:
             full_ref = self.id_to_ref_map[id]
             tab_name = full_ref["tab"]
             cell_ref = full_ref["ref"]
-            return(tab_name, cell_ref)
         except:
-            raise ValueError(f"* get: error, id {id} not found in map:\n{self.id_to_ref_map.keys()}")
+            raise ValueError(f"\n* IdToCellReferenceMap.get: error, id {id} not found in map:\n{self.id_to_ref_map.keys()}")
+        
+        return(tab_name, cell_ref)
+    
 
+
+        
 
 # ForecastRendererExcel
 # Class which renders a Forecast Model player for excel using an Time Based model
@@ -97,8 +114,17 @@ class ForecastRendererExcelTB():
 
     # EXCEL PLAYER CONSTANTS
     EXCEL_REQUIRED_WORKBOOK_TABS = ["Summary"]
-    EXCEL_START_ROW = 4 #NOTE:  All ROW references are 1's indexed, not zero-indexed per openpyxl
-    EXCEL_START_COL = 2 #NOTE:  All COLUMN references are 1's indexed, not zero-indexed per openpyxl
+
+    # PLAYER ROW COLUMN LAYOUT  (NOTE:  per openpyxl, all ROW colum numbers are 1's indexed, not 0's indexed like regular python)
+    EXCEL_START_ROW = 4 # The first row of a worsheet for any rendering, 
+    EXCEL_START_COL = 2 # The first row of a worsheet for any rendering
+    EXCEL_LABEL_COL = EXCEL_START_COL               # Row label
+    EXCEL_ID_COL = EXCEL_LABEL_COL+1                # ForecastMetaDataSeries ID for row
+    EXCEL_NAME_COL = EXCEL_ID_COL+1                 # User doing the data entry's name
+    EXCEL_COUNTRY_COL = EXCEL_NAME_COL+1            # Country
+    EXCEL_PRODUCT_COL = EXCEL_COUNTRY_COL+1         # Product
+    EXCEL_INDICATION_COL = EXCEL_PRODUCT_COL+1      # Indication for product (if needed)
+    EXCEL_VALUES_START_COL = 4 # NOTE:  All COLUMN references are 1's indexed, not zero-indexed per openpyxl
 
 
     # EXCEL STYLES
@@ -126,6 +152,18 @@ class ForecastRendererExcelTB():
 
     # CLASS VARIABLES
     input_type = ForecastModelInputTypes.TIME_BASED
+
+    # data validation objects
+    dv_integer = DataValidation(type="whole") # ensure it's an integer
+    dv_float = "" # ensure it's a float (i.e. numeric)
+    dv_currency = "" # ensure it's currency
+    dv_percent = "" # ensure it's a percent
+
+    dv_lt = ""  # less than validation rule
+    dv_le = ""  # less than or equal to rule
+    dv_eq = ""  # equal to rule
+    dv_ge = ""  # greater to equal to rule
+    dv_gt = ""  # greater than rule
 
     # INSTANCE VARIABLES
     # ------------------
@@ -227,13 +265,7 @@ class ForecastRendererExcelTB():
         # so that openpyxl can correctly pass them to excel
         values = [datetime.strptime(s, "%Y-%m-%dT%H:%M:%S") for s in curr_df_col.to_list()]
 
-        self._add_values_row(id = id,
-                             tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
-                             values = values, 
-                             type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
-                             restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
-                             curr_row_meta_data = curr_meta_col,
-                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        self._add_values_row(id = id, tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], values = values, curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
         
 
 
@@ -249,13 +281,7 @@ class ForecastRendererExcelTB():
         curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
         curr_df_col = self.data_frame[id] # get current DataFrame col
 
-        self._add_values_row(id = id,
-                             tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
-                             values = curr_df_col.to_list(), 
-                             type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
-                             restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
-                             curr_row_meta_data = curr_meta_col,
-                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        self._add_values_row(id = id, tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], values = curr_df_col.to_list(), curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
     
 
 
@@ -271,13 +297,10 @@ class ForecastRendererExcelTB():
         curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
         curr_df_col = self.data_frame[id] # get current DataFrame col
 
-        self._add_arith_row(id = id,
-                            arith_funct = ForecastBuilderExcelArithmeticFunctions.ADD,
+        self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.ADD,
+                            id = id,
                             tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
                             values = curr_df_col.to_list(),
-                            preds = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.PRED], 
-                            type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
-                            restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
 
@@ -296,13 +319,10 @@ class ForecastRendererExcelTB():
         curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
         curr_df_col = self.data_frame[id] # get current DataFrame col
 
-        self._add_arith_row(id = id,
-                            arith_funct = ForecastBuilderExcelArithmeticFunctions.PROD,
+        self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.PROD,
+                            id = id,
                             tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
                             values = curr_df_col.to_list(),
-                            preds = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.PRED], 
-                            type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
-                            restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
 
@@ -321,13 +341,10 @@ class ForecastRendererExcelTB():
         curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
         curr_df_col = self.data_frame[id] # get current DataFrame col
 
-        self._add_arith_row(id = id,
-                            arith_funct = ForecastBuilderExcelArithmeticFunctions.SUB,
+        self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.SUB,
+                            id = id,
                             tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
                             values = curr_df_col.to_list(),
-                            preds = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.PRED], 
-                            type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
-                            restriction = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.VALIDATION],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
 
@@ -434,7 +451,7 @@ class ForecastRendererExcelTB():
                     self.action_SUB(id)
 
                 case _:
-                    raise ValueError(f"*  _build_model_excel:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
+                    raise ValueError(f"\n*  _build_model_excel:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
                 
 
 
@@ -448,7 +465,16 @@ class ForecastRendererExcelTB():
     # OUTPUTS:
     #   NA
 
-    def _build_validation_excel(self, curr_cell_meta_data: ForecastMetaDataSeries, curr_cell: cell, validation_rules: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]]):
+    def _build_validation_excel(self, 
+                                curr_cell_meta_data: ForecastMetaDataSeries, 
+                                curr_cell: Cell, 
+                                data_type: ForecastMetaDataSeriesSchema, 
+                                display_type: ForecastMetaDataSeriesSchema, 
+                                validation_rules: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]]):
+        
+        # create an empty rule builder for excel
+        rule_builder = ForecastExcelValidationRuleBuilder()
+
         for rule in validation_rules:
             rule_type = list(rule.keys())[0]
             rule_value = rule[rule_type]
@@ -457,16 +483,25 @@ class ForecastRendererExcelTB():
 
             match rule_type:
                 case ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION:
-                    self._add_input_restrictions(curr_cell = curr_cell,
-                                                 data_type =  curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE],
-                                                 display_type = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE], 
-                                                 restriction = rule_value)
+                    rule_builder = self._add_input_restrictions(rule_builder = rule_builder,
+                                                                curr_cell = curr_cell,
+                                                                data_type =  data_type,
+                                                                display_type = display_type, 
+                                                                restriction = rule_value)
 
                 case ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK:
-                    self._dispatch_value_checks(curr_cell_meta_data, curr_cell, rule_value)
+                    print("_add_value_checks NOT CURRENTLY IMPLEMENTED")
+                    # rule_builder = self._add_value_checks(rule_builder = rule_builder,
+                    #                                       meta_data = curr_cell_meta_data, 
+                    #                                       curr_cell = curr_cell,
+                    #                                       restriction = rule_value)
 
                 case _:
                     raise ValueError(f"*  _build_validation_excel:  Unknown validation rule {rule}")
+                
+        # once we have completed configuration of the rule-builder, generate a new rule and apply it to the curr_cell
+        excel_rule = rule_builder.generate_data_entry_rule()
+        excel_rule.add(curr_cell)
 
 
 
@@ -475,9 +510,8 @@ class ForecastRendererExcelTB():
     # RULE VALIDATION
     # ===============
 
-    # TODO
-    def _dispatch_value_checks(self, curr_cell_meta_data: ForecastMetaDataSeries, curr_cell: cell, rule_value: ForecastDataSeriesMetaDataValidateValueChecks):
-        print(f"Ignoring: ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: {rule_value}")
+
+        
 
 
 
@@ -491,48 +525,40 @@ class ForecastRendererExcelTB():
     #   
     #   tab = the tab to add it to
     #   values = the series of values to add
-    #   type = the data type (for formatting purposes)
     #   restrictions = the set of restrictions on data entry
     # 
     # OUTPUTS:
     #   worksheet
 
-    def _add_values_row(self, id: str, tab_name: str, values: list, type: ForecastDataSeriesMetaDataDataType, restriction: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]], curr_row_meta_data: ForecastMetaDataSeries, row_name: str = None):
+    def _add_values_row(self, 
+                        id: str, 
+                        tab_name: str, 
+                        values: list, 
+                        curr_row_meta_data: ForecastMetaDataSeries, 
+                        restriction: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]] = None, 
+                        row_name: str = None):
+        
+        # make sure it's a legit tab to go to start writing
         if(tab_name not in self.row_trackers.keys()):
             raise ValueError(f"* add_input_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
         
-        # set-up for the adding
-        ws = self.player_model[tab_name]
-        curr_row = self.row_trackers[tab_name]
-        num_values_to_add = len(values)
-
-        curr_col = self.EXCEL_START_COL
-
-        # add row label if provided
-        if(row_name is not None):
-            curr_cell = ws.cell(row = curr_row, column = curr_col)
-            self._add_label(value = row_name, curr_cell = curr_cell)
+        # get meta_data values that we need for this function, if it wasn't provided
+        if restriction is None:
+            restriction = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.VALIDATION]
         
-        # move to next cell regardless so that all cells line up
-        curr_col += 1
+        # boilerplate set-up of the row
+        (curr_cell, data_type, display_type) = self._add_row_setup(id, tab_name, curr_row_meta_data, row_name)
 
         # go cell by cell adding the row values
-        for i in range(num_values_to_add):
-            curr_cell = ws.cell(row = curr_row, column = curr_col)
-            curr_cell.value = values[i]
-            curr_col += 1
-
-            # once the cell is created, add in the validation rules
-            self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, validation_rules = restriction)
-
-        
-        # increment the row_tracker for this tab
-        self._track_add_row(id = id, tab_name = tab_name, cell_ref = curr_row)
+        for value in values:
+            curr_cell.value = value # set the value of the cell
+            self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, data_type = data_type, display_type = display_type, validation_rules = restriction) # add validation rules (if any)
+            curr_cell = curr_cell.offset(row = 0, column = 1) # move the current cell pointer by one over to the right of the row
 
 
     
     # _add_arith_row
-    # Add a row of arithmetic formulas
+    # Add a row of arithmetic formulas (+, -, *, /)
     #  
     # INPUTS:
     #   
@@ -544,72 +570,41 @@ class ForecastRendererExcelTB():
     # OUTPUTS:
     #   worksheet
 
-    def _add_arith_row(self, arith_funct: ForecastBuilderExcelArithmeticFunctions, id: str, tab_name: str, values: list, preds: list[str], type: ForecastDataSeriesMetaDataDataType, restriction: ForecastDataSeriesMetaDataValidateInputRestrictions, curr_row_meta_data: ForecastMetaDataSeries, row_name: str = None):
+    def _add_arith_row(self, 
+                       arith_funct: ForecastBuilderExcelArithmeticFunctions, 
+                       id: str, 
+                       tab_name: str,
+                       values: list,
+                       curr_row_meta_data: ForecastMetaDataSeries,
+                       preds: list[str] = None, 
+                       restriction: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]] = None, 
+                       row_name: str = None):
+        
 
+        # make sure it's a legit tab to go to start writing
         if(tab_name not in self.row_trackers.keys()):
             raise ValueError(f"* add_prod_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
         
-        # set-up
-        ws = self.player_model[tab_name]
-        curr_row = self.row_trackers[tab_name]
-
-        curr_col = self.EXCEL_START_COL # start column for the row
-
-        # add row name if provided
-        if(row_name is not None):
-            curr_cell = ws.cell(row = curr_row, column = curr_col)
-            self._add_label(value = row_name, curr_cell = curr_cell)
+        # get meta_data values that we need for this function, if it wasn't provided
+        if preds is None:
+            preds = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED]
         
-        # move to next cell regardless so that all cells line up
-        curr_col += 1
+        if restriction is None:
+            restriction = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.VALIDATION]
+        
+        # boilerplate set-up of the row
+        # and place the curr_cell pointer in the row and column to start adding values
+        (curr_cell, data_type, display_type)  = self._add_row_setup(id, tab_name, curr_row_meta_data, row_name)
 
-        # set our current cell to start writing
-        curr_ws = self.player_model[tab_name]
-        curr_row = self.row_trackers[tab_name]
-        curr_cell = curr_ws.cell(row = curr_row, column = curr_col)
+        # Iterate over all the columns in the row that need values
+        num_vals_add = len(values)
 
-        # Get the starting cell objects for all preds
-        curr_cell_refs = []
-
-        for i in range(len(preds)):
-            # Check if this is an ID (string) or a constant (int, float), we'll each differently
-            # IDs we'll need to lookup the EXCEL cell reference for the formula, so grab the cell object for the first column
-            # in the row of that id
-            if isinstance(preds[i], str):
-                (tab_name, row_num) = self.id_cellref_map.get(preds[i])
-                ws = self.player_model[tab_name]
-                cell = ws.cell(row = row_num, column = curr_col)
-                curr_cell_refs.append(cell) # can get fully qualified location as: f"'{cell.parent.title}'!{cell.coordinate}"
-
-            # Constants, we can add directly into the list, as we'll put them directly into the formula
-            else:
-                curr_cell_refs.append(preds[i])
-
-
-        # iterate over each column, building the ARITHMETIC formula for it as we go
-        for i in range(len(values)):
-            # Ok, a bit confusing syntatic sugar, but this basically says, go through the list of curr_cell_refs... if it's a real reference, (i.e. a string), then convert the
-            # cell ref into an excel coordinate (f"'{cell.parent.title}'!{cell.coordinate}"), if it's NOT a cell ref (i.e. it's not a string, meaning it's an int or float), then
-            # just just return a string version of the number (i.e. constant)
-            list_of_refs = [f"'{cell.parent.title}'!{cell.coordinate}" if not isinstance(cell, int | float) else str(cell) for cell in curr_cell_refs] # get a list of all the curr_column coordinates
-            #list_of_refs = [f"'{cell.parent.title}'!{cell.coordinate}" for cell in curr_cell_refs] # get a list of all the curr_column coordinates
-
-            # to generate the fomula we simply take the list of all our cell coodinated and constants and 
-            # join together with the appropriate airthmetic joiner (+, -, *, /)
-            cell_formula = f"={arith_funct.value.join(list_of_refs)}"
-            print(cell_formula)
-            curr_cell.value = cell_formula
-
-            # once the cell is created, add in the validation rules
-            self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, validation_rules = restriction)
-
-            # shift everything to the right in preparation for the next loop
-            curr_cell_refs = [cell.offset(row=0, column=1) if not isinstance(cell, int | float) else cell for cell in curr_cell_refs] # move all pred coordinates over to the right
-            curr_cell = curr_cell.offset(row=0, column=1) # move the cell we are writing to over to the right
-
-        # increment the row_tracker for this tab
-        self._track_add_row(id = id, tab_name = tab_name, cell_ref = curr_row)
-
+        for curr_col in range(curr_cell.column, curr_cell.column + num_vals_add):
+           list_of_formula_refs = self._ids_to_formula_refs(preds, col_num = curr_col)  # generate a list of formula referenes, and constants
+           curr_cell.value = f"={arith_funct.value.join(list_of_formula_refs)}" # create the formula (i.e. = 'Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
+           
+           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, data_type = data_type, display_type = display_type, validation_rules = restriction) # add validation rules (if any)
+           curr_cell = curr_cell.offset(row = 0, column = 1)
 
 
 
@@ -739,7 +734,7 @@ class ForecastRendererExcelTB():
 
     # LABELS
 
-    def _add_label(self, value: str, curr_cell: cell):
+    def _add_label(self, value: str, curr_cell: Cell):
         curr_cell.value = value
         curr_cell.style = self.EXCEL_ROW_HEADER_LABEL
         curr_cell.protection = Protection(locked = True, hidden = False)
@@ -749,7 +744,12 @@ class ForecastRendererExcelTB():
     # STYLES
 
     # handles setting any formatting and read/write access based on the input restrictions to this cell
-    def _add_input_restrictions(self, curr_cell: cell, data_type: ForecastDataSeriesMetaDataDataType, display_type: ForecastDataSeriesMetaDataDataType, restriction: ForecastDataSeriesMetaDataValidateInputRestrictions):
+    def _add_input_restrictions(self, 
+                                rule_builder: ForecastExcelValidationRuleBuilder, 
+                                curr_cell: Cell, 
+                                data_type: ForecastDataSeriesMetaDataDataType, 
+                                display_type: ForecastDataSeriesMetaDataDataType, 
+                                restriction: ForecastDataSeriesMetaDataValidateInputRestrictions) -> ForecastExcelValidationRuleBuilder:
 
         # if token check is requested, the figure out if the current value matches the ForecastDataModel approved editable values token
         # if it does, make it read_write, otherwise make it read only
@@ -798,19 +798,145 @@ class ForecastRendererExcelTB():
 
             case _:
                 raise ValueError(f"\n* _add_input_restrictions:  invalid input restriction type '{restriction}' requested for cell at '{curr_cell.coordinate}'")
+            
+        # add the data_type to the rule_builder
+        rule_builder.data_type = ForecastExcelDataTypeToValidationMap[data_type]
+
+        return(rule_builder)
 
 
+
+    # # ZIV
+    # # TODO
+    # def _add_value_checks(self, 
+    #                       rule_builder: ForecastExcelValidationRuleBuilder, 
+    #                       curr_cell_meta_data: ForecastMetaDataSeries, 
+    #                       curr_cell: cell, 
+    #                       restriction: ForecastDataSeriesMetaDataValidateValueChecks) -> ForecastExcelValidationRuleBuilder:
+    #     match restriction:
+    #         case ForecastDataSeriesMetaDataValidateValueChecks.LESS_EQUAL_THAN:
+    #             # configure a less than argument
+    #             rule_builder.range_check = ForecastExcelValidationRanges.LE
+    #             rule_builder.max_value = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.ARGS][ForecastDataSeriesMetaDataValidateValueChecks.LESS_EQUAL_THAN]
+    #             rule_builder.error_message = f"{}"
+
+    #         case _:
+    #             raise ValueError(f"\n* _add_value_checks:  invalid input restriction type '{restriction}' requested for cell at '{curr_cell.coordinate}'")
+
+
+    #     return rule_builder
+
+    
 
     # HELPER FUNCTIONS 
     # ================
 
-    # handles the boilerplate bookkeeping whenever a new row is added to the model
-    def _track_add_row(self, id, tab_name, cell_ref):
-        # add the id of the row to our mapper
-        self.id_cellref_map.add(id = id, tab_name = tab_name, cell_ref = cell_ref)
+    # _add_row_setup
+    # Common boilerplate for all _add actions (values, arith function) to add a new row for an id
+    # INPUT
+    #   id - ForecastMetaDataSeries ID
+    #   tab_name - Tab to add the row to
+    #   curr_row_meta_data - ForecastMetaDataSeries information to grab additional row information
+    #   row_name (optional) - if a row name (label) should be added, put it here
+    #
+    # OUTPUT:
+    #   curr_cell - a reference to an excel spreadsheet pointing to the first location to write a value
+    #   data_type - the data_type to be written
+    #   display_type - the data_type to be displayed (for example, we may have a float, but needs to be displayed as an int)
+    def _add_row_setup(self, id: str, tab_name: str, curr_row_meta_data: ForecastMetaDataSeries, row_name: str = None) -> Tuple[Any, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataDataType]:
 
-        # increment our row tracker for this tab, so we know location of next row to add
-        self.row_trackers[tab_name] += 1
+        # grab meta-data that we always grab and return it so we don't have to do this in every function call
+        data_type = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]
+        display_type = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]
+
+        # set-up for the adding a row, get a worksheet for the tab name, and the next row to add to
+        ws = self.player_model[tab_name]
+        curr_row = self.row_trackers[tab_name]
+        start_row_ref = ws.cell(row = curr_row, column = self.EXCEL_START_COL)
+        
+        # add any common row prefix stuff if needed:
+        # row label
+        if(row_name is not None):
+            curr_cell = ws.cell(row = curr_row, column = self.EXCEL_LABEL_COL)
+            self._add_label(value = row_name, curr_cell = curr_cell)
+
+        # save the start cell ref for this id, and the tab_name (tab name not needed, but for convenience)
+        self._track_add_row(id = id, tab_name = tab_name, cell_ref = start_row_ref) # store this 
+
+        # move current cell to the start of the values entry
+        curr_cell = ws.cell(row = curr_row, column = self.EXCEL_VALUES_START_COL)
+
+        return(curr_cell, data_type, display_type)
+   
+
+
+    # _track_add_row
+    # handles the boilerplate bookkeeping whenever a new row is added to the model
+    #
+    # INPUTS:
+    #   id = ForecastMetaDataSeries id for the row
+    #   tab_name = tab name for the row (mostly for convenience so we don't have to look it up in cell reference)
+    #   cell_ref = (cell) cell object for the start of the row
+    #
+    # OUTPUTS:
+    #
+
+    def _track_add_row(self, id: str, tab_name: str, cell_ref: Cell):
+        self.id_cellref_map.add(id = id, tab_name = tab_name, cell_ref = cell_ref)  # add the id of the row to our mapper
+        self.row_trackers[tab_name] += 1  # increment our row tracker for this tab, so we know location of next row to add
+
+
+
+    # _ids_to_formula_refs
+    # given a list of either constants (int or float) or ForecastMetaData IDs (strings)
+    # and a column in the spreadsheet, generates a string reference suitable for inclusion in a formula (i.e. 'Summary'!A1)
+    # this is useful when you need to generate all the formula values in the same column, but different rows for a forumla
+    # i.e. ('Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
+    # 
+    # INPUTS:
+    #   list_of_ids - list with a mix of ForecastMetaDataSeries IDs or constants (ints or floats)
+    #
+    # OUTPUTS:
+    #   list of strings - each string being either a constant (string version of float or int) or a cell reference suitable for an excel formula
+
+    def _ids_to_formula_refs(self, list_of_ids, col_num: int) -> list[str]:
+        list_of_refs = []
+
+        # iterate of all the list
+        for id_or_const in list_of_ids:
+
+            # determine if this is an ID or a constant
+            # if constant, return a string version of the constant
+            if isinstance(id_or_const, int | float):
+                const = id_or_const
+                list_of_refs.append(str(const))
+
+            # if ID, get the 
+            else:
+                id = id_or_const
+                (tab_name, cell_ref) = self.id_cellref_map.get(id)  # get the tab_name and the cell reference
+                col_offset = col_num - self.EXCEL_START_COL # figure out how many cells over we need to shift the reference to get our values
+                cell_ref = cell_ref.offset(row = 0, column = col_offset)
+                list_of_refs.append(self._cell_to_formula_ref(cell_ref))
+
+        return(list_of_refs)
+
+
+
+    # _cell_to_formula_ref
+    # Given a cell object, return a fully qualified string (i.e. with tab name) suitable for inclusion in a formula (i.e. 'Summary'!A1)
+    # 
+    # INPUTS:
+    #   cell reference object
+    #
+    # OUTPUTS:
+    #   string - a cell reference suitable for an excel formula (i.e. 'Summary'!A1)
+    #   
+    def _cell_to_formula_ref(self, cell: Cell) -> str:
+        return(f"'{cell.parent.title}'!{cell.coordinate}")
+
+
+
 
 
 
