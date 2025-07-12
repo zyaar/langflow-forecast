@@ -34,7 +34,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataDataType, 
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions,
-                                                                        ForecastDataSeriesMetaDataValidateValueChecks)
+                                                                        ForecastDataSeriesMetaDataComparisonType)
 
 
 
@@ -360,9 +360,9 @@ class ForecastSegmentTB(ForecastComponent):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.PCT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.PCT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}, 
-                                                                                  {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataValidateValueChecks.LESS_EQUAL_THAN}],
+                                                                                  {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataComparisonType.LE}],
                                                                     pred = pct_col_pred, # this is already a list
-                                                                    args = [{ForecastDataSeriesMetaDataValidateValueChecks.LESS_EQUAL_THAN: 1}]) # add argument with the value for LESS_EQUAL_THAN validation
+                                                                    args = {ForecastDataSeriesMetaDataComparisonType.LT: 1}) # add argument with the value for LESS_EQUAL_THAN validation
 
 
         # add remainder not covered by all segments to data/model and meta-data

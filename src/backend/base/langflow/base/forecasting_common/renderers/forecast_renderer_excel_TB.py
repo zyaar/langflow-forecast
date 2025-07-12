@@ -30,7 +30,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataDataType, 
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions,
-                                                                        ForecastDataSeriesMetaDataValidateValueChecks)
+                                                                        ForecastDataSeriesMetaDataComparisonType)
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -42,9 +42,11 @@ from openpyxl import Workbook, worksheet, load_workbook
 from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import Protection
-from langflow.base.forecasting_common.renderers.forecast_excel_validation_builder import (ForecastExcelDataTypeToValidationMap,
-                                                                                          ForecastExcelValidationRanges,
-                                                                                          ForecastExcelValidationRuleBuilder)
+
+from langflow.base.forecasting_common.renderers.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
+from langflow.base.forecasting_common.renderers.excel.forecast_excel_validation_builder import ForecastExcelValidationRuleBuilder
+from langflow.base.forecasting_common.renderers.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
+
 
 
 # CONFIG STUFF
@@ -127,26 +129,6 @@ class ForecastRendererExcelTB():
     EXCEL_VALUES_START_COL = 4 # NOTE:  All COLUMN references are 1's indexed, not zero-indexed per openpyxl
 
 
-    # EXCEL STYLES
-    # ============
-    EXCEL_STYLES_WORKSHEET_HEADER = "Headline 1"
-    EXCEL_ROW_HEADER_LABEL = "Row Header Label"
-
-    # READ/WRITE
-    EXCEL_STYLES_READ_WRITE_INT = "Input Int"
-    EXCEL_STYLES_READ_WRITE_FLOAT = "Input Float"
-    EXCEL_STYLES_READ_WRITE_DATE = "Input Date"
-    EXCEL_STYLES_READ_WRITE_PERCENT = "Input Percent"
-    EXCEL_STYLES_READ_WRITE_CURRENCY = "Input Currency"
-
-    # READ ONLY
-    EXCEL_STYLES_READ_ONLY_INT = "Read Only Int"
-    EXCEL_STYLES_READ_ONLY_FLOAT = "Read Only Float"
-    EXCEL_STYLES_READ_ONLY_DATE = "Read Only Date"
-    EXCEL_STYLES_READ_ONLY_PERCENT = "Read Only Percent"
-    EXCEL_STYLES_READ_ONLY_CURRENCY = "Read Only Currency"
-
-
     # VARIABLES
     # =========
 
@@ -164,6 +146,8 @@ class ForecastRendererExcelTB():
     dv_eq = ""  # equal to rule
     dv_ge = ""  # greater to equal to rule
     dv_gt = ""  # greater than rule
+
+
 
     # INSTANCE VARIABLES
     # ------------------
@@ -380,7 +364,7 @@ class ForecastRendererExcelTB():
 
             if(num_sheets > 0):
                 for i in range(num_sheets):
-                    ws = self.get_ws(0)
+                    ws = ForecastExcelBaseHelpers.get_ws(0, self.player_model)
                     self.player_model.remove(ws)
                     
         
@@ -467,42 +451,46 @@ class ForecastRendererExcelTB():
 
     def _build_validation_excel(self, 
                                 curr_cell_meta_data: ForecastMetaDataSeries, 
-                                curr_cell: Cell, 
+                                curr_cell: Cell,
                                 data_type: ForecastMetaDataSeriesSchema, 
                                 display_type: ForecastMetaDataSeriesSchema, 
-                                validation_rules: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]]):
+                                validation_rules: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]],
+                                curr_formula: str = None,
+                                apply_to_preds: bool = False):
         
-        # create an empty rule builder for excel
-        rule_builder = ForecastExcelValidationRuleBuilder()
-
+        if ((apply_to_preds) and (curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED] is None)):
+            raise ValueError(f"\n*  _build_validation_excel:  apply_to_preds is True, but no pred field in ForecastDataSeries meta_data")
+        
         for rule in validation_rules:
             rule_type = list(rule.keys())[0]
             rule_value = rule[rule_type]
-            print("unpacking rule:")
-            print(f"{rule_type} = {rule_value}")
 
             match rule_type:
                 case ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION:
-                    rule_builder = self._add_input_restrictions(rule_builder = rule_builder,
-                                                                curr_cell = curr_cell,
-                                                                data_type =  data_type,
-                                                                display_type = display_type, 
-                                                                restriction = rule_value)
+                    self._add_input_restrictions(curr_cell = curr_cell,
+                                                 data_type = data_type,
+                                                 display_type = display_type,
+                                                 restriction = rule_value,
+                                                 curr_cell_meta_data = curr_cell_meta_data)
 
                 case ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK:
-                    print("_add_value_checks NOT CURRENTLY IMPLEMENTED")
-                    # rule_builder = self._add_value_checks(rule_builder = rule_builder,
-                    #                                       meta_data = curr_cell_meta_data, 
-                    #                                       curr_cell = curr_cell,
-                    #                                       restriction = rule_value)
+                    # if preds exists, they needed to determine where to put the value check, so generate the formulas
+                    # since data_validation in excel CANNOT work with Worksheet names (i.e. A1 works, 'Summary'!A1 does not)
+                    # we generate the values without ws names
+                    preds = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED]
+
+                    if apply_to_preds:
+                        preds = self._ids_to_formula_refs(preds, col_num = curr_cell.column, with_ws_name = False) 
+
+                    # adds the value comparison
+                    self._add_value_comparison(curr_cell = curr_cell,
+                                               comparison_type = rule_value,
+                                               curr_cell_meta_data = curr_cell_meta_data,
+                                               preds = preds,
+                                               curr_formula=curr_formula)
 
                 case _:
                     raise ValueError(f"*  _build_validation_excel:  Unknown validation rule {rule}")
-                
-        # once we have completed configuration of the rule-builder, generate a new rule and apply it to the curr_cell
-        excel_rule = rule_builder.generate_data_entry_rule()
-        excel_rule.add(curr_cell)
-
 
 
 
@@ -531,8 +519,8 @@ class ForecastRendererExcelTB():
     #   worksheet
 
     def _add_values_row(self, 
-                        id: str, 
-                        tab_name: str, 
+                        id: str,
+                        tab_name: str,
                         values: list, 
                         curr_row_meta_data: ForecastMetaDataSeries, 
                         restriction: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]] = None, 
@@ -601,94 +589,23 @@ class ForecastRendererExcelTB():
 
         for curr_col in range(curr_cell.column, curr_cell.column + num_vals_add):
            list_of_formula_refs = self._ids_to_formula_refs(preds, col_num = curr_col)  # generate a list of formula referenes, and constants
-           curr_cell.value = f"={arith_funct.value.join(list_of_formula_refs)}" # create the formula (i.e. = 'Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
+           formula = f"={arith_funct.value.join(list_of_formula_refs)}"
+           curr_cell.value = formula # create the formula (i.e. = 'Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
            
-           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, data_type = data_type, display_type = display_type, validation_rules = restriction) # add validation rules (if any)
+           # add validation rules (if any)
+           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, 
+                                        curr_cell = curr_cell, 
+                                        data_type = data_type, 
+                                        display_type = display_type, 
+                                        validation_rules = restriction,
+                                        curr_formula = formula,
+                                        apply_to_preds = True)
+           
            curr_cell = curr_cell.offset(row = 0, column = 1)
 
 
 
     
-    # EXCEL HELPERS
-    # =============
-    
-    # WORKSHEET
-
-    # create_ws
-    # Standardizes the creation of a tab, including adding headers and anything else need
-    #  
-    # INPUTS:
-    #   tab = either the name of a worksheet or the 0-based index of the worksheet in a workbook
-    # 
-    # OUTPUTS:
-    #   worksheet
-
-    def create_ws(self, tab: str) -> worksheet:
-        ws = self.safe_create_ws(tab)
-        ws['A1'] = tab
-        ws['A1'].style = self.EXCEL_STYLES_WORKSHEET_HEADER
-
-        if FORECAST_EXCEL_PROTECT_WORKSHEET:
-            self.protect_ws(ws)
-
-        return(ws)
-
-
-
-    # safe_create_ws
-    # Simple convenience function to check if a worksheet already exists before creating it
-    #  
-    # INPUTS:
-    #   tab = either the name of a worksheet or the 0-based index of the worksheet in a workbook
-    # 
-    # OUTPUTS:
-    #   worksheet
-    def safe_create_ws(self, tab: str) -> worksheet:
-
-        # check if a tab exists before creating it, if it does, leave it alone
-        try:
-            ws = self.player_model[tab]
-        except:
-            sheet_index = len(self.player_model.sheetnames) - self.template_num_sheets
-            ws = self.player_model.create_sheet(tab, index = sheet_index)
-
-        return(ws)
-
-
-
-    # remove_ws
-    # Simple convenience function to remove a sheet by either index or name using get_ws
-    #  
-    # INPUTS:
-    #   tab = either the name of a worksheet or the 0-based index of the worksheet in a workbook
-    # 
-    # OUTPUTS:
-    #   None
-    def remove_ws(self, tab: str | int):
-        self.player_model.remove(self.get_ws(tab))
-
-
-
-    # get_ws
-    # Simple convenience function to enable all other worksheet functions to access a worksheet by name or index
-    #  
-    # INPUTS:
-    #   tab = either the name of a worksheet or the 0-based index of the worksheet in a workbook
-    # 
-    # OUTPUTS:
-    #   worksheet
-    def get_ws(self, tab: str | int) -> worksheet:
-        if isinstance(tab, str):
-            ws = self.player_model[tab]
-        elif isinstance(tab, int):
-            ws = self.player_model[self.player_model.sheetnames[tab]]
-        else:
-            raise ValueError(f"*  get_ws:  invalid 'tab' type: {type(tab)}, value: {tab}")
-        
-        return(ws)
-
-
-
     # _generate_core_tabs
     # Create the initial set of tabs required by the player
     #  
@@ -699,57 +616,27 @@ class ForecastRendererExcelTB():
     #   NA
 
     def _generate_core_tabs(self):
-        # remove the first worksheet
-        #ws = self.get_ws(0)
-        #self.player_model.remove(ws)
-
         # get the number of worksheets in workbook
         self.template_num_sheets = len(self.player_model.sheetnames)
         
-
         # generate the core tabs of the model
         for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
-            self.create_ws(tab)
-
-        print(f"sheetnames:{self.player_model.sheetnames}")
+            ForecastExcelBaseHelpers.create_ws(tab, protect_worksheet = FORECAST_EXCEL_PROTECT_WORKSHEET, workbook = self.player_model, num_sheets = self.template_num_sheets)
 
 
-
-    # protect_ws
-    # Protect a worksheet
-    #  
-    # INPUTS:
-    #   ws - Worksheet object
-    # 
-    # OUTPUTS:
-    #   NA
-
-    def protect_ws(self, ws: worksheet):
-        ws.protection.formatColumns = False
-        ws.protection.formatRows = False
-        ws.protection.sheet = True
-
-
-
-
-    # LABELS
-
-    def _add_label(self, value: str, curr_cell: Cell):
-        curr_cell.value = value
-        curr_cell.style = self.EXCEL_ROW_HEADER_LABEL
-        curr_cell.protection = Protection(locked = True, hidden = False)
 
     
 
-    # STYLES
+    # VALIDATION & STYLES
 
+    
     # handles setting any formatting and read/write access based on the input restrictions to this cell
     def _add_input_restrictions(self, 
-                                rule_builder: ForecastExcelValidationRuleBuilder, 
                                 curr_cell: Cell, 
                                 data_type: ForecastDataSeriesMetaDataDataType, 
-                                display_type: ForecastDataSeriesMetaDataDataType, 
-                                restriction: ForecastDataSeriesMetaDataValidateInputRestrictions) -> ForecastExcelValidationRuleBuilder:
+                                display_type: ForecastDataSeriesMetaDataDataType,
+                                restriction: ForecastDataSeriesMetaDataValidateInputRestrictions,
+                                curr_cell_meta_data: ForecastMetaDataSeries = None):
 
         # if token check is requested, the figure out if the current value matches the ForecastDataModel approved editable values token
         # if it does, make it read_write, otherwise make it read only
@@ -759,72 +646,63 @@ class ForecastRendererExcelTB():
             else:
                 restriction = ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY
 
-        # based on the restriction and the data type, apply cell protection and the appropriate style
-        match restriction:
-            case ForecastDataSeriesMetaDataValidateInputRestrictions.READ_WRITE:
-                match display_type:
-                    case ForecastDataSeriesMetaDataDataType.INT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_INT
-                    case ForecastDataSeriesMetaDataDataType.FLOAT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_FLOAT
-                    case ForecastDataSeriesMetaDataDataType.DATE:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_DATE
-                    case ForecastDataSeriesMetaDataDataType.PCT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_PERCENT
-                    case ForecastDataSeriesMetaDataDataType.CURRENCY:
-                        curr_cell.style = self.EXCEL_STYLES_READ_WRITE_CURRENCY
-                    case _:
-                        raise ValueError(f"\n* _add_input_restrictions:  invalid Data Model display_type '{display_type}' requested for cell at '{curr_cell.coordinate}'")
-                    
-                curr_cell.protection = Protection(locked = False, hidden = False)
+        # # based on the restriction and the data type, apply cell protection and the appropriate style
+        ForecastExcelCellStyleBuilder.generate_cell_data_type_style(curr_cell = curr_cell, 
+                                                                    display_type = display_type, 
+                                                                    restriction = restriction,
+                                                                    curr_cell_meta_data = curr_cell_meta_data)
+        
+        ForecastExcelValidationRuleBuilder.generate_data_entry_rule(curr_cell = curr_cell, 
+                                                                    data_type = data_type,
+                                                                    error_title = "Invalid entry",
+                                                                    prompt = None,
+                                                                    prompt_title = None,
+                                                                    allow_blank = True,
+                                                                    curr_cell_meta_data = curr_cell_meta_data)
 
 
-            case ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY:
-                match display_type:
-                    case ForecastDataSeriesMetaDataDataType.INT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_INT
-                    case ForecastDataSeriesMetaDataDataType.FLOAT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_FLOAT
-                    case ForecastDataSeriesMetaDataDataType.DATE:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_DATE
-                    case ForecastDataSeriesMetaDataDataType.PCT:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_PERCENT
-                    case ForecastDataSeriesMetaDataDataType.CURRENCY:
-                        curr_cell.style = self.EXCEL_STYLES_READ_ONLY_CURRENCY
-                    case _:
-                        raise ValueError(f"\n* _add_input_restrictions:  invalid Data Model display_type '{display_type}' requested for cell at '{curr_cell.coordinate}'")
-                    
-                curr_cell.protection = Protection(locked = True, hidden = False)
 
-            case _:
-                raise ValueError(f"\n* _add_input_restrictions:  invalid input restriction type '{restriction}' requested for cell at '{curr_cell.coordinate}'")
+    # handles a validation involving a comparison of an value to another value
+    def _add_value_comparison(self,
+                              curr_cell: Cell,
+                              comparison_type: ForecastDataSeriesMetaDataComparisonType,
+                              curr_cell_meta_data: ForecastMetaDataSeries,
+                              preds : list[str] = None,
+                              curr_formula: str = None):
             
-        # add the data_type to the rule_builder
-        rule_builder.data_type = ForecastExcelDataTypeToValidationMap[data_type]
+            if(comparison_type not in [ForecastDataSeriesMetaDataComparisonType.BETWEEN, ForecastDataSeriesMetaDataComparisonType.NOT_BETWEEN]):
+                # get the limit value for the comparison check
+                comparison_id_or_const = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.ARGS][comparison_type]
 
-        return(rule_builder)
+                ForecastExcelValidationRuleBuilder.generate_comparison_rule(curr_cell = curr_cell,
+                                                                            comparison_type = comparison_type,
+                                                                            value = comparison_id_or_const,
+                                                                            preds = preds,
+                                                                            error_title = "Invalid entry",
+                                                                            prompt = None,
+                                                                            prompt_title = None,
+                                                                            allow_blank = True,
+                                                                            curr_formula = curr_formula,
+                                                                            curr_cell_meta_data = curr_cell_meta_data)
+            else:
+                # get the limit value for the comparison check
+                min_comparison_id_or_const = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.ARGS][comparison_type][0]
+                max_comparison_id_or_const = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.ARGS][comparison_type][1]
+
+                ForecastExcelValidationRuleBuilder.generate_comparison_rule(curr_cell = curr_cell,
+                                                            comparison_type = comparison_type,
+                                                            value = min_comparison_id_or_const,
+                                                            preds = preds,
+                                                            error_title = "Invalid entry",
+                                                            prompt = None,
+                                                            prompt_title = None,
+                                                            allow_blank = True,
+                                                            value2 = max_comparison_id_or_const,
+                                                            curr_formula = curr_formula,
+                                                            curr_cell_meta_data = curr_cell_meta_data)
 
 
 
-    # # ZIV
-    # # TODO
-    # def _add_value_checks(self, 
-    #                       rule_builder: ForecastExcelValidationRuleBuilder, 
-    #                       curr_cell_meta_data: ForecastMetaDataSeries, 
-    #                       curr_cell: cell, 
-    #                       restriction: ForecastDataSeriesMetaDataValidateValueChecks) -> ForecastExcelValidationRuleBuilder:
-    #     match restriction:
-    #         case ForecastDataSeriesMetaDataValidateValueChecks.LESS_EQUAL_THAN:
-    #             # configure a less than argument
-    #             rule_builder.range_check = ForecastExcelValidationRanges.LE
-    #             rule_builder.max_value = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.ARGS][ForecastDataSeriesMetaDataValidateValueChecks.LESS_EQUAL_THAN]
-    #             rule_builder.error_message = f"{}"
-
-    #         case _:
-    #             raise ValueError(f"\n* _add_value_checks:  invalid input restriction type '{restriction}' requested for cell at '{curr_cell.coordinate}'")
-
-
-    #     return rule_builder
 
     
 
@@ -886,12 +764,13 @@ class ForecastRendererExcelTB():
         self.row_trackers[tab_name] += 1  # increment our row tracker for this tab, so we know location of next row to add
 
 
-
     # _ids_to_formula_refs
     # given a list of either constants (int or float) or ForecastMetaData IDs (strings)
-    # and a column in the spreadsheet, generates a string reference suitable for inclusion in a formula (i.e. 'Summary'!A1)
+    # and a COLUMN in the spreadsheet, generates a string reference suitable for inclusion in a formula (i.e. 'Summary'!A1)
     # this is useful when you need to generate all the formula values in the same column, but different rows for a forumla
     # i.e. ('Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
+    # NOTE:  the list HAS TO BE A COLUMN... because only one number is provided for the column offset, so if they aren't all lined up
+    #        in the same column, the formula will be wrong.
     # 
     # INPUTS:
     #   list_of_ids - list with a mix of ForecastMetaDataSeries IDs or constants (ints or floats)
@@ -899,17 +778,35 @@ class ForecastRendererExcelTB():
     # OUTPUTS:
     #   list of strings - each string being either a constant (string version of float or int) or a cell reference suitable for an excel formula
 
-    def _ids_to_formula_refs(self, list_of_ids, col_num: int) -> list[str]:
+    def _ids_to_formula_refs(self, list_of_ids: list[int | str | float], col_num: int, with_ws_name: bool = True) -> list[str]:
         list_of_refs = []
 
         # iterate of all the list
         for id_or_const in list_of_ids:
+            list_of_refs.append(self._id_to_formula_ref(id_or_const, col_num, with_ws_name = with_ws_name))
 
+        return(list_of_refs)
+    
+
+    # _id_to_formula_refs
+    # given a value which is either constants (int or float) or ForecastMetaData IDs (strings)
+    # and a column in the spreadsheet, generates a string reference suitable for inclusion in a formula (i.e. 'Summary'!A1)
+    # this is useful when you need to generate all the formula values in the same column, but different rows for a forumla
+    # i.e. ('Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
+    # 
+    # INPUTS:
+    #   list_of_ids - list with a mix of ForecastMetaDataSeries IDs or constants (ints or floats)
+    #   col_num = the ABSOLUTE column number for for the cell (we will then convert it to a relative number, which we will then use to offset the row location)
+    #
+    # OUTPUTS:
+    #   list of strings - each string being either a constant (string version of float or int) or a cell reference suitable for an excel formula
+
+    def _id_to_formula_ref(self, id_or_const: int | str | float, col_num: int, with_ws_name: bool = True) -> str:
             # determine if this is an ID or a constant
             # if constant, return a string version of the constant
             if isinstance(id_or_const, int | float):
                 const = id_or_const
-                list_of_refs.append(str(const))
+                return(str(const))
 
             # if ID, get the 
             else:
@@ -917,31 +814,12 @@ class ForecastRendererExcelTB():
                 (tab_name, cell_ref) = self.id_cellref_map.get(id)  # get the tab_name and the cell reference
                 col_offset = col_num - self.EXCEL_START_COL # figure out how many cells over we need to shift the reference to get our values
                 cell_ref = cell_ref.offset(row = 0, column = col_offset)
-                list_of_refs.append(self._cell_to_formula_ref(cell_ref))
-
-        return(list_of_refs)
-
+                return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_ref, with_ws_name=with_ws_name))
+            
 
 
-    # _cell_to_formula_ref
-    # Given a cell object, return a fully qualified string (i.e. with tab name) suitable for inclusion in a formula (i.e. 'Summary'!A1)
-    # 
-    # INPUTS:
-    #   cell reference object
-    #
-    # OUTPUTS:
-    #   string - a cell reference suitable for an excel formula (i.e. 'Summary'!A1)
-    #   
-    def _cell_to_formula_ref(self, cell: Cell) -> str:
-        return(f"'{cell.parent.title}'!{cell.coordinate}")
-
-
-
-
-
-
-
-    
-
-    
-
+    # LABELS
+    def _add_label(self, value: str, curr_cell: Cell):
+        curr_cell.value = value
+        ForecastExcelCellStyleBuilder.generate_row_header_label(curr_cell)
+        curr_cell.protection = Protection(locked = True, hidden = False)

@@ -35,8 +35,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataAction, 
                                                                         ForecastDataSeriesMetaDataDataType, 
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
-                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions,
-                                                                        ForecastDataSeriesMetaDataValidateValueChecks)
+                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions)
 
 
 
@@ -106,8 +105,8 @@ class ForecastSingleVarTransformerTB(ForecastComponent):
     VAR_ACTION_FUNCT = ForecastDataSeriesMetaDataAction.PROD
     VAR_VALIDATION_FUNCTS = {ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}
     VAR_PRED = []
-    VAR_ARGS = None
-    VAR_OBJS = None
+    VAR_ARGS = {}
+    VAR_OBJS = {}
 
 
 

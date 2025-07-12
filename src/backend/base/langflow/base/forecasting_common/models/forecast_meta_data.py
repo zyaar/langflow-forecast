@@ -94,8 +94,6 @@ class ForecastDataSeriesMetaDataDataType(str, Enum):
     CURRENCY = "currency"
 
 
-
-
 # Enum of VALIDATION Schema
 # The different types of data validations allowed
 class ForecastDataSeriesMetaDataValidationSchema(str, Enum):
@@ -110,9 +108,26 @@ class ForecastDataSeriesMetaDataValidateInputRestrictions(str, Enum):
     TOKEN_CHECK = "token_check"
 
 
-# Enum of VALUE_CHECK
-class ForecastDataSeriesMetaDataValidateValueChecks(str, Enum):
-    LESS_EQUAL_THAN = "less_equal_than"
+# # Enum of VALUE_CHECK
+# class ForecastDataSeriesMetaDataValidateValueChecks(str, Enum):
+#     LESS_EQUAL_THAN = "less_equal_than"
+
+
+
+# Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
+# Within in forecast step, what different actions are taken
+class ForecastDataSeriesMetaDataComparisonType(str, Enum):
+        LT = "LT"
+        LE = "LE"
+        GE = "GE"
+        GT = "GT"
+        EQ = "EQ"
+        NE = "NE"
+        BETWEEN = "BETWEEN"
+        NOT_BETWEEN = "NOT_BETWEEN"
+
+
+
 
 
 

@@ -34,8 +34,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataAction, 
                                                                         ForecastDataSeriesMetaDataDataType, 
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
-                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions,
-                                                                        ForecastDataSeriesMetaDataValidateValueChecks)
+                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions)
 
 
 

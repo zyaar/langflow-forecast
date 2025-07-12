@@ -212,7 +212,7 @@ class ForecastComponent(Component):
                           display_type: ForecastDataSeriesMetaDataDataType,
                           validation: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]],
                           pred: List[str | int | float] = None,
-                          args: List = None,
+                          args: Dict = None,
                           objs: List = None,
                           verify_integrity: bool = True,
                           drop_dups: bool = False) -> tuple[DataFrame, ForecastMetaDataFrame]:
