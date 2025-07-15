@@ -139,6 +139,33 @@ class ForecastComponent(Component):
     # COMMON HELPER FUNCTIONS
     # -----------------------
 
+    # builds on top of helper functions already provided Langflow's component class:
+    #
+    # UI
+    #   Get the display name of an input:  get_input_display_name(self, input_name: str) -> str
+    #   Get the display name of an output:  get_output_display_name(self, output_name: str) -> str
+    #
+    # ERROR HANDLING
+    #   Build an error message for an input:  build_input_error_message(self, input_name: str, message: str) -> str
+    #   Build an error message for an output: build_output_error_message(self, output_name: str, message: str) -> str
+    #   Build an error message for the component:  build_component_error_message(self, message: str) -> str
+    #   In CustomComponent:  update_frontend_node
+
+
+    # get_input_table_col_display_name
+    # Convenience function to get the display name of a column in an input_table
+    #
+    # INPUTS
+    #   table_name = name of the TableInput
+    #   col_name = name of the column as defined in the TableSchema
+    # 
+    def get_input_table_col_display_name(self, table_name: str,  col_name: str) -> str:
+        if table_name in self._inputs:
+             if col_name in self._inputs[table_name]:
+                  return getattr(self.inputs[table_name][col_name], "display_name", col_name)
+        return col_name
+    
+
     # unpack_data_packet
     def unpack_data_packets(self, data_packet: list[Data]) -> tuple[DataFrame, ForecastMetaDataFrame]:
         (dataframe, meta_data) = ForecastDataPacket.unpack_data_packets(data_packet)

@@ -82,6 +82,7 @@ class ForecastDataSeriesMetaDataAction(str, Enum):
     SUM = "sum" # sum up a series of col ids (in preds) or constants
     PROD = "prod" # multiply a series of col ids (preds) or constants
     SUB = "sub"  # subtract a series of col ids (preds) or constants
+    STEP_INIT = "step_init" # perform any initialization required for this step type
 
 
 # Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
@@ -125,10 +126,6 @@ class ForecastDataSeriesMetaDataComparisonType(str, Enum):
         NE = "NE"
         BETWEEN = "BETWEEN"
         NOT_BETWEEN = "NOT_BETWEEN"
-
-
-
-
 
 
 
@@ -399,42 +396,6 @@ class ForecastMetaDataFrame():
 
 
 
-    # _get_list_of_last_ids
-    # Go through 
-    #  
-    # INPUTS:
-    #   List of ForecastMetaDataSeries or ForecastMetaDataFrames to combine
-    # 
-    # OUTPUTS:
-    #   List of IDs
-
-    @staticmethod
-    def _get_list_of_last_ids(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']]) -> list[str]:
-        list_of_ids = []
-
-        if(datas is None or len(datas) < 1):
-            raise ValueError("*  _get_list_of_last_ids:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
-
-        # iterate over all the data_objects in datas grabbing the last id
-        for data_obj in datas:
-
-            # handle the case that the data_obj is a ForecastMetaDataFrame
-            if isinstance(data_obj, ForecastMetaDataFrame):
-                # get the id of the last key in the model (the last column of ForecastMetaDataSeries to be added)
-                list_of_ids.append(list(data_obj.model.keys())[-1])
-
-            # handle the cast that the data_obj is ForecastMetaDataSeries
-            else:
-                list_of_ids.append(data_obj.meta_data[ForecastMetaDataSeriesSchema.ID])
-
-        return(list_of_ids)
-
-
-
-
-
-
-
     # concat
     # Combine the meta_data from two or more ForecastMetaDataSeries or ForecastMetaDataFrames, designed to look similar to Pandas Concat
     #  
@@ -482,7 +443,75 @@ class ForecastMetaDataFrame():
 
         return(results_frame)
     
+    
 
+    # add_col_data_meta
+    # Generate and add a ForecastMetaDataSeries to an ForecastMetaDataFrame
+
+    @staticmethod
+    def add_col_meta_data(frame: Type['ForecastMetaDataFrame'],
+                        #   id: str,
+                        #   display_name: str,
+                        #   data_values: pd.Series,
+                        #   step_type: ForecastDataSeriesMetaDataStepTypes,
+                        #   action: ForecastDataSeriesMetaDataAction,
+                        #   data_type: ForecastDataSeriesMetaDataDataType,
+                        #   display_type: ForecastDataSeriesMetaDataDataType,
+                        #   validation: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]],
+                        #   pred: List[str | int | float] = None,
+                        #   args: Dict = None,
+                        #   objs: List = None,
+                          verify_integrity: bool = True,
+                          drop_dups: bool = False, 
+                          **kwargs) -> Type['ForecastMetaDataFrame']:
+        
+        new_series = ForecastMetaDataSeries(**kwargs)
+        frame._append_col(new_series, frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
+
+        return(frame)
+    
+
+
+
+
+
+
+
+    # PRIVATE HELPER FUNCTIONS
+    # ------------------------
+
+
+
+    # _get_list_of_last_ids
+    # Go through 
+    #  
+    # INPUTS:
+    #   List of ForecastMetaDataSeries or ForecastMetaDataFrames to combine
+    # 
+    # OUTPUTS:
+    #   List of IDs
+
+    @staticmethod
+    def _get_list_of_last_ids(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']]) -> list[str]:
+        list_of_ids = []
+
+        if(datas is None or len(datas) < 1):
+            raise ValueError("*  _get_list_of_last_ids:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
+
+        # iterate over all the data_objects in datas grabbing the last id
+        for data_obj in datas:
+
+            # handle the case that the data_obj is a ForecastMetaDataFrame
+            if isinstance(data_obj, ForecastMetaDataFrame):
+                # get the id of the last key in the model (the last column of ForecastMetaDataSeries to be added)
+                list_of_ids.append(list(data_obj.model.keys())[-1])
+
+            # handle the cast that the data_obj is ForecastMetaDataSeries
+            else:
+                list_of_ids.append(data_obj.meta_data[ForecastMetaDataSeriesSchema.ID])
+
+        return(list_of_ids)
+    
 
     # _check_meta_data
     # Check all the NONE-model meta-data between two frames and ensure they are the same (since we can't combine different types of forecasts)
@@ -522,9 +551,11 @@ class ForecastMetaDataFrame():
                 dest_frame.meta_data[attrib] = src_frame.meta_data[attrib]
 
         return dest_frame
+    
 
 
-    # _append_cols
+
+    # _append_cols (PLURAL)
     # Add all the cols in the src_frame to cols in the dest_frame, will overwrite existing cols in dest_frame if verify_integrity or drop_dups not set (see below)
     #  
     # INPUTS:
@@ -545,7 +576,7 @@ class ForecastMetaDataFrame():
 
 
 
-    # _append_col
+    # _append_col (SINGLE)
     # Add a ForecastMetaDataSeries src_series as a col in the dest_frame, will overwrite existing cols in dest_frame if verify_integrity or drop_dups not set (see below)
     #  
     # INPUTS:
