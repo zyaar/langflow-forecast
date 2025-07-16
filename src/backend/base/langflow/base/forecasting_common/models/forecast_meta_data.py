@@ -269,8 +269,9 @@ class ForecastMetaDataFrame():
             if attrib in kwargs:
                 self.meta_data[attrib] = kwargs.get(attrib)
             else:
-                if(attrib != ForecastMetaDataFrameSchema.MODEL):
-                    self.meta_data[attrib] = None
+                self.meta_data[attrib] = None
+                # if(attrib != ForecastMetaDataFrameSchema.MODEL):
+                #     self.meta_data[attrib] = None
 
 
 

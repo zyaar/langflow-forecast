@@ -46,13 +46,13 @@ import pandas as pd
 
 class ForecastDataPacket():
     @staticmethod
-    def gen_data_packet(dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, text_key: str = "data_packet") -> Data:
+    def gen_data_packet(dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, text_key: str = "data_packet", check_ids: bool = True) -> Data:
         # use the id from the last column as the text_key, should be the same in both dataframe and meta_data
         # or something has gone wrong
         last_id_dataframe = dataframe.columns[-1]
         last_id_meta_data = list(meta_data.model.keys())[-1]
 
-        if last_id_dataframe != last_id_meta_data:
+        if check_ids and (last_id_dataframe != last_id_meta_data):
             raise ValueError(f"* gen_data_packet: error, final cols of dataframe and meta-data do not have the same IDs:  dataframe = '{last_id_dataframe}', meta-data = '{last_id_meta_data}'.")
 
         # bundle all this together into a data packet

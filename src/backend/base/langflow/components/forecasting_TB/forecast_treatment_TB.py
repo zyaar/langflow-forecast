@@ -16,6 +16,7 @@ from langflow.schema.table import EditMode
 from langflow.template import Output
 from langflow.field_typing.range_spec import RangeSpec
 
+
 # FORECAST SPECIFIC IMPORTS
 # =========================
 from langflow.base.forecasting_common.components.forecast_component import ForecastComponent
@@ -50,6 +51,7 @@ class ForecastTreatmentTB(ForecastComponent):
 
     # CONSTANTS
     # =========
+    DEBUG_MODE = True
     MAX_TREATMENT_DURATION = 12*100    # max treatment duration is 100 years (in months)
     MAX_PRODUCTS = 100
     COL_PREFIX = "product_"
@@ -214,7 +216,7 @@ class ForecastTreatmentTB(ForecastComponent):
                     frontend_node["outputs"].append(Output(
                         name=f"{ForecastTreatmentTB.COL_PREFIX}{i+1}", 
                         display_name=f"Product {i+1} Rx", 
-                        method=f"update_forecast_model_segment_{i+1}"
+                        method=f"update_forecast_model_product_{i+1}"
                     ))
 
         return frontend_node
@@ -224,21 +226,21 @@ class ForecastTreatmentTB(ForecastComponent):
     # __getattribute__
     # Because Langflow does not allow calling methods in outputs with arguments, we need a way to generate a unique methe call for each 
     # of the variable outputs, but then convert those individual calls into a common method with a different argument for the segment number.
-    # To do that, we created above individual methods "update_forecast_model_segment_1", "update_forecast_model_segment_2", "update_forecast_model_segment_3", etc.
+    # To do that, we created above individual methods "update_forecast_model_product_1", "update_forecast_model_product_2", "update_forecast_model_product_3", etc.
     # This function overrides the __getattribute__ method call which looks up the name of a function, takes the function name and parses out the segment id ("_3" -> int(3))
-    # And then redirects that method call ("update_forecast_model_segment_1"), to the generic method ("update_forecast_model_segment"), but with a wrapper function around
+    # And then redirects that method call ("update_forecast_model_product_1"), to the generic method ("update_forecast_model_product"), but with a wrapper function around
     # it
     # 
     # INPUTS:
-    #   func - the function call to the generic 'update_forecast_model_segment'
+    #   func - the function call to the generic 'update_forecast_model_product'
     #   seg_num - integer segment number
     #
     # OUTPUTS:
-    #   A wrapper around 'update_forecast_model_segment' which will put in the the right segment number for the call
+    #   A wrapper around 'update_forecast_model_product' which will put in the the right segment number for the call
 
     def __getattribute__(self, attr):
-        if attr.startswith("update_forecast_model_segment_"):
-            attribute = super().__getattribute__("update_forecast_model_segment")
+        if attr.startswith("update_forecast_model_product_"):
+            attribute = super().__getattribute__("update_forecast_model_product")
 
             if callable(attribute):
                 seg_num = int(attr.split("_")[-1])
@@ -253,11 +255,11 @@ class ForecastTreatmentTB(ForecastComponent):
     # Takes the segment number and puts a wrapper around the generic call which adds the segment number as an argument
     # 
     # INPUTS:
-    #   func - the function call to the generic 'update_forecast_model_segment'
+    #   func - the function call to the generic 'update_forecast_model_product'
     #   seg_num - integer segment number
     #
     # OUTPUTS:
-    #   A wrapper around 'update_forecast_model_segment' which will put in the the right segment number for the call
+    #   A wrapper around 'update_forecast_model_product' which will put in the the right segment number for the call
 
     def wrapper(self, func, seg_num):
         def new_funct(seg_num = seg_num, *args, **kwargs) -> Data:
@@ -282,6 +284,7 @@ class ForecastTreatmentTB(ForecastComponent):
     #def calc_patients_treatment_common(self, keep_granular: bool = False) -> dict[str, Tuple[DataFrame, DataFrame, DataFrame, ForecastMetaDataFrame]]:
     def calc_patients_treatment_common(self, keep_granular: bool = True):
 
+        # Overall
         # Get the inbound totals in and related meta_data
         # run all validation, merging, etc. which is common to any update call
         # sum up all the inputs to create a single total line and add it to the output model
@@ -320,13 +323,9 @@ class ForecastTreatmentTB(ForecastComponent):
         # we'll save it as objects instead a row of instructions to the builder on creating a new treatment for the player
         treatment_details_table_group_id = f"{treatment_group_id}_treatment_details"
 
-        #print("StartA")
-        #print("ORIG: treatment_details")
-        #print(treatment_details)
         (treatment_details_model, treatment_details_meta_data) = self.create_treatment_data_meta_data(treat_group_id = treatment_details_table_group_id,
                                                                                                       table_name = "treatment_details", 
                                                                                                       treatment_details = treatment_details)
-        #print("EndA")
 
         # Add a treatment set-up instructions for a treatment section to meta_data table
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
@@ -340,30 +339,16 @@ class ForecastTreatmentTB(ForecastComponent):
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                     pred = [col_total_in_id],
                                                                     objs = {"data": treatment_details_model, "meta_data": treatment_details_meta_data})
-        #print("EndB")
-        
 
-        # PATIENT FORECAST
-
-        #print("StartC")
-        #print(treatment_details_model)
-        #print(f"self.timescale = {self.timescale}")
         (pat_on_treatment_month, pat_leaving_month) = ForecastDataModel.calc_treatment_pat_forecast(col_prefix = f"{self._id}",
                                                                                                     forecast_in = updated_model,
                                                                                                     treatment_table_col_prefix = f"{treatment_details_table_group_id}",
                                                                                                     treatment_details_model = treatment_details_model,
                                                                                                     forecast_timescale = self.timescale,
                                                                                                     patient_progression_colname = ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME,
-                                                                                                    product_prefix_colname = self.COL_PREFIX,
                                                                                                     pc_initial_state = None,
                                                                                                     keep_granular = keep_granular)
-        #print("EndC")
-        #print("pat_on_treatment_month")
-        #print(pat_on_treatment_month)
-        #print()
-        #print()
-        #print("pat_leaving_month")
-        #print(pat_leaving_month)
+
 
         return({
             "pat_on_treatment": (pat_on_treatment_month, treatment_details_model, updated_model, updated_meta_data),
@@ -494,15 +479,14 @@ class ForecastTreatmentTB(ForecastComponent):
     #   N/A
     # OUTPUTS:
     #   DataFrame with the number of patients per timeperiod and treatment stage
-    def calc_patients_on_treatment(self) -> DataFrame:
-        #print("startD")
-        results = self.calc_patients_treatment_common(keep_granular = True)
-        #print("endD")
+    def calc_patients_on_treatment(self) -> Data:
+        results = self.calc_patients_treatment_common(keep_granular = False)
         (pat_on_treatment_month, treatment_details, updated_model, updated_meta_data) = results["pat_on_treatment"]
-        #print("endE")
-        pat_on_treatment = ForecastDataModel.concat([updated_model, pat_on_treatment_month])
-        #print("endF")
-        return(pat_on_treatment)
+        updated_model = ForecastDataModel.concat([updated_model, pat_on_treatment_month])
+
+        # bundle the packet together for forwarding to next component(s)
+        data_packet = self.gen_data_packet(dataframe = updated_model, meta_data = updated_meta_data, check_ids = not self.DEBUG_MODE)
+        return(data_packet)
 
 
 
@@ -512,15 +496,14 @@ class ForecastTreatmentTB(ForecastComponent):
     # INPUTS:
     # OUTPUTS:
     #   DataFrame
-    def calc_patients_leaving_treatment(self) -> DataFrame:
-        #print("startG")
-        results = self.calc_patients_treatment_common(keep_granular = True)
-        #print("endG")
+    def calc_patients_leaving_treatment(self) -> Data:
+        results = self.calc_patients_treatment_common(keep_granular = False)
         (pat_leaving_month, treatment_details,  updated_model, updated_meta_data) = results["pat_leaving_treatment"]
-        #print("endH")
-        pat_leaving_month = ForecastDataModel.concat([updated_model, pat_leaving_month])
-        #print("endI")
-        return(pat_leaving_month)
+        updated_model = ForecastDataModel.concat([updated_model, pat_leaving_month])
+
+        # bundle the packet together for forwarding to next component(s)
+        data_packet = self.gen_data_packet(dataframe = updated_model, meta_data = updated_meta_data, check_ids = not self.DEBUG_MODE)
+        return(data_packet)
     
 
 
@@ -530,45 +513,38 @@ class ForecastTreatmentTB(ForecastComponent):
     # INPUTS:
     # OUTPUTS:
     #   DataFrame
-    def update_forecast_model_segment(self, seg_num=1) -> DataFrame:
-        #(pat_on_treatment_month, pat_leaving_month, treatment_details, updated_model) = self.calc_forecast_model_segment_common()
-        #print("startJ")
+    def update_forecast_model_product(self, seg_num=1) -> Data:
+
+        # run the common activities
         results = self.calc_patients_treatment_common(keep_granular = True)
-        #print("endJ")
-
-        (pat_on_treatment_month, treatment_details, updated_model, updated_meta_data) = results["pat_on_treatment"]
+        (total_pat_by_month_in_treat, treatment_details, updated_model, updated_meta_data) = results["pat_on_treatment"]
         (pat_leaving_month, treatment_details,  updated_model, updated_meta_data) = results["pat_leaving_treatment"]
-        #print("endK")
 
-        # ZIV
+        product_col_prefix = f"{self._id}_treatment_details_product_"
+        product_use_colnames = [colname for colname in treatment_details.columns.to_list() if colname.startswith(product_col_prefix)]
+        product_use_in_treatment_by_month = treatment_details[product_use_colnames]
         treatment_details_table_group_id = f"{self._id}_treatment_details"
-        product_use_in_treatment_by_month = ForecastDataModel.calc_treatment_rx_forecast_for_product(product_name = f"{self.COL_PREFIX}{seg_num}",
-                                                                                                     col_prefix = f"{self._id}_",
-                                                                                                     forecast_in = pat_on_treatment_month,
-#                                                                                                     forecast_in = updated_model,
-                                                                                                     treatment_details_model = treatment_details,
-                                                                                                     treatment_details_prefix = treatment_details_table_group_id,
+
+        product_use_in_treatment_by_month = ForecastDataModel.calc_treatment_rx_forecast_for_product(product_name = f"{treatment_details_table_group_id}_{self.COL_PREFIX}{seg_num}",
+                                                                                                     treatment_name = f"{self._id}",
+                                                                                                     treatment_pat_by_month_forecast = total_pat_by_month_in_treat,
+                                                                                                     product_use_in_treatment_by_month = product_use_in_treatment_by_month,
                                                                                                      forecast_timescale = ForecastModelTimescale.MONTH, # we hardcode the timescale for monthly, because we will receive monthly for prev step
                                                                                                      convert_timescale = self.timescale) # but we override with a convert to the actual timescale we have later, so that the results we provide are in the right timescale
-        #print(product_use_in_treatment_by_month)
-        #print("endL")
 
         # add these results to merged model to updated_model (the merged results of forecast_in) to get the final results and return them
         # if the current timescale YEARLY, adjust pat_on_treatment_month before concat
         if(self.timescale != ForecastModelTimescale.MONTH):
-            pat_on_treatment_month = ForecastDataModel.monthly_to_yearly(pat_on_treatment_month)
-            #print("endM")
+            total_pat_by_month_in_treat = ForecastDataModel.monthly_to_yearly(total_pat_by_month_in_treat)
 
             # we don't currently use this variable, but if we do, I know I won't remember to convert from monthly to yearly, so putting it in here pre-emptively
             pat_leaving_month = ForecastDataModel.monthly_to_yearly(pat_leaving_month) 
-            #print("endN")
 
-
-        product_use_in_treatment_by_month = ForecastDataModel.concat([updated_model, pat_on_treatment_month, product_use_in_treatment_by_month])
-        #print("endO")
-        #print(product_use_in_treatment_by_month)
-        #print()
-        return(product_use_in_treatment_by_month)
+        updated_model = ForecastDataModel.concat([updated_model, total_pat_by_month_in_treat, product_use_in_treatment_by_month])
+        
+        # bundle the packet together for forwarding to next component(s)
+        data_packet = self.gen_data_packet(dataframe = updated_model, meta_data = updated_meta_data, check_ids = not self.DEBUG_MODE)
+        return(data_packet)
 
 
 
@@ -577,44 +553,6 @@ class ForecastTreatmentTB(ForecastComponent):
 
 
     # OUTPUT HELPERS
-
-    # # calc_forecast_model_segment_common
-    # # Common code for outputs:  update_forecast_model_segment
-    # # 
-    # # INPUTS:
-    # #   N/A
-    # # OUTPUTS:
-    # #   DataFrame with the number of patients per timescale and treatment stage
-    # def calc_forecast_model_segment_common(self) -> Tuple[DataFrame, DataFrame, DataFrame]:
-    #     # run all validation, merging, etc. which is common to any update call
-    #     # sum up all the inputs to create a single total line and add it to the output model
-    #     (treatment_details, updated_model) = self.pre_output()
-
-    #     # we return two ancillary data sets that can be plugged into other treatment related steps, these sets are for the forecast time period
-    #     # KEEP AT A MONTHLY LEVEL (for later steps):
-    #     #   return total number of patients ON THERAPY per month for the forecast (we WILL return this)
-    #     #   return total number of patients leaving treatment PER MONTH fore the forecast time period from the treatment (we WON'T return this)
-    #     (pat_on_treatment_month, pat_leaving_month) = ForecastDataModel.calc_treatment_pat_forecast(col_prefix = f"{self._id}_",
-    #                                                                                               forecast_in = updated_model,
-    #                                                                                               treatment_details = treatment_details,
-    #                                                                                               forecast_timescale = self.timescale,
-    #                                                                                               keep_granular = True)
-    #     return (pat_on_treatment_month, pat_leaving_month, treatment_details, updated_model)
-
-
-
-    # # check_and_combine_forecasts
-    # # Consolidate all the value checking and dataframe concat into one function
-    # # 
-    # # INPUTS:
-    # # OUTPUTS:
-    # #   DataFrame
-    # def check_and_combine_forecasts(self) -> DataFrame:
-    #     updated_model = ForecastDataModel.concat_and_sum(datas=self.forecasts_in, new_col_name = str("Total_"+self._id), skip_total_if_one=True)
-    #     return updated_model
-
-
-
 
     # generate_table_schema
     # Generates the schema for the treatment details table given the total number of products, now available

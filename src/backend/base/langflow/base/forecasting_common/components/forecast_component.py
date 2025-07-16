@@ -175,8 +175,8 @@ class ForecastComponent(Component):
         (dataframe, meta_data) = ForecastDataPacket.unpack_data_packet(data_packet)
         return(dataframe, meta_data)
 
-    def gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame,) -> Data:
-         data_packet = ForecastDataPacket.gen_data_packet(dataframe = dataframe, meta_data = meta_data)
+    def gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, check_ids: bool = True) -> Data:
+         data_packet = ForecastDataPacket.gen_data_packet(dataframe = dataframe, meta_data = meta_data, check_ids = check_ids)
          return(data_packet)
 
 
