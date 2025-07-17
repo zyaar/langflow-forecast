@@ -15,7 +15,7 @@ from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_d
 
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
-#from datetime import datetime
+import re
 import numpy as np
 import pandas as pd
 
@@ -44,8 +44,10 @@ class ForecastDataModel(DataFrame):
 
 
       # TREATMENT attributes
-      TREATMENT_PAT_TOTAL_BY_MONTH = "total_by_treatment_month"
-      TREATMENT_PAT_LEAVING_BY_MONTH = "leaving_by_treatment_month"
+      TREATMENT_PAT_TOTAL_BY_MONTH = "total_patients_on_treatment_by_treatment_month"
+      TREATMENT_PAT_LEAVING_BY_MONTH = "total_patients_leaving_treatment_by_treatment_month"
+
+      TREATMENT_PRODUCT_RX_BY_MONTH = "total_product_rxs_by_treatment_month"
 
 
 
@@ -151,8 +153,8 @@ class ForecastDataModel(DataFrame):
       # Calculates a forecast for total number of patients expected at every every month of the forecast divided by what month in their own treatment progression are they in
       #
       # INPUT:
-      #     col_prefix:  Unique name to add as prefix to each column name generated
-      #     forecast_in = The current forecast model, NOTE:  must have the total patients in the last line
+      #     component_id:  The treatment component's id, as a prefix to each column name generated
+      #     model = The current forecast model, NOTE:  must have the total patients in the last line
       #     treatment_details: the table which has the length of the treatment, the patient progression curve, and which products and how many Rxs are prescribed to a patient at each month of their treatment
       #     forecast_timescale: whether the current forecast is MONTHLY or YEARLY
       #     patient_progression_colname (optional): the name of the column in treatment_details which holds the progression curve for the treatment
@@ -165,8 +167,8 @@ class ForecastDataModel(DataFrame):
       #     forecast_total_patients_and_total_by_treatment_month: a dataframe which provides a value for each MONTH of a forecast (even if the forecast is set to YEARLY), the total number of patients in that therapy,
       #                                                           as well as the total number of patients by each MONTH of therapy (used to calculate total product Rx in the next step)
 
-      def calc_treatment_pat_forecast(col_prefix: str,
-                                      forecast_in: DataFrame | List[str],
+      def calc_treatment_pat_forecast(component_id: str,
+                                      model: DataFrame | List[str],
                                       treatment_table_col_prefix: str, 
                                       treatment_details_model: DataFrame | List[str],
                                       forecast_timescale: ForecastModelTimescale = ForecastModelTimescale.MONTH,
@@ -175,22 +177,23 @@ class ForecastDataModel(DataFrame):
                                       month_prefix: str = "month",
                                       total_postfix: str = "total",
                                       keep_granular: bool = True) -> Tuple[DataFrame, DataFrame]:
+            
             # SETUP DATA
             # ----------
 
             # TREATMENT NAME
-            treatment_name = f"{col_prefix}"
+            treatment_name = component_id
 
             # NEW TO THERAPY (NTP) PATIENTS
-            if(not isinstance(forecast_in, DataFrame)):
-                  forecast_in = DataFrame(data = forecast_in)
+            if(not isinstance(model, DataFrame)):
+                  model = DataFrame(data = model)
 
-            forecast_in = ForecastDataModel.astype_first_all_cols(in_df = forecast_in)
+            model = ForecastDataModel.astype_first_all_cols(in_df = model)
                         
             if(forecast_timescale != ForecastModelTimescale.MONTH):  # if the forecast timescale is not at the same timescale as MONTHLY, then expand it to be monthly by dividing out the annual
-                  forecast_in = ForecastDataModel.yearly_to_monthly(forecast_in)
+                  model = ForecastDataModel.yearly_to_monthly(model)
 
-            num_NTP_per = forecast_in[forecast_in.columns.to_list()[-1]]
+            num_NTP_per = model[model.columns.to_list()[-1]]
 
            # TREATMENT DURATION
             if(not isinstance(treatment_details_model, DataFrame)):
@@ -213,8 +216,8 @@ class ForecastDataModel(DataFrame):
             # save dates to add back later
             forecast_dates = None
 
-            if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in forecast_in.columns):
-                  forecast_dates = forecast_in[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].values
+            if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in model.columns):
+                  forecast_dates = model[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].values
 
             # calc forecast_length
             forecast_length = len(num_NTP_per)
@@ -296,29 +299,29 @@ class ForecastDataModel(DataFrame):
       # in the same month of their treatment
       #
       # INPUT:
-      #     forecast_in = The current forecast model, NOTE:  must have the total patients in the last line
+      #     model = The current forecast model, NOTE:  must have the total patients in the last line
       # TODO:  finish this section
 
-      def calc_treatment_rx_forecast_for_product(product_name: str,
-                                                 treatment_name: str,
+      def calc_treatment_rx_forecast_for_product(treatment_table_colname: str,
+                                                 product_rx_colname_prefix: str,
                                                  treatment_pat_by_month_forecast,
                                                  product_use_in_treatment_by_month,
                                                  forecast_timescale: ForecastModelTimescale = ForecastModelTimescale.MONTH,
                                                  convert_timescale: ForecastModelTimescale = None,
-                                                 month_name_prefix: str = None,
                                                  total_name_postfix: str = "total") -> DataFrame:
+            
  
             # check that the product_name exists as a column in the product_use_in_treatment_by_month
-            if(product_name in product_use_in_treatment_by_month.columns):
+            if(treatment_table_colname in product_use_in_treatment_by_month.columns):
 
                   # get the treatment details for the product_name
-                  product_rx_per_treatment_month = product_use_in_treatment_by_month[product_name].values
+                  product_rx_per_treatment_month = product_use_in_treatment_by_month[treatment_table_colname].values
             else:
-                  raise ValueError(f"* gen_forecast_product_rx_by_prog_month:  invalid product_name '{product_name}' provided, is not found in product_use_in_treatment_by_month columns:  '{product_use_in_treatment_by_month.columns.to_list()}'")
+                  raise ValueError(f"\n* calc_treatment_rx_forecast_for_product:  invalid column name '{treatment_table_colname}' provided, not found in product_use_in_treatment_by_month columns:  '{product_use_in_treatment_by_month.columns.to_list()}'")
             
-            # if NO col_name_prefix was provided, use the product_name with an additional "_" as the prefix for all col_names
-            if(month_name_prefix is None):
-                  month_name_prefix = product_name + "_"
+            # # if NO col_name_prefix was provided, use the product_name with an additional "_" as the prefix for all col_names
+            # if(month_name_prefix is None):
+            #       month_name_prefix = product_name + "_"
 
             # check if there is a dates column
             if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in treatment_pat_by_month_forecast.columns):
@@ -341,12 +344,26 @@ class ForecastDataModel(DataFrame):
             
             # calculate a totals column
             totals = [forecast_product_rx_by_prog_month.iloc[i,:].sum() for i in range(0, len(forecast_product_rx_by_prog_month))]
-            total_products = pd.Series(totals, index=forecast_product_rx_by_prog_month.index, name=f"{treatment_name}_{total_name_postfix}")
+            total_products = pd.Series(totals, index=forecast_product_rx_by_prog_month.index, name=f"{product_rx_colname_prefix}_{total_name_postfix}")
             forecast_product_rx_by_prog_month = pd.concat([forecast_product_rx_by_prog_month, total_products], axis=1)
 
-            # finally, add product_name to each column in the results
-            colnames = [month_name_prefix + col for col in forecast_product_rx_by_prog_month]
-            forecast_product_rx_by_prog_month.columns = colnames
+            # create the column names for the total rxs results
+            new_colnames = []
+            pattern = r"month_(\d+)$"
+
+            for col in forecast_product_rx_by_prog_month.columns:
+                  if(col.endswith(f"_{total_name_postfix}")):
+                        new_colnames.append(col)
+                  else:
+                        match = re.search(pattern, col)
+
+                        if match is None:
+                              raise ValueError(f"\n*  calc_treatment_rx_forecast_for_product:  invalid column name '{col}' found, expected to find a column name ending with 'month_#' where # is the month number in treatment.  Please check the treatment_pat_by_month_forecast input.")
+
+                        col_name = match.group(0)
+                        new_colnames.append(f"{product_rx_colname_prefix}_{col_name}")
+
+            forecast_product_rx_by_prog_month.columns = new_colnames
 
             # if we have dates, add them back now
             if(hasDates):

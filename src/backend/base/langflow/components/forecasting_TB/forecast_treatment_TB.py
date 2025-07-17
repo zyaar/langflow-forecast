@@ -62,12 +62,16 @@ class ForecastTreatmentTB(ForecastComponent):
 
     MAX_TREATMENT_DURATION = 240 # max treatment duration supported is 20 years
 
+
+
     # COMPONENT META-DATA
     # ===================
     display_name: str = "Treatment TB"
     description: str = "Apply a treatment regiment of products to an incoming patient flow"
     icon = "Syringe"
     name: str = "TreatmentTB"
+
+
 
 
     # COMPONENT INPUTS
@@ -340,8 +344,8 @@ class ForecastTreatmentTB(ForecastComponent):
                                                                     pred = [col_total_in_id],
                                                                     objs = {"data": treatment_details_model, "meta_data": treatment_details_meta_data})
 
-        (pat_on_treatment_month, pat_leaving_month) = ForecastDataModel.calc_treatment_pat_forecast(col_prefix = f"{self._id}",
-                                                                                                    forecast_in = updated_model,
+        (pat_on_treatment_month, pat_leaving_month) = ForecastDataModel.calc_treatment_pat_forecast(component_id = self._id,
+                                                                                                    model = updated_model,
                                                                                                     treatment_table_col_prefix = f"{treatment_details_table_group_id}",
                                                                                                     treatment_details_model = treatment_details_model,
                                                                                                     forecast_timescale = self.timescale,
@@ -523,16 +527,14 @@ class ForecastTreatmentTB(ForecastComponent):
         product_col_prefix = f"{self._id}_treatment_details_product_"
         product_use_colnames = [colname for colname in treatment_details.columns.to_list() if colname.startswith(product_col_prefix)]
         product_use_in_treatment_by_month = treatment_details[product_use_colnames]
-        treatment_details_table_group_id = f"{self._id}_treatment_details"
-
-        product_use_in_treatment_by_month = ForecastDataModel.calc_treatment_rx_forecast_for_product(product_name = f"{treatment_details_table_group_id}_{self.COL_PREFIX}{seg_num}",
-                                                                                                     treatment_name = f"{self._id}",
+        product_use_in_treatment_by_month = ForecastDataModel.calc_treatment_rx_forecast_for_product(treatment_table_colname = f"{product_col_prefix}{seg_num}", # f"{self._id}_treatment_details_product_{seg_num}",
+                                                                                                     product_rx_colname_prefix = f"{self._id}_{self.COL_PREFIX}{seg_num}_rxs_for_patients_in_treatment",
                                                                                                      treatment_pat_by_month_forecast = total_pat_by_month_in_treat,
                                                                                                      product_use_in_treatment_by_month = product_use_in_treatment_by_month,
                                                                                                      forecast_timescale = ForecastModelTimescale.MONTH, # we hardcode the timescale for monthly, because we will receive monthly for prev step
                                                                                                      convert_timescale = self.timescale) # but we override with a convert to the actual timescale we have later, so that the results we provide are in the right timescale
 
-        # add these results to merged model to updated_model (the merged results of forecast_in) to get the final results and return them
+        # add these results to merged model to updated_model (the merged results of model) to get the final results and return them
         # if the current timescale YEARLY, adjust pat_on_treatment_month before concat
         if(self.timescale != ForecastModelTimescale.MONTH):
             total_pat_by_month_in_treat = ForecastDataModel.monthly_to_yearly(total_pat_by_month_in_treat)

@@ -434,6 +434,9 @@ class ForecastRendererExcelTB():
                 case ForecastDataSeriesMetaDataAction.SUB:
                     self.action_SUB(id)
 
+                case ForecastDataSeriesMetaDataAction.STEP_INIT:
+                    pass
+
                 case _:
                     raise ValueError(f"\n*  _build_model_excel:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
                 
