@@ -188,6 +188,15 @@ class ForecastEpidemiologyTB(ForecastComponent):
                                           start_month = int(self.start_month),
                                           num_periods = int(len(updated_model)),)
         
+        # Add a step set-up instructions for a treatment section to meta_data table
+        meta_data_series_step_init = ForecastMetaDataSeries(id = f"{self._id}_Init",
+                                                        step_type = ForecastDataSeriesMetaDataStepTypes.EPIDEMIOLOGY,
+                                                        action = ForecastDataSeriesMetaDataAction.STEP_INIT,
+                                                        data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                        display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                        display_name = self.display_name,
+                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)  
+        
         # generate the meta data instructions for the dates line
         meta_data_series_dates = ForecastMetaDataSeries(id = ForecastDataModel.RESERVED_COLUMN_INDEX_NAME,
                                                         step_type = ForecastDataSeriesMetaDataStepTypes.EPIDEMIOLOGY,
@@ -207,7 +216,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],)
         
         # merge all the meta-data instructions together to form the meta_data frame we will forward
-        meta_data = ForecastMetaDataFrame.concat([meta_data, meta_data_series_dates, meta_data_series_epi], verify_integrity = True, drop_dups = False)
+        meta_data = ForecastMetaDataFrame.concat([meta_data, meta_data_series_step_init, meta_data_series_dates, meta_data_series_epi], verify_integrity = True, drop_dups = False)
 
         # bundle the packet together for forwarding to next component(s)
         data_packet = self.gen_data_packet(dataframe = updated_model, meta_data = meta_data)

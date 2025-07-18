@@ -312,13 +312,24 @@ class ForecastSingleVarTransformerTB(ForecastComponent):
         self.validate_inputs()
 
         # sum up all the inputs to create a single total line and add it to the output model
-        (updated_model, updated_meta_data) = self.check_and_combine_forecasts(totals_id = f"{self._id}_Total_In", 
-                                                                              totals_display_name = f"{self.VAR_IN_DISPLAY_NAME}", 
-                                                                              step_type = self.VAR_STEP_TYPE)                                                                                                                                                                                    
-                                                                                                                                                                                            # get the id for the curr_totals row (the total patients coming into the segment component, whether it was just generated above or not), 
-        # we may or may not have generated a totals column (if there was only one input, we don't, if there was >1 we do), so grab the
-        # last ID in the updated_model so that we are pointing to the right totals column (new one or not)
-        col_total_in_id = updated_model.columns[-1]
+        (updated_model, updated_meta_data, col_total_in_id) = self.check_and_combine_forecasts(totals_id = f"{self._id}_Total_In", 
+                                                                                               totals_display_name = f"{self.VAR_IN_DISPLAY_NAME}", 
+                                                                                               step_type = self.VAR_STEP_TYPE)
+        
+        # Add a step set-up instructions to meta_data table
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{self._id}_Init",
+                                                                    display_name = self.display_name,
+                                                                    data_values = None,
+                                                                    step_type = self.VAR_STEP_TYPE,
+                                                                    action = ForecastDataSeriesMetaDataAction.STEP_INIT,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = [col_total_in_id])
+
+        # get the values of the totals_in column
+        # col_total_in_id = updated_model.columns[-1]
         col_total_in_values = updated_model[col_total_in_id]
 
         # get the var table data and make sure it's data types are set correctly (date fields and float fields)

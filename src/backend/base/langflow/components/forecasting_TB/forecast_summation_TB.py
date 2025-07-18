@@ -167,10 +167,22 @@ class ForecastSummationTB(ForecastComponent):
         self.validate_inputs()
 
         # sum up all the inputs to create a single total line and add it to the output model
-        (updated_model, updated_meta_data) = self.check_and_combine_forecasts(totals_id = f"{self._id}_Total", 
+        (updated_model, updated_meta_data, col_total_in_id) = self.check_and_combine_forecasts(totals_id = f"{self._id}_Total", 
                                                                               totals_display_name = f"{self.VAR_IN_DISPLAY_NAME}", 
-                                                                              step_type = self.VAR_STEP_TYPE)                                                                                                                                                                                    
-                                                                                                                                                                                            # get the id for the curr_totals row (the total patients coming into the segment component, whether it was just generated above or not), 
+                                                                              step_type = self.VAR_STEP_TYPE)
+
+        # Add a treatment set-up instructions for a treatment section to meta_data table
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{self._id}_Init",
+                                                                    display_name = self.display_name,
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
+                                                                    action = ForecastDataSeriesMetaDataAction.STEP_INIT,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = [col_total_in_id])
+                                                                                                                                                                                    
         # bundle the packet together for forwarding to next component(s)
         data_packet = self.gen_data_packet(dataframe = updated_model, meta_data = updated_meta_data)
         return(data_packet)

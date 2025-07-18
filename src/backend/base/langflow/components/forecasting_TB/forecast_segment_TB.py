@@ -303,14 +303,27 @@ class ForecastSegmentTB(ForecastComponent):
         self.validate_inputs()
 
         # sum up all the inputs to create a single total line and add it to the output model
-        (updated_model, updated_meta_data) = self.check_and_combine_forecasts(totals_id = f"{self._id}_Total_In", 
-                                                                              totals_display_name = f"{self.display_name} total patients", 
-                                                                              step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT)
+        (updated_model, updated_meta_data, curr_total_values_id) = self.check_and_combine_forecasts(totals_id = f"{self._id}_Total_In", 
+                                                                                                    totals_display_name = f"{self.display_name} total patients", 
+                                                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT)
+        
+        # Add a treatment set-up instructions for a treatment section to meta_data table
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{self._id}_Init",
+                                                                    display_name = self.display_name,
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.STEP_INIT,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = [curr_total_values_id])
+
                                                                                                                                                                                     
                                                                                                                                                                                             # get the id for the curr_totals row (the total patients coming into the segment component, whether it was just generated above or not), 
-        # as well as the values from that curr_totals column (if any where provided), we will need them to calculate segment totals patients
-        # by multiplying by the segment percentages
-        curr_total_values_id = updated_model.columns[-1]
+        # # as well as the values from that curr_totals column (if any where provided), we will need them to calculate segment totals patients
+        # # by multiplying by the segment percentages
+        # curr_total_values_id = updated_model.columns[-1]
 
         # get the segment table data
         segment_table = ForecastDataModel.astype_first_all_cols(self.segment_table)

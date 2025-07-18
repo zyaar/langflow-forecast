@@ -55,8 +55,11 @@ class ForecastDataPacket():
         if check_ids and (last_id_dataframe != last_id_meta_data):
             raise ValueError(f"* gen_data_packet: error, final cols of dataframe and meta-data do not have the same IDs:  dataframe = '{last_id_dataframe}', meta-data = '{last_id_meta_data}'.")
 
-        # bundle all this together into a data packet
-        new_packet = Data(data={"data": dataframe, "meta_data": meta_data}, text_key=last_id_dataframe, default_value = "data missing")
+        if(meta_data is not None):
+            new_packet = Data(data={"data": dataframe, "meta_data_json": meta_data.to_Data(), "meta_data": meta_data}, text_key=last_id_dataframe, default_value = "data missing")
+        else:
+            new_packet = Data(data={"data": dataframe, "meta_data": meta_data}, text_key=last_id_dataframe, default_value = "data missing")
+
         return(new_packet)
 
 

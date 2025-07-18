@@ -304,13 +304,13 @@ class ForecastTreatmentTB(ForecastComponent):
         treatment_group_id = self._id
 
         # sum up all the inputs to create a single total line and add it to the output model
-        (updated_model, updated_meta_data) = self.check_and_combine_forecasts(totals_id = f"{treatment_group_id}_Total_In", 
-                                                                              totals_display_name = f"{self.display_name} total patients in", 
-                                                                              step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
+        (updated_model, updated_meta_data, col_total_in_id) = self.check_and_combine_forecasts(totals_id = f"{treatment_group_id}_Total_In", 
+                                                                                                              totals_display_name = f"{self.display_name} total patients in", 
+                                                                                                              step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
         
         # we may or may not have generated a totals column (if there was only one input, we don't, if there was >1 we do), so grab the
         # last ID in the updated_model so that we are pointing to the right totals column (new one or not)
-        col_total_in_id = updated_model.columns[-1]
+        #col_total_in_id = updated_model.columns[-1]
         updated_model = ForecastDataModel.astype_first_all_cols(updated_model)
 
         # get in totals_in values (in case we need to use it)

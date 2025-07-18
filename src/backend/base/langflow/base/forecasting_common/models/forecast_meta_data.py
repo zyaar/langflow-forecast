@@ -9,6 +9,8 @@
 from typing import Type
 #import nanoid
 #from langflow.schema.dataframe import DataFrame, Data
+from langflow.schema.data import Data
+from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_text_file_to_data
 
 #from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
 #from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
@@ -129,6 +131,24 @@ class ForecastDataSeriesMetaDataComparisonType(str, Enum):
 
 
 
+# ForecastJsonSerializer
+def ForecastJsonSerializer(obj):
+    from langflow.schema.dataframe import DataFrame
+
+    if isinstance(obj, ForecastMetaDataFrame):
+        return ({"meta_data": obj.meta_data, "model": obj.model})
+    elif isinstance(obj, ForecastMetaDataSeries):
+        return obj.meta_data
+    elif isinstance(obj, DataFrame):
+        return obj.to_dict()
+    elif isinstance(obj, Enum):
+        return obj.value
+    else:
+        raise TypeError(f"Type {type(obj)} not serializable by ForecastJsonSerializer")
+
+
+
+
 # ForecastMetaDataSeries
 # Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
 class ForecastMetaDataSeries():
@@ -234,6 +254,21 @@ class ForecastMetaDataSeries():
             results += f"\n{attrib} = {self.meta_data[attrib]}"
 
         return results
+    
+
+    
+    # to_json
+    # Return a printable version of the class instance
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Str with printable version of instance data
+
+    def to_json(self, indent: int = 4) -> str:
+        import json
+        return json.dumps(self, default=ForecastJsonSerializer, indent=indent)
 
 
 
@@ -630,8 +665,42 @@ class ForecastMetaDataFrame():
         return results
 
     
+    # to_json
+    # Serialize this object to a JSON string
+    #  
+    # INPUTS:
+    #   ident (optional: 4) - number of spaces to indent the JSON
+    # 
+    # OUTPUTS:
+    #   JSON string
+
+    def to_json(self, indent:int = 4) -> str:
+        import json
+        return json.dumps(self, default=ForecastJsonSerializer, indent=indent)
 
 
-    
 
-    
+    # to_Data
+    # Converts this object to a Data object (with a single text column) for use in Langflow
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Data object with a single text column containing the JSON serialization of this object
+
+    def to_Data(self) -> Data:
+        import unicodedata
+        import orjson
+
+        def normalize_text(text):
+            return unicodedata.normalize("NFKD", text)
+
+        text = orjson.loads(self.to_json())
+
+        if isinstance(text, dict):
+            text = {k: normalize_text(v) if isinstance(v, str) else v for k, v in text.items()}
+        elif isinstance(text, list):
+            text = [normalize_text(item) if isinstance(item, str) else item for item in text]
+
+        return Data(data=text)

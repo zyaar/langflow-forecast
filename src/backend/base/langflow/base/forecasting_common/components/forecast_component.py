@@ -189,11 +189,14 @@ class ForecastComponent(Component):
     #   NA
     # OUTPUTS:
     #   DataFrame
-    def check_and_combine_forecasts(self, totals_id: str, totals_display_name: str, step_type: ForecastDataSeriesMetaDataStepTypes) -> tuple[DataFrame, ForecastMetaDataFrame]:
+    def check_and_combine_forecasts(self, totals_id: str, totals_display_name: str, step_type: ForecastDataSeriesMetaDataStepTypes) -> tuple[DataFrame, ForecastMetaDataFrame, str]:
         (dataframes_in, meta_datas_in) = ForecastDataPacket.unpack_data_packets(self.forecasts_in)
 
         # combine data frames and add a totals line if multiple are being added
         updated_model = ForecastDataModel.concat_and_sum(datas=dataframes_in, new_col_name = totals_id, skip_total_if_one=True)
+        
+        # get the totals_id for returning (we may have had to create one, or not, depending on how many inputs there were)
+        totals_id = updated_model.columns[-1]
 
         # combine meta_datas and add a total instruction if multiple frames are being added
         updated_meta_data = ForecastMetaDataFrame.concat_and_sum(datas = meta_datas_in, 
@@ -202,7 +205,8 @@ class ForecastComponent(Component):
                                                                  display_name = totals_display_name, 
                                                                  verify_integrity = False, 
                                                                  drop_dups = True)
-        return (updated_model, updated_meta_data)
+        
+        return (updated_model, updated_meta_data, totals_id)
 
 
 
