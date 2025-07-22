@@ -434,7 +434,16 @@ class ForecastRendererExcelTB():
                 case ForecastDataSeriesMetaDataAction.SUB:
                     self.action_SUB(id)
 
-                case ForecastDataSeriesMetaDataAction.STEP_INIT:
+                case ForecastDataSeriesMetaDataAction.SHIFT:
+                    pass                                                # TODO:  implement shift action
+
+                case ForecastDataSeriesMetaDataAction.STEP_INIT:        # TODO:  implement step_init action
+                    pass
+
+                case ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH:    # TODO:  implement year_to_month action
+                    pass
+
+                case ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR:    # TODO:  implement month_to_year action
                     pass
 
                 case _:

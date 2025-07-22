@@ -5,6 +5,13 @@ import nanoid
 from langflow.schema.dataframe import DataFrame, Data
 
 from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
+from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataFrame, 
+                                                                        ForecastMetaDataSeries, 
+                                                                        ForecastDataSeriesMetaDataStepTypes, 
+                                                                        ForecastDataSeriesMetaDataAction, 
+                                                                        ForecastDataSeriesMetaDataDataType, 
+                                                                        ForecastDataSeriesMetaDataValidationSchema,
+                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions)
 from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
 
 
@@ -168,7 +175,8 @@ class ForecastDataModel(DataFrame):
       #                                                           as well as the total number of patients by each MONTH of therapy (used to calculate total product Rx in the next step)
 
       def calc_treatment_pat_forecast(component_id: str,
-                                      model: DataFrame | List[str],
+                                      updated_model: DataFrame | List[str],
+                                      updated_meta_data: ForecastMetaDataFrame,
                                       treatment_table_col_prefix: str, 
                                       treatment_details_model: DataFrame | List[str],
                                       forecast_timescale: ForecastModelTimescale = ForecastModelTimescale.MONTH,
@@ -176,24 +184,39 @@ class ForecastDataModel(DataFrame):
                                       pc_initial_state: List = None,
                                       month_prefix: str = "month",
                                       total_postfix: str = "total",
-                                      keep_granular: bool = True) -> Tuple[DataFrame, DataFrame]:
+                                      keep_granular: bool = True) -> Tuple[DataFrame, DataFrame, ForecastMetaDataFrame]:
             
             # SETUP DATA
             # ----------
+            if(not isinstance(updated_model, DataFrame)):
+                  updated_model = DataFrame(data = updated_model)
+
+            updated_model = ForecastDataModel.astype_first_all_cols(in_df = updated_model)
+            
+
+            # CONVERT TO MONTHLY IF NEEDED
+            if(forecast_timescale != ForecastModelTimescale.MONTH):  # if the forecast timescale is not at the same timescale as MONTHLY, then expand it to be monthly by dividing out the annual
+                  updated_model = ForecastDataModel.yearly_to_monthly(updated_model)
+                  date_values = updated_model[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].to_list()
+                  
+                  # generate the meta data instructions for the dates line
+                  meta_data_series_dates = ForecastMetaDataSeries(id = ForecastDataModel.RESERVED_COLUMN_INDEX_NAME + "_year_to_month",
+                                                                  step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                  action = ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH,
+                                                                  data_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                                                  display_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                                                  display_name = "Dates (end-of)",
+                                                                  data_values = date_values,
+                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)
+
+                  updated_meta_data = ForecastMetaDataFrame.concat([updated_meta_data, meta_data_series_dates], verify_integrity = False, drop_dups = True)
+
 
             # TREATMENT NAME
             treatment_name = component_id
 
             # NEW TO THERAPY (NTP) PATIENTS
-            if(not isinstance(model, DataFrame)):
-                  model = DataFrame(data = model)
-
-            model = ForecastDataModel.astype_first_all_cols(in_df = model)
-                        
-            if(forecast_timescale != ForecastModelTimescale.MONTH):  # if the forecast timescale is not at the same timescale as MONTHLY, then expand it to be monthly by dividing out the annual
-                  model = ForecastDataModel.yearly_to_monthly(model)
-
-            num_NTP_per = model[model.columns.to_list()[-1]]
+            num_NTP_per = updated_model[updated_model.columns.to_list()[-1]]
 
            # TREATMENT DURATION
             if(not isinstance(treatment_details_model, DataFrame)):
@@ -209,15 +232,14 @@ class ForecastDataModel(DataFrame):
             progression_curve = treatment_details_model[patient_progression_col_name].values
 
 
-
             # GENERATE TOTAL PATIENTS BY PROGRESSION MONTH
             # --------------------------------------------
 
             # save dates to add back later
             forecast_dates = None
 
-            if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in model.columns):
-                  forecast_dates = model[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].values
+            if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in updated_model.columns):
+                  forecast_dates = updated_model[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].values
 
             # calc forecast_length
             forecast_length = len(num_NTP_per)
@@ -245,8 +267,7 @@ class ForecastDataModel(DataFrame):
             pat_leaving_by_treatment_month = pd.DataFrame(data=blank_for_forecast,
                                                           columns = colnames_leaving_by_treatment_month, 
                                                           index = list(range(forecast_length)))
-                                                          #index = list(range(1,forecast_length+1)))
-            
+
             # if pc_initial_states_state is provided, then use that
             if pc_initial_state is not None:
                   if len(pc_initial_state) != treatment_duration:
@@ -288,8 +309,7 @@ class ForecastDataModel(DataFrame):
                   pat_by_treatment_month = ForecastDataModel.monthly_to_yearly(pat_by_treatment_month)
                   pat_leaving_by_treatment_month = ForecastDataModel.monthly_to_yearly(pat_leaving_by_treatment_month)
 
-
-            return(DataFrame(data=pat_by_treatment_month), DataFrame(data=pat_leaving_by_treatment_month))
+            return(DataFrame(data=pat_by_treatment_month), DataFrame(data=pat_leaving_by_treatment_month), updated_meta_data)
       
 
 
@@ -447,35 +467,43 @@ class ForecastDataModel(DataFrame):
       #  
       # INPUTS:
       #     data - list of dataframe whose values will be added together
-      #     new_col_name - the unique name for the column, if empty, function will generate a unique name
+      #     drop_dups - drop duplicate column names
       #     skip_total_if_one - boolean value, if true, do NOT create a totals column if only one dataframe in the list
       # 
       # OUTPUTS:
+      #   total_line_create = True if a new total line was created, false if not
       #   DataFrame df which is Forecast Model compliant
+      #   If a new total line was created, the ID of the SUMMATION, to be used as part of Meta_Data setup
+      #   The id of the actual total calculation line created (usually:  SUMMATION_ID+"_Total")
 
       @staticmethod
-      def concat_and_sum(datas: List[DataFrame], new_col_name: str = None, skip_total_if_one: bool = True) -> DataFrame:
+      def concat_and_sum(datas: List[DataFrame], drop_dups: bool = True, skip_total_if_one: bool = True) -> tuple[bool, DataFrame, str, str]:
             if(len(datas) < 1):
                   raise ValueError(f"*  concat_and_sum:  error, empty list of datasets provided.")
 
             # if we only have one dataset and the flag to skip generating total col if only one is True,
             # just return the existing dataset
             if(len(datas) == 1 and skip_total_if_one):
-                  return(datas[0])
+                  last_col_id = datas[0].columns[-1]
+                  return(False, datas[0], None, last_col_id)
             
-            # if no new_col_name provided, generate one automatically
-            if(new_col_name is None):
-                  new_col_name = f"Total_{nanoid.generate(size=5)}"
+            # if more than one datas provided, we will need to create a totals line here, and a summation step
+            # in the meta data (both Init and Sum), so the make things easier, create a custom ID name that has
+            # SUMMATION in it
+            new_col_id = f"SummationTB_{nanoid.generate(size=5)}"
 
             # array holding all the totals columns that need to be added up
             total_cols = None
             total_cols_names = []
+            new_total_col_id = f"{new_col_id}_Total"
 
             # run the validation loop against all data sets to ensure they are valid, and grab the ids from
             # the last (i.e. total line) of each one
             for i in range(len(datas)):
-                  total_col_name = datas[i].iloc[:, -1].name
-                  total_col_values = np.array([datas[i].iloc[:, -1]])
+                  #total_col_name = datas[i].iloc[:, -1].name
+                  #total_col_values = np.array([datas[i].iloc[:, -1]])
+                  total_col_name = datas[i].columns[-1]
+                  total_col_values = datas[i][total_col_name].to_numpy()
 
                   # grab the last rightmost column (defined as the totals column) and put in a common dataframe
                   # if the rightmost column is the 'dates' column, it means the dataset is empty and can be ignored
@@ -495,7 +523,8 @@ class ForecastDataModel(DataFrame):
                               if(total_col_name in total_cols_names):
                                     raise ValueError(f"*  concat_and_sum:  error, duplicate total_column names, trying to add: '{total_col_name}', to: {total_cols_names}")
 
-                              total_cols = np.concatenate([total_cols, total_col_values], axis=0)
+                              #total_cols = np.concatenate([total_cols, total_col_values], axis=0)
+                              total_cols = total_cols + total_col_values
                   
                   # if second or later dataset, concat with first, but only add columns not found in first
                   if(i == 0):
@@ -504,15 +533,12 @@ class ForecastDataModel(DataFrame):
                         new_cols = [colname for colname in datas[i].columns if colname not in combined_df.columns]
                         combined_df = pd.concat([combined_df, datas[i][new_cols]], axis=1)
 
-            # If 2 or more totals to add up, create a totals column, otherwise, skip it
-            if(total_cols is None or np.shape(total_cols)[0] < 2):
-                  pass
-            else:
-                  # add the totals col
-                  combined_df = ForecastDataModel.add_col_to_model(data = combined_df,
-                                                                  new_col_values = np.sum(total_cols, axis=0, dtype = np.float64).flatten().tolist(),
-                                                                  new_col_name = new_col_name)
-            return(combined_df)
+            # append Totals column to dataframe
+            combined_df = ForecastDataModel.add_col_to_model(data = combined_df,
+                                                                    new_col_values = total_cols.tolist(),
+                                                                    new_col_name = new_total_col_id)
+            
+            return(True, combined_df, new_col_id, new_total_col_id)
       
 
 
@@ -627,6 +653,8 @@ class ForecastDataModel(DataFrame):
       @staticmethod
       def monthly_to_yearly(data: pd.Series | pd.DataFrame) -> pd.Series | pd.DataFrame:
             has_date_col = False
+
+            
 
             # we don't deal with datetime indexes in this function, but we do work with 1 index instead of 0 index (for months and years)
             data.index = list(range(0, len(data)))

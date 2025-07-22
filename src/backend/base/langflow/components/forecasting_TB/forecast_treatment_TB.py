@@ -162,7 +162,7 @@ class ForecastTreatmentTB(ForecastComponent):
     # =================
     form_update_rules = {}
     form_trigger_rules = [
-        (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_segments_table_def", ["num_products", "treatment_duration"])),
+        (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_treatment_table_def", ["num_products", "treatment_duration"])),
         (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("treatment_details", "generate_table_values", ["num_products", "treatment_duration"])),
     ]
 
@@ -184,7 +184,7 @@ class ForecastTreatmentTB(ForecastComponent):
                                                                field_name=field_name,
                                                                
                                                                # list of all the updater functions for calculated fields
-                                                               update_segments_table_def=self.generate_table_schema,
+                                                               update_treatment_table_def=self.generate_table_schema,
                                                                generate_table_values=self.generate_table_values)
 
 
@@ -304,34 +304,40 @@ class ForecastTreatmentTB(ForecastComponent):
         treatment_group_id = self._id
 
         # sum up all the inputs to create a single total line and add it to the output model
-        (updated_model, updated_meta_data, col_total_in_id) = self.check_and_combine_forecasts(totals_id = f"{treatment_group_id}_Total_In", 
-                                                                                                              totals_display_name = f"{self.display_name} total patients in", 
-                                                                                                              step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
+        (updated_model, updated_meta_data, col_total_in_id) = self.check_and_combine_forecasts(totals_display_name = f"{self.display_name} total patients in")
+        print(updated_model)
+        print(f"col_total_in_id={col_total_in_id}")
         
         # we may or may not have generated a totals column (if there was only one input, we don't, if there was >1 we do), so grab the
         # last ID in the updated_model so that we are pointing to the right totals column (new one or not)
         #col_total_in_id = updated_model.columns[-1]
         updated_model = ForecastDataModel.astype_first_all_cols(updated_model)
+        print("Got here A")
 
         # get in totals_in values (in case we need to use it)
         col_total_in_values = updated_model[col_total_in_id]
+        print(col_total_in_values)
+        print("Got here B")
 
 
         # PROCESS AND SAVE TREATMENT DETAILS TABLE
         # make sure that data-types for treatment_details is set correctly
         treatment_details = ForecastDataModel.astype_first_all_cols(self.treatment_details, first_col_type="int")
+        print("Got here C")
 
 
         # Create the data and meta-data for the treatment_details table... 
         # since this table is used in a manner so different from the model, 
         # we'll save it as objects instead a row of instructions to the builder on creating a new treatment for the player
         treatment_details_table_group_id = f"{treatment_group_id}_treatment_details"
+        print("Got here D")
 
         (treatment_details_model, treatment_details_meta_data) = self.create_treatment_data_meta_data(treat_group_id = treatment_details_table_group_id,
                                                                                                       table_name = "treatment_details", 
                                                                                                       treatment_details = treatment_details)
 
-        # Add a treatment set-up instructions for a treatment section to meta_data table
+        print("Got here E")
+        # Add a treatment set-init instructions for a treatment section to meta_data table
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = f"{treatment_group_id}_Init",
                                                                     display_name = self.display_name,
@@ -341,18 +347,22 @@ class ForecastTreatmentTB(ForecastComponent):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    args = {ForecastDataSeriesMetaDataAction.STEP_INIT: ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH},
                                                                     pred = [col_total_in_id],
                                                                     objs = {"data": treatment_details_model, "meta_data": treatment_details_meta_data})
 
-        (pat_on_treatment_month, pat_leaving_month) = ForecastDataModel.calc_treatment_pat_forecast(component_id = self._id,
-                                                                                                    model = updated_model,
-                                                                                                    treatment_table_col_prefix = f"{treatment_details_table_group_id}",
-                                                                                                    treatment_details_model = treatment_details_model,
-                                                                                                    forecast_timescale = self.timescale,
-                                                                                                    patient_progression_colname = ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME,
-                                                                                                    pc_initial_state = None,
-                                                                                                    keep_granular = keep_granular)
+        print("Got here F")
+        (pat_on_treatment_month, pat_leaving_month, updated_meta_data) = ForecastDataModel.calc_treatment_pat_forecast(component_id = self._id,
+                                                                                                                       updated_model = updated_model,
+                                                                                                                       updated_meta_data = updated_meta_data,
+                                                                                                                       treatment_table_col_prefix = f"{treatment_details_table_group_id}",
+                                                                                                                       treatment_details_model = treatment_details_model,
+                                                                                                                       forecast_timescale = self.timescale,
+                                                                                                                       patient_progression_colname = ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME,
+                                                                                                                       pc_initial_state = None,
+                                                                                                                       keep_granular = keep_granular)
 
+        print("Got here G")
 
         return({
             "pat_on_treatment": (pat_on_treatment_month, treatment_details_model, updated_model, updated_meta_data),
@@ -430,9 +440,6 @@ class ForecastTreatmentTB(ForecastComponent):
                                                                         data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                         display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}])
-
-        #print("Treatments meta_data:")
-        #print(updated_meta_data)
 
         return(updated_model, updated_meta_data)
 

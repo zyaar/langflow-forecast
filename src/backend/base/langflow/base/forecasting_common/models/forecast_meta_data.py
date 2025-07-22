@@ -6,7 +6,7 @@
 #
 #####################################################################
 
-from typing import Type
+from typing import Type, Tuple
 #import nanoid
 #from langflow.schema.dataframe import DataFrame, Data
 from langflow.schema.data import Data
@@ -24,8 +24,8 @@ from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_
 # ==========================
 #from datetime import datetime
 from enum import Enum
-#import numpy as np
-#import pandas as pd
+import numpy as np
+import pandas as pd
 
 
 
@@ -59,6 +59,7 @@ class ForecastMetaDataSeriesSchema(str, Enum):
     DATA_TYPE = "data_type"
     DISPLAY_TYPE = "display_type"
     DISPLAY_NAME = "display_name"
+    DATA_VALUES = "data_values"
     VALIDATION = "validation" # a list of validation directives
     PRED = "pred" # predecessors, a set of column ids necessary for the action
     ARGS = "args" # any additional values necessary for actions, or validations
@@ -74,6 +75,7 @@ class ForecastDataSeriesMetaDataStepTypes(str, Enum):
     SEGMENT = "segment"
     SUMMATION = "summation"
     TREATMENT = "treatment"
+    DELAY = "delay"
 
 
 # Enum of ACTION
@@ -85,6 +87,9 @@ class ForecastDataSeriesMetaDataAction(str, Enum):
     PROD = "prod" # multiply a series of col ids (preds) or constants
     SUB = "sub"  # subtract a series of col ids (preds) or constants
     STEP_INIT = "step_init" # perform any initialization required for this step type
+    YEAR_TO_MONTH = "year_to_month" # convert a yearly series to monthly
+    MONTH_TO_YEAR = "month_to_year" # convert a monthly series to yearly
+    SHIFT = "shift" # shift a series by a number of months (positive or negative)
 
 
 # Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
@@ -141,6 +146,12 @@ def ForecastJsonSerializer(obj):
         return obj.meta_data
     elif isinstance(obj, DataFrame):
         return obj.to_dict()
+    elif isinstance(obj, pd.Series):
+        return obj.to_list()
+    elif isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
     elif isinstance(obj, Enum):
         return obj.value
     else:
@@ -388,6 +399,18 @@ class ForecastMetaDataFrame():
 
 
 
+
+    def get_last_id(self) -> str:
+        last_key_id = list(self.model.keys())[-1]
+        return(last_key_id)
+    
+
+    def get_last_series(self) -> str:
+        return(self.model[self.get_last_id()])
+
+
+
+
     # concat_and_sum
     # Equivalent to forecast_data_model concat_and_sum, combines all the meta_datas using the concat function and,
     # if there is more than one data_object, adds a totals instruction line as well
@@ -403,7 +426,15 @@ class ForecastMetaDataFrame():
     #   ForecastMetaDataFrame will all the elements combined
 
     @staticmethod
-    def concat_and_sum(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], series_id: str, step_type: ForecastDataSeriesMetaDataStepTypes, display_name: str, verify_integrity: bool = False, drop_dups: bool = False, **kwargs) -> Type['ForecastMetaDataFrame']:
+    def concat_and_sum(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], 
+                       display_name: str,
+                       new_summation_id: str = None,
+                       new_total_line_id: str = None,
+                       new_total_values: pd.Series = None,
+                       verify_integrity: bool = False,
+                       drop_dups: bool = False, 
+                       **kwargs) -> Type['ForecastMetaDataFrame']:
+        
         if(datas is None or len(datas) < 1):
             raise ValueError("*  concat_and_sum:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
 
@@ -411,22 +442,35 @@ class ForecastMetaDataFrame():
         if len(datas) < 2:
             # we run concat even though there is one elements, because if that elements is a Series, concat will convert to a Frame
             meta_data = ForecastMetaDataFrame.concat(objs = datas, verify_integrity = verify_integrity, drop_dups = drop_dups)
+
         else:
             # get the ids of the last rows of all the meta_data fields, they will before the predecessor input into the totals
-            list_of_pred_ids = ForecastMetaDataFrame._get_list_of_last_ids(datas = datas)
+            (list_of_pred_ids, list_of_forecast_series) = ForecastMetaDataFrame._get_list_of_last_ids(datas = datas)
+            (display_type, data_type) = ForecastMetaDataFrame._get_display_data_type(list_of_forecast_series)
 
+            # generate a new step for summation
+            meta_data_step_init_series = ForecastMetaDataSeries(id = f"{new_summation_id}_Init",
+                                                                step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
+                                                                action = ForecastDataSeriesMetaDataAction.STEP_INIT,
+                                                                data_type = data_type,
+                                                                display_type = display_type,
+                                                                display_name = display_name,
+                                                                validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                pred = list_of_pred_ids)
+            
             # generate the instructions for the totals row
-            meta_data_sum_series = ForecastMetaDataSeries(id = series_id,
-                                                          step_type = step_type,
+            meta_data_sum_series = ForecastMetaDataSeries(id = new_total_line_id,
+                                                          step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
                                                           action = ForecastDataSeriesMetaDataAction.SUM,
-                                                          data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                          display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                          data_type = data_type,
+                                                          display_type = display_type,
                                                           display_name = display_name,
+                                                          data_values = new_total_values.to_list(),
                                                           validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                           pred = list_of_pred_ids)
             
             # concat the list of data_objects provided (unpacked using '*') and the new totals line Series into one ForecastMetaDataFrame
-            meta_data = ForecastMetaDataFrame.concat(objs = [*datas, meta_data_sum_series], verify_integrity = verify_integrity, drop_dups = drop_dups)
+            meta_data = ForecastMetaDataFrame.concat(objs = [*datas, meta_data_step_init_series, meta_data_sum_series], verify_integrity = verify_integrity, drop_dups = drop_dups)
 
         return(meta_data)
 
@@ -528,8 +572,9 @@ class ForecastMetaDataFrame():
     #   List of IDs
 
     @staticmethod
-    def _get_list_of_last_ids(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']]) -> list[str]:
+    def _get_list_of_last_ids(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']]) -> tuple[list[str], list[ForecastMetaDataSeries]]:
         list_of_ids = []
+        list_of_forecast_series = []
 
         if(datas is None or len(datas) < 1):
             raise ValueError("*  _get_list_of_last_ids:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
@@ -540,14 +585,74 @@ class ForecastMetaDataFrame():
             # handle the case that the data_obj is a ForecastMetaDataFrame
             if isinstance(data_obj, ForecastMetaDataFrame):
                 # get the id of the last key in the model (the last column of ForecastMetaDataSeries to be added)
-                list_of_ids.append(list(data_obj.model.keys())[-1])
+                last_id = list(data_obj.model.keys())[-1]
+                list_of_forecast_series.append(data_obj.model[last_id])
+                list_of_ids.append(last_id)
 
             # handle the cast that the data_obj is ForecastMetaDataSeries
             else:
+                list_of_forecast_series.append(data_obj)
                 list_of_ids.append(data_obj.meta_data[ForecastMetaDataSeriesSchema.ID])
 
-        return(list_of_ids)
+        return(list_of_ids, list_of_forecast_series)
     
+
+    # _get_display_data_type
+    # Go through a list of ForecastMetaDataSeries and ensure they all have the same display_type and data_type, returning the common values
+    #  
+    # INPUTS:
+    #   list_of_forecast_series - List of ForecastMetaDataSeries to check
+    # 
+    # OUTPUTS:
+    #   (display_type, data_type) - the common display_type and data_type found in the list
+
+    @staticmethod
+    def _get_display_data_type(list_of_forecast_series: list[ForecastMetaDataSeries]) -> tuple[ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataDataType]: #(display_type, data_type) = ForecastMetaDataFrame._get_display_data_type(list_of_forecast_series)
+        
+        last_display_type = None
+        last_data_type = None
+
+        for series in list_of_forecast_series:
+            if series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE] is not None:
+                if last_display_type is None:
+                    last_display_type = series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]
+                elif last_display_type != series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]:
+                    raise ValueError(f"*  _get_display_data_type:  inconsistent display_types found in list_of_forecast_series, '{last_display_type}' != '{series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]}'")
+            
+            if series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE] is not None:
+                if last_data_type is None:
+                    last_data_type = series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]
+                elif last_data_type != series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]:
+                    raise ValueError(f"*  _get_display_data_type:  inconsistent data_types found in list_of_forecast_series, '{last_data_type}' != '{series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]}'")
+
+        # if we never found a display_type or data_type, default to FLOAT
+        if last_display_type is None:
+            last_display_type = ForecastDataSeriesMetaDataDataType.FLOAT
+        if last_data_type is None:
+            last_data_type = ForecastDataSeriesMetaDataDataType.FLOAT
+
+        return(last_display_type, last_data_type)
+    
+
+    # # _get_last_series
+    # # Get the last ForecastMetaDataSeries in a ForecastMetaDataFrame
+    # #  
+    # # INPUTS:
+    # #   meta_data - ForecastMetaDataFrame to check
+    # # 
+    # # OUTPUTS:
+    # #   ForecastMetaDataSeries - the last series in the frame
+
+    # @staticmethod
+    # def get_last_series(meta_data : Type['ForecastMetaDataFrame']) -> ForecastMetaDataSeries:
+    #     if(meta_data is None or len(meta_data.model.keys()) < 1):
+    #         raise ValueError("*  _get_last_series:  meta_data is None or has no columns")
+
+    #     last_id = list(meta_data.model.keys())[-1]
+    #     return(meta_data.model[last_id])
+
+
+
 
     # _check_meta_data
     # Check all the NONE-model meta-data between two frames and ensure they are the same (since we can't combine different types of forecasts)

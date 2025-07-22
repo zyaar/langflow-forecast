@@ -53,69 +53,229 @@ import copy
 # to ensure that the key ForecastDataModel shared variables are always appending to the input
 class ForecastComponent(Component):
 
+    # CONFIG CONSTANTS
+    # ================
+    
+    # COMPONENT INFO
+    display_name: str = f"Forecast Component TB"
+    description: str = f"Abstract base class for components, the basis for all other Forecast Components."
+    icon: str = f""
+    name: str = f"ForecastComponentTB"
+
+
+
+    # INSTANCE ATTRIBUTES
+    # generated during the __init__
+    # -----------------------------
+    # inputs - (list) InputTypes for the component
+    # outputs - (list) OutputTypes for the component
+
+
+    # __init__
+    # --------
+    def __init__(self, **kwargs) -> None:
+        # generates some instance variables instead of using class variables, this allows us to customize
+        # this instance variables in the children of this abstract class without having to rewrite all the
+
+        # set-up inputs and outputs with the child class's configuration variables
+        self.inputs = self._gen_inputs()
+        self.outputs = self._gen_outputs()
+
+        super().__init__(**kwargs)
+    
+
+
+    # GENERATE INPUTS / OUTPUTS
+    # -------------------------
+    def _gen_inputs(self) -> list:
+        inputs_list = [
+            # Number of Years in Forecast
+            StrInput(
+                name="num_years",
+                display_name="# of Years to Forecast",
+                info="The number of years to include in the forecast.",
+                required=True,
+                dynamic = True,
+                real_time_refresh = True,
+                advanced=True,
+            ),
+
+            # Start Year
+            StrInput(
+                name="start_year",
+                display_name="Start Year",
+                info="The first year to forecast.  This can be a year value (i.e. 2026) or any integer (i.e. 1).  The system will simply use it as a reference point and add +1 for each year until it reaches the number of years to forecast.",
+                required=True,
+                dynamic = True,
+                real_time_refresh = True,
+                advanced=True,
+            ),
+
+            # Time Scale
+            StrInput(
+                name = "timescale",
+                display_name = "Time-Scale",
+                info = "The granularity of the time scale for the forecast.",
+                required = True,
+                dynamic = True,
+                real_time_refresh = True,
+                advanced=True,
+            ),
+
+            # Month Start of Fiscal Year
+            StrInput(
+                name="start_month",
+                display_name="Month Start of Fiscal Year",
+                info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
+                required = True,
+                show = True,
+                dynamic = True,
+                real_time_refresh = True,
+                advanced=True,
+            ),
+
+            # Input Type
+            StrInput(
+                name = "input_type",
+                display_name = "Input Type",
+                info = "Determines the type of forecast to generate.  'Time Based Input' generates which allows for individual values to be entered at the time-scale chosen.  'Single Input' uses a base value and growth/shrink rate at the time-scale chosen.",
+                required = True,
+                show = True,
+                dynamic = True,
+                real_time_refresh = True,
+                advanced=True,
+            ),
+        ]
+
+        return(inputs_list)
+    
+
+    def _gen_outputs(self) -> list:
+        outputs_list = []
+
+        return(outputs_list)
+    
+
+    # INPUT/OUTPUT VALIDATIONS
+    # ========================
+    def validate_inputs(self):
+        pass
+
+    def validate_outputs(self):
+        pass
+
+
+    # INPUT/OUTPUTS CALCULATIONS
+    # ==========================
+
+    def _forecast_model_common_input(self):
+        self.validate_inputs()
+        pass
+
+
+    def _forecast_model_common_output(self, data: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, check_ids: bool = True) -> Data:
+        self.validate_outputs()
+
+        last_id = None
+
+        # validation of data
+        if(data is not None):
+            # convert pd.DataFrame to DataFrame
+            if isinstance(data, pd.DataFrame):
+                data = DataFrame(data)
+
+            # must have at least a DATE AND another column
+            if(len(data.columns) < 2):
+                raise ValueError(f"\n*  _forecast_model_common_output:  data is missing min columns: '{data.columns}'")
+
+            last_id_data = data.columns[-1]
+            last_id = last_id_data
+
+
+        # validation of meta_data
+        if(meta_data is not None):
+            if meta_data.model is None:
+                raise ValueError(f"\n*  _forecast_model_common_output:  meta_data is missing .model attribute")
+            
+            #last_id_meta_data = meta_data.model[list(meta_data.model.keys())[-1]].meta_data[ForecastMetaDataSeriesSchema.ID]
+            last_id_meta_data = meta_data.get_last_id()
+            last_id = last_id_meta_data
+
+        # check to make sure the keys match        
+        if check_ids and (data is not None) and (meta_data is not None):
+            if last_id_data != last_id_meta_data:
+                raise ValueError(f"\n:  _forecast_model_common_output:  last ids of data '{last_id_data}' and meta_data '{last_id_meta_data}' do not match.")
+
+        return(ForecastDataPacket.gen_data_packet(dataframe = data, 
+                                                  meta_data = meta_data, 
+                                                  last_id = last_id))
+
+
     # COMPONENT META-DATA
     # -------------------
 
-    # COMPONENT INPUTS
-    # ----------------
-    inputs = [
-        # Number of Years in Forecast
-        StrInput(
-            name="num_years",
-            display_name="# of Years to Forecast",
-            info="The number of years to include in the forecast.",
-            required=True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
+    # # COMPONENT INPUTS
+    # # ----------------
+    # inputs = [
+    #     # Number of Years in Forecast
+    #     StrInput(
+    #         name="num_years",
+    #         display_name="# of Years to Forecast",
+    #         info="The number of years to include in the forecast.",
+    #         required=True,
+    #         dynamic = True,
+    #         real_time_refresh = True,
+    #         advanced=True,
+    #     ),
 
-        # Start Year
-        StrInput(
-            name="start_year",
-            display_name="Start Year",
-            info="The first year to forecast.  This can be a year value (i.e. 2026) or any integer (i.e. 1).  The system will simply use it as a reference point and add +1 for each year until it reaches the number of years to forecast.",
-            required=True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
+    #     # Start Year
+    #     StrInput(
+    #         name="start_year",
+    #         display_name="Start Year",
+    #         info="The first year to forecast.  This can be a year value (i.e. 2026) or any integer (i.e. 1).  The system will simply use it as a reference point and add +1 for each year until it reaches the number of years to forecast.",
+    #         required=True,
+    #         dynamic = True,
+    #         real_time_refresh = True,
+    #         advanced=True,
+    #     ),
 
-        # Time Scale
-        StrInput(
-            name = "timescale",
-            display_name = "Time-Scale",
-            info = "The granularity of the time scale for the forecast.",
-            required = True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
+    #     # Time Scale
+    #     StrInput(
+    #         name = "timescale",
+    #         display_name = "Time-Scale",
+    #         info = "The granularity of the time scale for the forecast.",
+    #         required = True,
+    #         dynamic = True,
+    #         real_time_refresh = True,
+    #         advanced=True,
+    #     ),
 
-        # Month Start of Fiscal Year
-        StrInput(
-            name="start_month",
-            display_name="Month Start of Fiscal Year",
-            info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
-            required = True,
-            show = True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
+    #     # Month Start of Fiscal Year
+    #     StrInput(
+    #         name="start_month",
+    #         display_name="Month Start of Fiscal Year",
+    #         info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
+    #         required = True,
+    #         show = True,
+    #         dynamic = True,
+    #         real_time_refresh = True,
+    #         advanced=True,
+    #     ),
 
-        # Input Type
-        StrInput(
-            name = "input_type",
-            display_name = "Input Type",
-            info = "Determines the type of forecast to generate.  'Time Based Input' generates which allows for individual values to be entered at the time-scale chosen.  'Single Input' uses a base value and growth/shrink rate at the time-scale chosen.",
-            required = True,
-            show = True,
-            dynamic = True,
-            real_time_refresh = True,
-            advanced=True,
-        ),
-    ]
+    #     # Input Type
+    #     StrInput(
+    #         name = "input_type",
+    #         display_name = "Input Type",
+    #         info = "Determines the type of forecast to generate.  'Time Based Input' generates which allows for individual values to be entered at the time-scale chosen.  'Single Input' uses a base value and growth/shrink rate at the time-scale chosen.",
+    #         required = True,
+    #         show = True,
+    #         dynamic = True,
+    #         real_time_refresh = True,
+    #         advanced=True,
+    #     ),
+    # ]
+
+
 
 
 
@@ -159,7 +319,7 @@ class ForecastComponent(Component):
     #   table_name = name of the TableInput
     #   col_name = name of the column as defined in the TableSchema
     # 
-    def get_input_table_col_display_name(self, table_name: str,  col_name: str) -> str:
+    def _get_input_table_col_display_name(self, table_name: str,  col_name: str) -> str:
         if table_name in self._inputs:
              if col_name in self._inputs[table_name]:
                   return getattr(self.inputs[table_name][col_name], "display_name", col_name)
@@ -167,47 +327,17 @@ class ForecastComponent(Component):
     
 
     # unpack_data_packet
-    def unpack_data_packets(self, data_packet: list[Data]) -> tuple[DataFrame, ForecastMetaDataFrame]:
+    def _unpack_data_packets(self, data_packet: list[Data]) -> tuple[DataFrame, ForecastMetaDataFrame]:
         (dataframe, meta_data) = ForecastDataPacket.unpack_data_packets(data_packet)
         return(dataframe, meta_data)
 
-    def unpack_data_packet(self, data_packet: Data) -> tuple[DataFrame, ForecastMetaDataFrame]:
+    def _unpack_data_packet(self, data_packet: Data) -> tuple[DataFrame, ForecastMetaDataFrame]:
         (dataframe, meta_data) = ForecastDataPacket.unpack_data_packet(data_packet)
         return(dataframe, meta_data)
 
-    def gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, check_ids: bool = True) -> Data:
+    def _gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, check_ids: bool = True) -> Data:
          data_packet = ForecastDataPacket.gen_data_packet(dataframe = dataframe, meta_data = meta_data, check_ids = check_ids)
          return(data_packet)
-
-
-    
-
-    # check_and_combine_forecasts
-    # Handles all the forecast_in data unpacking, DataFrame and ForecastMetaDataFrame conslidation
-    # 
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   DataFrame
-    def check_and_combine_forecasts(self, totals_id: str, totals_display_name: str, step_type: ForecastDataSeriesMetaDataStepTypes) -> tuple[DataFrame, ForecastMetaDataFrame, str]:
-        (dataframes_in, meta_datas_in) = ForecastDataPacket.unpack_data_packets(self.forecasts_in)
-
-        # combine data frames and add a totals line if multiple are being added
-        updated_model = ForecastDataModel.concat_and_sum(datas=dataframes_in, new_col_name = totals_id, skip_total_if_one=True)
-        
-        # get the totals_id for returning (we may have had to create one, or not, depending on how many inputs there were)
-        totals_id = updated_model.columns[-1]
-
-        # combine meta_datas and add a total instruction if multiple frames are being added
-        updated_meta_data = ForecastMetaDataFrame.concat_and_sum(datas = meta_datas_in, 
-                                                                 series_id = totals_id, 
-                                                                 step_type = step_type, 
-                                                                 display_name = totals_display_name, 
-                                                                 verify_integrity = False, 
-                                                                 drop_dups = True)
-        
-        return (updated_model, updated_meta_data, totals_id)
-
 
 
 
@@ -231,37 +361,45 @@ class ForecastComponent(Component):
     #   DataFrame = updated DataFrame with the new action column
     #   ForecastMetaDataFrame = updated ForecastMetaDataFrame with the new action column
 
-    def add_col_data_meta(self,
-                          dataframe: DataFrame | pd.DataFrame,
-                          meta_data: ForecastMetaDataFrame,
-                          id: str,
-                          display_name: str,
-                          data_values: pd.Series,
-                          step_type: ForecastDataSeriesMetaDataStepTypes,
-                          action: ForecastDataSeriesMetaDataAction,
-                          data_type: ForecastDataSeriesMetaDataDataType,
-                          display_type: ForecastDataSeriesMetaDataDataType,
-                          validation: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]],
-                          pred: List[str | int | float] = None,
-                          args: Dict = None,
-                          objs: List = None,
-                          verify_integrity: bool = True,
-                          drop_dups: bool = False) -> tuple[DataFrame, ForecastMetaDataFrame]:
-           
-           # add col to meta_data
-           new_meta_col = ForecastMetaDataSeries(id = id,
-                                                 step_type = step_type,
-                                                 action = action,
-                                                 data_type = data_type,
-                                                 display_type = display_type,
-                                                 display_name = display_name,
-                                                 validation = validation,
-                                                 pred = pred,
-                                                 args = args,
-                                                 objs = objs)
-           updated_meta_data = ForecastMetaDataFrame.concat([meta_data, new_meta_col], verify_integrity = verify_integrity, drop_dups = drop_dups)
+    @staticmethod
+    def _add_col_data_meta(dataframe: DataFrame | pd.DataFrame,
+                           meta_data: ForecastMetaDataFrame,
+                           id: str,
+                           display_name: str,
+                           step_type: ForecastDataSeriesMetaDataStepTypes,
+                           action: ForecastDataSeriesMetaDataAction,
+                           data_type: ForecastDataSeriesMetaDataDataType,
+                           display_type: ForecastDataSeriesMetaDataDataType,
+                           validation: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]],
+                           data_values: pd.Series | list = None,
+                           pred: List[str | int | float] = None,
+                           args: Dict = None,
+                           objs: List = None,
+                           verify_integrity: bool = True,
+                           drop_dups: bool = False) -> tuple[DataFrame, ForecastMetaDataFrame]:
+          
 
-           # add col to data
-           updated_dataframe = ForecastDataModel.add_col_to_model(dataframe, data_values.to_list(), new_col_name=id)
+          # create a data values holder for meta_data
+          if(data_values is None or len(data_values) == 0):
+              data_values_meta_data = []
+          else:
+              data_values_meta_data = data_values.to_list()
+          
+          # add col to meta_data
+          new_meta_col = ForecastMetaDataSeries(id = id,
+                                                step_type = step_type,
+                                                action = action,
+                                                data_type = data_type,
+                                                display_type = display_type,
+                                                display_name = display_name,
+                                                data_values = data_values_meta_data,
+                                                validation = validation,
+                                                pred = pred,
+                                                args = args,
+                                                objs = objs)
+          updated_meta_data = ForecastMetaDataFrame.concat([meta_data, new_meta_col], verify_integrity = verify_integrity, drop_dups = drop_dups)
+          
+          # add col to data
+          updated_dataframe = ForecastDataModel.add_col_to_model(dataframe, data_values.to_list(), new_col_name=id)
 
-           return(updated_dataframe, updated_meta_data)
+          return(updated_dataframe, updated_meta_data)

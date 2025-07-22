@@ -20,7 +20,7 @@ from langflow.field_typing.range_spec import RangeSpec
 
 # FORECAST SPECIFIC IMPORTS
 # =========================
-from langflow.base.forecasting_common.components.forecast_single_var_transformer_TB import ForecastSingleVarTransformerTB
+from langflow.base.forecasting_common.components.forecast_single_fix_col_transformer_TB import ForecastSingleFixedColTransformerTB
 from langflow.base.forecasting_common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
 from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
 from langflow.base.forecasting_common.forms.forecast_form_updater import ForecastFormUpdater
@@ -49,7 +49,7 @@ from typing import Any, List
 
 # ForecastPricingTB
 # This class represents converting a series of Product Rx / SKU orders in to a revenue stream by applying price
-class ForecastPricingTB(ForecastSingleVarTransformerTB, Component):
+class ForecastPricingTB(ForecastSingleFixedColTransformerTB, Component):
     # COMPONENT INFO
     display_name: str = f"Pricing TB"
     description: str = f"Apply a timescale specific price to a series of Product/SKU Rx/orders to return a revenue stream."
