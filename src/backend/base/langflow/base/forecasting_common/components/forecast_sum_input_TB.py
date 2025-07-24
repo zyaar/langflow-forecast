@@ -69,15 +69,9 @@ class ForecaseSumInputTB(ForecastComponent):
     VAR_IN_INFO = "Time-based forecast Data"
 
 
-    # INSTANCE ATTRIBUTES
-    # generated during the __init__
-    # -----------------------------
-    # inputs - (list) InputTypes for the component
-    # outputs - (list) OutputTypes for the component
-
 
     # GENERATE INPUTS / OUTPUTS
-    # -------------------------
+    # =========================
     def _gen_inputs(self) -> list:
         inputs_list = [
             # parent attributes
@@ -114,6 +108,7 @@ class ForecaseSumInputTB(ForecastComponent):
 
     # def validate_outputs(self):
     #     super().validate_outputs()
+
 
 
     # INPUT/OUTPUTS CALCULATIONS

@@ -62,6 +62,10 @@ class ForecastComponent(Component):
     icon: str = f""
     name: str = f"ForecastComponentTB"
 
+    # MISC CONFIG
+    DEBUG_MODE = True
+
+
 
 
     # INSTANCE ATTRIBUTES

@@ -63,10 +63,13 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     icon = "Puzzle"
     name: str = "SegmentTB"
 
-    # MISC
-    MAX_SEGMENTS = 100
+    # COL_SET_VAR
     COL_PREFIX = "segment_"
+    MAX_SEGMENTS = 100
+
+    # INPUTS / OUTPUTS
     NUM_STATIC_COLS = 1 # one static columns in 'segment_table' ('Date' is static, rest is segment specific)
+
 
 
     # GENERATE INPUTS / OUTPUTS
@@ -74,17 +77,6 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     def _gen_inputs(self) -> list:
         inputs_list = [
             *super()._gen_inputs(),
-                
-            # # dataframes in List[DataFrame]
-            # DataInput(
-            #     name="forecasts_in",
-            #     display_name="Forecast(s)",
-            #     info="Time Based forecast(s) DataFrame(s)",
-            #     dynamic=True,
-            #     real_time_refresh=True,
-            #     is_list = True,
-            # ),
-
             # num_segemtns
             IntInput(
                 name="num_segments",
@@ -169,12 +161,6 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
             raise ValueError(msg)
     
 
-    # def validate_outputs(self):
-    #     super().validate_outputs()
-
-
-
-
     # FORM UPDATE RULES
     # =================
     form_update_rules = {}
@@ -215,7 +201,6 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     # ==============
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
-    # -------------------
     def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
         curr_num_output_nodes = len(frontend_node["outputs"])-1
 
@@ -299,42 +284,8 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     
 
 
-    # OUTPUT FUNCTIONS
-    # ================
-
-
-
-
-
-
-    # # INPUT VALIDATION
-    # # ----------------
-    # def validate_inputs(self):
-    #     msg = ""
-
-    #     # CHECK FOR REQUIRED INPUTS:
-    #     if(self.num_segments < 1):
-    #         msg += f"\n* '{self.get_input_display_name("segment_num")}' have at least 1 segment."
-        
-
-    #     # segment_table
-    #     if(self.segment_table is None or not isinstance(self.segment_table, list) or len(self.segment_table) < 1):
-    #         msg += f"\n* Missing values for '{self.get_input_display_name("segment_table")}'."
-                    
-
-    #     # check to make sure all percentage in the segment add up to >= 100% or throw an error
-    #     self.check_segment_pcts_add_up()
-            
-    #     # if any errors occurred during validation, stop everything and raise an error
-    #     if(msg != ""):
-    #         self.status = msg
-    #         self.stop
-    #         raise ValueError(msg)
-
-
-
-    # ASSOCIATED FUNCTIONS (convert inputs to outputs, i.e. biz logic)
-    # --------------------
+    # INPUT/OUTPUTS CALCULATIONS
+    # ==========================
 
     # _forecast_model_common_input
     # common code for all 'update_forcast_model' both segments remainder functions
@@ -360,12 +311,6 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                     pred = [curr_total_values_id])
-
-                                                                                                                                                                                    
-                                                                                                                                                                                            # get the id for the curr_totals row (the total patients coming into the segment component, whether it was just generated above or not), 
-        # # as well as the values from that curr_totals column (if any where provided), we will need them to calculate segment totals patients
-        # # by multiplying by the segment percentages
-        # curr_total_values_id = updated_model.columns[-1]
 
         # get the segment table data
         segment_table = ForecastDataModel.astype_first_all_cols(self.segment_table)
@@ -447,9 +392,10 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
 
 
     # update_forecast_model_segment
-    # Add the segment % and the new total patients to the model
+    # Add the segment % and the new total patients to the model for a specific segment
     # 
     # INPUTS:
+    #   seg_num - the segment number that this output is handling
     # OUTPUTS:
     #   DataFrame
     def update_forecast_model_segment(self, seg_num=1) -> Data:

@@ -391,7 +391,8 @@ class ForecastDataModel(DataFrame):
 
             products_rxs_by_treatment_month = forecast_product_rx_by_prog_month
 
-            # check if we want to force a conversion to a different timescale (this is a convenience feature, since this is often done)
+            # At this point, our timescale is MONTHLY... check if we want to force a conversion to a different timescale or not
+            # (this is a convenience feature, since this is often done)
             if(convert_timescale is not None):
                   if(convert_timescale == ForecastModelTimescale.MONTH):
                         products_rxs_by_treatment = products_rxs_by_treatment_month

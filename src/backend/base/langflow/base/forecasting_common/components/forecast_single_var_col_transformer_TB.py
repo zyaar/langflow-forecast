@@ -215,8 +215,10 @@ class ForecastSingleVarColTransformerTB(ForecaseSumInputTB):
         return self._forecast_model_common_output(updated_model, updated_meta_data, col_total_in_id)
 
 
-    # OUTPUT HELPERS
-    # ==============
+
+
+    # INPUT HELPERS
+    # =============
 
     # generate_table_values
     # Based on the latest schema, generates the values for the table
