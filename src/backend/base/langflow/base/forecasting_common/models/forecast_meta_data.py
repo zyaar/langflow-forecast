@@ -7,7 +7,7 @@
 #####################################################################
 
 from typing import Type, Tuple
-#import nanoid
+import nanoid
 #from langflow.schema.dataframe import DataFrame, Data
 from langflow.schema.data import Data
 from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_text_file_to_data
@@ -42,6 +42,7 @@ import pandas as pd
 # Enum holding the schema of the meta-data model
 # The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
 class ForecastMetaDataFrameSchema(str, Enum):
+    ID = "id"
     INPUT_TYPE = "input_type"
     TIMESCALE = "timescale"
     START_YEAR = "start_year"
@@ -318,6 +319,11 @@ class ForecastMetaDataFrame():
                 self.meta_data[attrib] = None
                 # if(attrib != ForecastMetaDataFrameSchema.MODEL):
                 #     self.meta_data[attrib] = None
+
+        # if no ID was provided, generate one
+        if(not hasattr(self, ForecastMetaDataFrameSchema.ID)):
+             self.meta_data[ForecastMetaDataFrameSchema.ID] = f"ForecastMetaDataFrame_{nanoid.generate(size=5)}"
+
 
 
 
