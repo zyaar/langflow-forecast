@@ -84,6 +84,7 @@ class ForecastDataSeriesMetaDataStepTypes(str, Enum):
 class ForecastDataSeriesMetaDataAction(str, Enum):
     DATES = "dates" 
     INPUT = "input" # set-up an input row for data entry
+    COPY = "copy" # copy the values from another row
     SUM = "sum" # sum up a series of col ids (in preds) or constants
     PROD = "prod" # multiply a series of col ids (preds) or constants
     SUB = "sub"  # subtract a series of col ids (preds) or constants
@@ -160,10 +161,81 @@ def ForecastJsonSerializer(obj):
 
 
 
+class ForecastMetaDataSeriesIdGenerator():
+    PREFIX_SEP_CHAR = "_"
+    FULL_ID_SEP_CHAR = "."
+
+    # instance variables
+    # container: ForecastMetaDataFrame - the object holding this instance
+    # container_id: str - the id of the object holding this instance
+
+
+    def __init__(self, container: Type["ForecastMetaDataFrame"]):
+        self.container = container
+
+
+    def check_full_id(self, full_id: str) -> bool:
+        if(full_id.count(self.FULL_ID_SEP_CHAR) == 1):
+            return True
+        else:
+            return False
+        
+        
+    def check_rel_id(self, rel_id: str) -> bool:
+        if(self.FULL_ID_SEP_CHAR in rel_id):
+            return False
+        else:
+            return True
+        
+
+    def sep_full_id(self, full_id: str) -> Tuple[str, str]:
+        if(self.check_id(full_id)):
+            (frame_id, rel_id) = self.FULL_ID_SEP_CHAR.split(full_id)
+            return(frame_id, rel_id)
+        else:
+            raise ValueError(f"\n*  sep_full_id:  Invalid full ID provided '{full_id}', full id must have one and only one '{self.FULL_ID_SEP_CHAR}' in the string.")
+
+
+    def get_id(self) -> str:
+        return self.container.meta_data[ForecastMetaDataFrameSchema.ID]
+        
+
+    def gen_rel_id(self, prefix: str = None, length: int = 5) -> str:
+        if(prefix is None):
+            return nanoid.generate(size=length)
+        else:
+            return f"{prefix}{self.PREFIX_SEP_CHAR}{nanoid.generate(size=length)}"
+        
+        
+    def gen_full_id(self, prefix: str = None, length: int = 5) -> str:
+        if(prefix is None):
+            return f"{container.id}{nanoid.generate(size=length)}"
+        else:
+            return f"{self.get_id()}{self.FULL_ID_SEP_CHAR}{prefix}{self.PREFIX_SEP_CHAR}{nanoid.generate(size=length)}"
+        
+    def rel_to_full_id(self, rel_id: str) -> str:
+        if(self.check_rel_id(rel_id)):
+            return(f"{self.get_id()}{self.FULL_ID_SEP_CHAR}{rel_id}")
+        else:
+            raise ValueError(f"\n*  rel_to_full_id:  Invalid relative ID provided '{rel_id}', relative id cannon contain a '{self.FULL_ID_SEP_CHAR}'.")
+
+        
+    def full_to_rel_id(self, full_id: str) -> str:
+        if(self.check_full_id(full_id)):
+            (frame_id, rel_id) = self.sep_full_id(full_id)
+            return rel_id
+        else:
+            raise ValueError(f"\n*  full_to_rel_id:  Invalid full ID provided '{full_id}', full id must have one and only one '{self.FULL_ID_SEP_CHAR}' in the string.")
+
+
 
 # ForecastMetaDataSeries
 # Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
 class ForecastMetaDataSeries():
+
+    # CLASS VARIABLES
+    # ---------------
+
 
     # INSTANCE VARIABLES
     # ------------------
@@ -294,8 +366,9 @@ class ForecastMetaDataFrame():
 
     # INSTANCE VARIABLES
     # ------------------
-    # meta_data - stores all the forecast meta-data for this instance
-    # model - {dict} stores all meta data for the specific columsn of the model (ForecastMetaDataSeries)
+    # meta_data - (dict) stores all the forecast meta-data for this instance
+    # model - (dict of ForecastMetaDataSeries) stores all meta data for the specific columsn of the model (ForecastMetaDataSeries)
+    # id_mgr - (ForecastMetaDataSeriesIdGenerator) can handle all id tasks (generation, conversion, information methods) 
 
 
     # __init__
@@ -323,6 +396,9 @@ class ForecastMetaDataFrame():
         # if no ID was provided, generate one
         if(not hasattr(self, ForecastMetaDataFrameSchema.ID)):
              self.meta_data[ForecastMetaDataFrameSchema.ID] = f"ForecastMetaDataFrame_{nanoid.generate(size=5)}"
+
+        # create an id_mgr
+        self.id_mgr = ForecastMetaDataSeriesIdGenerator(self)
 
 
 
@@ -402,18 +478,6 @@ class ForecastMetaDataFrame():
             all_meta_data_attribs.append(self.get_col_meta_data(i))
 
         return(all_meta_data_attribs)
-
-
-
-
-    def get_last_id(self) -> str:
-        last_key_id = list(self.model.keys())[-1]
-        return(last_key_id)
-    
-
-    def get_last_series(self) -> str:
-        return(self.model[self.get_last_id()])
-
 
 
 
@@ -512,7 +576,7 @@ class ForecastMetaDataFrame():
                 # since we can't combine forecasts of different types
                 if (read_df):
                     # make sure that all the forecast meta_data agrees, otherwise we can't merge it
-                    if ForecastMetaDataFrame._check_meta_data(frame1 = obj, frame2 = results_frame):
+                    if (not verify_integrity) or (ForecastMetaDataFrame._check_meta_data(frame1 = obj, frame2 = results_frame)):
                         results_frame = ForecastMetaDataFrame._append_cols(src_frame = obj, dest_frame = results_frame)
                     else:
                         raise ValueError("*  concat:  error ForecastMetaDataFrames do not have the same meta-data")
@@ -556,6 +620,34 @@ class ForecastMetaDataFrame():
 
         return(frame)
     
+
+
+
+
+    # get_last_id
+    # Get the id of the last column
+    def get_last_id(self) -> str:
+        last_key_id = list(self.model.keys())[-1]
+        return(last_key_id)
+    
+    # get_last_series
+    # Get the last column (series) of the model
+    def get_last_series(self) -> ForecastMetaDataSeries:
+        return(self.model[self.get_last_id()])
+    
+    # get_last_data_type
+    def get_last_data_type(self) -> ForecastDataSeriesMetaDataDataType:
+        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
+
+    # get_last_display_type
+    def get_last_display_type(self) -> ForecastDataSeriesMetaDataDataType:
+        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+    
+    # get_last_step_type(self) 
+    def get_last_step_type(self) -> ForecastDataSeriesMetaDataStepTypes:
+        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE])
+
+
 
 
 

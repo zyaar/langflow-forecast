@@ -216,6 +216,8 @@ class ForecastRendererExcelTB():
     def render_player(self):
 
         # save these as instance variables
+        # TODO:  rewrite this so that it isn't manually setup for variables
+        self.id = self.meta_data.meta_data[ForecastMetaDataFrameSchema.ID]
         self.start_year = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_YEAR]
         self.start_month = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_MONTH]
         self.num_periods = self.meta_data.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS]
@@ -425,6 +427,9 @@ class ForecastRendererExcelTB():
                 case ForecastDataSeriesMetaDataAction.INPUT:
                     self.action_INPUT(id)
 
+                case ForecastDataSeriesMetaDataAction.COPY:             # TODO:  implement copy action
+                    print("COPY not implemented")
+
                 case ForecastDataSeriesMetaDataAction.SUM:
                     self.action_SUM(id)
 
@@ -434,17 +439,17 @@ class ForecastRendererExcelTB():
                 case ForecastDataSeriesMetaDataAction.SUB:
                     self.action_SUB(id)
 
-                case ForecastDataSeriesMetaDataAction.SHIFT:
-                    pass                                                # TODO:  implement shift action
+                case ForecastDataSeriesMetaDataAction.SHIFT:            # TODO:  implement shift action
+                    print("SHIFT not implemented")
 
                 case ForecastDataSeriesMetaDataAction.STEP_INIT:        # TODO:  implement step_init action
-                    pass
+                    print("STEP_INIT not implemented")
 
                 case ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH:    # TODO:  implement year_to_month action
-                    pass
+                    print("YEAR_TO_MONTH not implemented")
 
                 case ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR:    # TODO:  implement month_to_year action
-                    pass
+                    print("MONTH_TO_YEAR not implemented")
 
                 case _:
                     raise ValueError(f"\n*  _build_model_excel:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")

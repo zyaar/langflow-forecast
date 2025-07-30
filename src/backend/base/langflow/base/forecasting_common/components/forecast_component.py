@@ -7,9 +7,9 @@
 #####################################################################
 
 from langflow.custom import Component
-from langflow.io import TableInput, IntInput, StrInput
+from langflow.io import TableInput, IntInput, StrInput, NestedDictInput
 from langflow.schema import DataFrame, Data
-from langflow.schema.table import EditMode
+from langflow.schema.table import Column
 from langflow.template import Output
 
 # FORECAST SPECIFIC IMPORTS
@@ -64,6 +64,7 @@ class ForecastComponent(Component):
 
     # MISC CONFIG
     DEBUG_MODE = True
+    COMM = "React_Conf"
 
 
 
@@ -93,6 +94,7 @@ class ForecastComponent(Component):
     # -------------------------
     def _gen_inputs(self) -> list:
         inputs_list = [
+            
             # Number of Years in Forecast
             StrInput(
                 name="num_years",
@@ -218,70 +220,6 @@ class ForecastComponent(Component):
     # COMPONENT META-DATA
     # -------------------
 
-    # # COMPONENT INPUTS
-    # # ----------------
-    # inputs = [
-    #     # Number of Years in Forecast
-    #     StrInput(
-    #         name="num_years",
-    #         display_name="# of Years to Forecast",
-    #         info="The number of years to include in the forecast.",
-    #         required=True,
-    #         dynamic = True,
-    #         real_time_refresh = True,
-    #         advanced=True,
-    #     ),
-
-    #     # Start Year
-    #     StrInput(
-    #         name="start_year",
-    #         display_name="Start Year",
-    #         info="The first year to forecast.  This can be a year value (i.e. 2026) or any integer (i.e. 1).  The system will simply use it as a reference point and add +1 for each year until it reaches the number of years to forecast.",
-    #         required=True,
-    #         dynamic = True,
-    #         real_time_refresh = True,
-    #         advanced=True,
-    #     ),
-
-    #     # Time Scale
-    #     StrInput(
-    #         name = "timescale",
-    #         display_name = "Time-Scale",
-    #         info = "The granularity of the time scale for the forecast.",
-    #         required = True,
-    #         dynamic = True,
-    #         real_time_refresh = True,
-    #         advanced=True,
-    #     ),
-
-    #     # Month Start of Fiscal Year
-    #     StrInput(
-    #         name="start_month",
-    #         display_name="Month Start of Fiscal Year",
-    #         info="For fiscal years which do not start in January, allows you the option of specifying the start month.",
-    #         required = True,
-    #         show = True,
-    #         dynamic = True,
-    #         real_time_refresh = True,
-    #         advanced=True,
-    #     ),
-
-    #     # Input Type
-    #     StrInput(
-    #         name = "input_type",
-    #         display_name = "Input Type",
-    #         info = "Determines the type of forecast to generate.  'Time Based Input' generates which allows for individual values to be entered at the time-scale chosen.  'Single Input' uses a base value and growth/shrink rate at the time-scale chosen.",
-    #         required = True,
-    #         show = True,
-    #         dynamic = True,
-    #         real_time_refresh = True,
-    #         advanced=True,
-    #     ),
-    # ]
-
-
-
-
 
     # COMPONENT OUTPUTS
     # -----------------
@@ -303,47 +241,140 @@ class ForecastComponent(Component):
     # COMMON HELPER FUNCTIONS
     # -----------------------
 
-    # builds on top of helper functions already provided Langflow's component class:
-    #
-    # UI
-    #   Get the display name of an input:  get_input_display_name(self, input_name: str) -> str
-    #   Get the display name of an output:  get_output_display_name(self, output_name: str) -> str
-    #
-    # ERROR HANDLING
-    #   Build an error message for an input:  build_input_error_message(self, input_name: str, message: str) -> str
-    #   Build an error message for an output: build_output_error_message(self, output_name: str, message: str) -> str
-    #   Build an error message for the component:  build_component_error_message(self, message: str) -> str
-    #   In CustomComponent:  update_frontend_node
+    # TABLE
 
-
-    # get_input_table_col_display_name
-    # Convenience function to get the display name of a column in an input_table
+    # _get_input_table_display_name
+    # Convenience function to get the display name of a TableInput
     #
     # INPUTS
     #   table_name = name of the TableInput
-    #   col_name = name of the column as defined in the TableSchema
-    # 
-    def _get_input_table_col_display_name(self, table_name: str,  col_name: str) -> str:
-        if table_name in self._inputs:
-             if col_name in self._inputs[table_name]:
-                  return getattr(self.inputs[table_name][col_name], "display_name", col_name)
-        return col_name
-    
+    #
+    # OUTPUTS
+    #   table display name
 
-    # unpack_data_packet
+    def _get_input_table_display_name(self, table_name: str) -> str:
+
+        if table_name in list(self._inputs.keys()):
+                  input_table = self._inputs[table_name]
+
+                  if hasattr(input_table, "display_name"):
+                    return input_table.display_name
+                  else:
+                      return table_name                     
+        else:
+            raise ValueError(f"\n*  _get_input_table_display_name:  invalid table name '{table_name}' provided.")
+
+
+    # _get_input_table_col_display_name
+    # Convenience function to get the name (id) of a column in an input_table
+    #
+    # INPUTS
+    #   table_name = name of the TableInput
+    #   col_num = column number as defined in the TableSchema
+    #
+    # OUTPUTS
+    #   column name (id)
+
+    def _get_input_table_col_display_name(self, table_name: str, col: int | str) -> str:
+        input_col = self._get_input_table_col(table_name = table_name, col = col)
+        
+        if hasattr(input_col, "display_name"):
+            return input_col.display_name
+        else:
+            return self._get_input_table_col_name(table_name, col)                    
+
+
+    # _get_input_table_col_name
+    # Convenience function to get the name (id) of a column in an input_table
+    #
+    # INPUTS
+    #   table_name = name of the TableInput
+    #   col = can be the index of a column or the name of a column in the InputTable's TableSchema
+    #
+    # OUTPUTS
+    #   column name (id)
+
+    def _get_input_table_col_name(self, table_name: str, col: int | str) -> str:
+        input_col = self._get_input_table_col(table_name = table_name, col = col)
+        
+        if hasattr(input_col, "name"):
+            return input_col.name
+        else:
+            return str(col)
+
+
+    # _get_input_table_col
+    # Convenience function to get a Column object from an TableInput's TableSchema by column index or name
+    #
+    # INPUTS
+    #   table_name = name of the TableInput
+    #   col_num = column number as defined in the TableSchema
+    #
+    # OUTPUTS
+    #   column name (id)
+
+    def _get_input_table_col(self, table_name: str, col: int | str) -> Column:
+        
+        if table_name in list(self._inputs.keys()):
+            input_table = self._inputs[table_name].table_schema.columns
+
+            col_num = col if isinstance(col, int) else self._get_input_table_col_num_from_name(table_name = table_name, col_name = col)
+
+            return(input_table[col_num])
+        else:
+            raise ValueError(f"\n*  _get_input_table_col:  invalid table name '{table_name}' provided.")
+
+
+    # _get_input_table_col_num_from_name
+    # Convenience function to get the index of a column in an InputTable based on it's name.
+    # NOTE:  Assumes column names are unique and only returns the first match
+    #
+    # INPUTS
+    #   table_name = name of the TableInput
+    #   col_name = column name in the table
+    #
+    # OUTPUTS
+    #   index of column name in table
+
+    def _get_input_table_col_num_from_name(self, table_name: str, col_name: str) -> int:
+        col_names = []
+
+        if table_name in list(self._inputs.keys()):
+            input_table = self._inputs[table_name].table_schema.columns
+
+            for i in range(len(input_table)):
+                if col_name == input_table[i].name:
+                    return(i)
+                else:
+                    col_names.append(input_table[i].name)
+                  
+            raise ValueError(f"\n*  _get_input_table_col_num_from_name:  column name '{col_name}' not found in '{table_name}', list of columns {col_names}.")
+
+        else:
+            raise ValueError(f"\n*  _get_input_table_col_name:  invalid table name '{table_name}' provided.")
+
+
+
+    # DATAPACKET
+
+    # unpack a LIST of data packets into two LISTS:  one of Dataframes, one of ForecastMetaDataFrames
     def _unpack_data_packets(self, data_packet: list[Data]) -> tuple[DataFrame, ForecastMetaDataFrame]:
         (dataframe, meta_data) = ForecastDataPacket.unpack_data_packets(data_packet)
         return(dataframe, meta_data)
 
+    # updacks an individual data packet into a single Dataframe and a single ForecastMetaDataFrame
     def _unpack_data_packet(self, data_packet: Data) -> tuple[DataFrame, ForecastMetaDataFrame]:
         (dataframe, meta_data) = ForecastDataPacket.unpack_data_packet(data_packet)
         return(dataframe, meta_data)
 
+    # given a dataframe and meta_data, returns a DataPacket with both in it
     def _gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, check_ids: bool = True) -> Data:
          data_packet = ForecastDataPacket.gen_data_packet(dataframe = dataframe, meta_data = meta_data, check_ids = check_ids)
          return(data_packet)
 
 
+
+    # META_DATA
 
     # add_col_data_meta
     # Handles the addition of a action to both the DataFrame and the ForecastMetaDataFrame

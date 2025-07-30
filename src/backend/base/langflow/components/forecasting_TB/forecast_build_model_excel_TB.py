@@ -74,7 +74,7 @@ class ForecastBuildModelExcel(Component):
             name="file_path",
             display_name="File Path (including filename)",
             info="The full file path (including filename and extension).",
-            value="./output",
+            value="./output/output",
         ),
     ]
 

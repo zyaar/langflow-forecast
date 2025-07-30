@@ -57,7 +57,7 @@ import copy
 class ForecastEpidemiologyTB(ForecastComponent):
 
     # COMPONENT META-DATA
-    # -------------------
+    # ===================
     display_name: str = "Epidemiology TB"
     description: str = "Build an epidemiology stream of patients using a TIME BASED model."
     icon = "Globe"
@@ -117,53 +117,9 @@ class ForecastEpidemiologyTB(ForecastComponent):
 
 
 
-    # # COMPONENT INPUTS
-    # # ----------------
-    # inputs = [
-    #     # common forecast inputs
-    #     *ForecastComponent.inputs,
-
-    #     # patient_count
-    #     TableInput(
-    #         name="patient_count",
-    #         display_name="Patient Count",
-    #         info="Total patients at each time period based on epidemiological data",
-    #         required=False,
-    #         show=True,
-    #         dynamic=True,
-    #         real_time_refresh=True,
-    #         refresh_button=True,
-    #         table_schema=[
-    #             {
-    #                 "name": "dates",
-    #                 "display_name": "Date",
-    #                 "type": "date",
-    #                 "description": "Date of patient count",
-    #                 "edit_mode": EditMode.INLINE,
-    #                 "disable_edit": True,
-    #             },
-    #             {
-    #                 "name": "patient_counts",
-    #                 "display_name": "Patient Counts",
-    #                 "type": "int",
-    #                 "description": "Patient count",
-    #                 "edit_mode": EditMode.INLINE,
-    #             },
-    #         ],
-    #         value=[],
-    #     ),
-    # ]
-
-
-    # # COMPONENT OUTPUTS
-    # # -----------------
-    # outputs = [
-    #     Output(display_name="Epidemiology Patient Flow", name="epi_forecast_model", method="update_forecast_model"),
-    # ]
-
 
     # COMPONENT FORM UPDATE RULES
-    # ---------------------------
+    # ===========================
     form_update_rules = {}
     form_trigger_rules = [
         #(ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("generate_table_values", ["patient_count"])),
@@ -173,7 +129,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
 
     # UPDATE_BUILD_CONFIG
     # Updates real_time_refreshing fields whenever an update happens from a dynamic field
-    # -------------------
+    # ===================
     def update_build_config(self, build_config, field_value, field_name = None):
         # update the fields in the form to show/hide, based on the field updated
         forecastFormUpdater = ForecastFormUpdater()
@@ -198,7 +154,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
 
 
     # INPUT VALIDATION
-    # ----------------
+    # ================
     def validate_inputs(self):
         super().validate_inputs()
 
@@ -219,7 +175,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
 
 
     # ASSOCIATED FUNCTIONS (convert inputs to outputs, i.e. biz logic)
-    # --------------------
+    # ====================
         
     # generate_forecast_model
     # Output function epi_forecast_model end-point

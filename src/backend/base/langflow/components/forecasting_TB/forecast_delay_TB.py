@@ -164,7 +164,7 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
         
         
         # YEAR_TO_MONTH
-        # if the forecast timescale is set to year, we need to conver the last data values to months, then shift
+        # if the forecast timescale is set to year, we need to convert the last data values to months, then shift
         if(self.timescale == ForecastModelTimescale.YEAR):
             last_series_values = ForecastDataModel.yearly_to_monthly(last_series_values)
             new_last_series_id = f"{self._id}_Yearly_to_Monthly"
