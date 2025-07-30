@@ -249,6 +249,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
     def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
+        print("update_outputs")
+        print(frontend_node)
         curr_prod_outputs = len(frontend_node["outputs"])-self.NUM_STATIC_OUTPUTS
 
         # check if this is an update to the number of segments, in which case we definitely need
@@ -378,22 +380,13 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     def update_forecast_model_product(self, seg_num=1) -> Data:
         results = self._forecast_model_common_input(keep_granular = True)
         (treatment_details_model, treatment_details_meta_data, pat_on_treatment_data, pat_on_treatment_meta_data, updated_model) = results["pat_on_treatment"]
-        print("pat_on_treatment_data")
-        print(pat_on_treatment_data)
 
         if(self.timescale == ForecastModelTimescale.YEAR):
             (pat_on_treatment_data_timescale_adjusted, ignore1, ignore2) = ForecastDataModel.convert_timescale(pat_on_treatment_data, pat_on_treatment_meta_data, target = ForecastModelTimescale.YEAR)
         else:
             pat_on_treatment_data_timescale_adjusted = pat_on_treatment_data
         
-        #if(self.timescale != ForecastModelTimescale.MONTH):
-        #    print(f"timescale = {pat_on_treatment_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]}")
-        #    (pat_on_treatment_data_timescale_adjusted, ignore1, ignore2) = ForecastDataModel.convert_timescale(data_model = pat_on_treatment_data, meta_data = pat_on_treatment_meta_data, target = ForecastModelTimescale.YEAR)
-        #else:
-        #    pat_on_treatment_data_timescale_adjusted = pat_on_treatment_data
-
-        # get product information
-        # product_id, product_display_name
+        # get product information:  product_id, product_display_name
         product_id = f"{ForecastTreatmentTB.COL_PREFIX}{seg_num}"
         product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
         product_model = treatment_details_model[product_id]
@@ -410,28 +403,9 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                                            pat_on_treatment_meta_data = pat_on_treatment_meta_data,
                                                                                                            forecast_timescale = ForecastModelTimescale.MONTH, # we hardcode the timescale for monthly, because we will receive monthly for prev step
                                                                                                            target_timescale = self.timescale)
-        
-        
-        print()
-        print()
-        print("==============================")
-        print("updated_model")
-        print(updated_model)
-        print()
-        print("pat_on_treatment_data_timescale_adjusted")
-        print(pat_on_treatment_data_timescale_adjusted)
-        print()
-        print("product_rx_data")
-        print(product_rx_data)
-        print("==============================")
-        print()
-        print()
 
         updated_model = ForecastDataModel.concat([updated_model, pat_on_treatment_data_timescale_adjusted, product_rx_data])
         updated_meta_data = product_rx_meta_data
-        print(updated_model)
-        print()
-        print()
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
@@ -626,26 +600,29 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
             return(build_config)
 
         # otherwise, rebuild the table schema by taking the static columns, and then adding the correct number of num_product columns
-        table_schema = build_config["treatment_details"]["table_schema"]["columns"][:self.NUM_STATIC_COLS]
-
-        for i in range(num_products):
-            table_schema.append({
-                "name": f"{ForecastTreatmentTB.COL_PREFIX}{i+1}",
-                "display_name": f"Product {i+1} Rx",
-                "type": "float",
-                "description": f"Number of prescriptions of product {i+1}, for the N's time period of a treatment",
-                "disable_edit": False,
-                "sortable": False,
-                "filterable": False,
-                "edit_mode": EditMode.INLINE,
-            })
-
-        build_config["treatment_details"]["table_schema"]["columns"] = table_schema
+        table_schema_cols = build_config["treatment_details"]["table_schema"]["columns"]
+        build_config["treatment_details"]["table_schema"]["columns"] = self._updated_table_schema_cols(table_schema_cols, num_products, self.NUM_STATIC_COLS, field_value, field_name)
         
         # save updated table schema in build_config[self.TABLE_SCHEMA_INPUT_NAME]
         build_config[self.TABLE_SCHEMA_INPUT_NAME]["value"] = dict(build_config["treatment_details"])
 
         return(build_config)
+
+
+    # callback from the _updated_table_schema in ForecastComponent that delegates
+    # the specific details of the new column attributes to this class
+    def _gen_new_table_col(self, col_num: int) -> dict:
+        return({
+                "name": f"{ForecastTreatmentTB.COL_PREFIX}{col_num+1}",
+                "display_name": f"Product {col_num+1} Rx",
+                "type": "float",
+                "description": f"Number of prescriptions of product {col_num+1}, for the N's time period of a treatment",
+                "disable_edit": False,
+                "sortable": False,
+                "filterable": False,
+                "edit_mode": EditMode.INLINE,
+        })
+
 
 
 
@@ -801,6 +778,16 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
 
 
+
+    # _hidden_exists
+    # Convenience function to check if we have the HIDDEN InputType with values in it
+     #
+    # INPUTS
+    #   NA
+    #
+    # OUTPUTS
+    #   True if it exists
+    #   False if it doesn't
 
     def _hidden_exists(self) -> bool:
         if not hasattr(self, self.TABLE_SCHEMA_INPUT_NAME):

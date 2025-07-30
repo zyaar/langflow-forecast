@@ -243,6 +243,36 @@ class ForecastComponent(Component):
 
     # TABLE
 
+    def _updated_table_schema_cols(self, table_schema_cols, num_target_var_cols, num_static_cols, field_value, field_name) -> list:
+        # get the current number of columns
+        num_cols = len(table_schema_cols)
+        target_num_cols = num_static_cols + num_target_var_cols
+
+        # if not changing the number of columns, return the corrent Schema
+        # NOTE:  this should never happen, since the calling method should be handling it, 
+        # but handling it just in case
+        if(target_num_cols == num_cols):
+            return(table_schema_cols)
+        
+        # cut that array to the number of total columns required, but change nothing else
+        elif(target_num_cols < num_cols):
+            table_schema_cols = table_schema_cols[:target_num_cols]
+            return(table_schema_cols)
+
+        # otherwise, we need to add some variable columns
+        else:
+            #num_cols_to_add = target_num_cols - num_cols
+            start_num = num_cols - num_static_cols
+
+            for i in range(start_num, target_num_cols):
+                    table_schema_cols.append(self._gen_new_table_col(col_num = i))
+
+            return(table_schema_cols)
+
+
+    def _gen_new_table_col(self, col_num: int) -> dict:
+        raise ValueError(f"\n*  ForecastComponent._gen_new_table_col:  error, this is an abstract method which should never be called.")
+
     # _get_input_table_display_name
     # Convenience function to get the display name of a TableInput
     #

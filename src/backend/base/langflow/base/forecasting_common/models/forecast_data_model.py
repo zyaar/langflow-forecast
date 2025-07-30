@@ -233,33 +233,7 @@ class ForecastDataModel(DataFrame):
             if(updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] != ForecastModelTimescale.MONTH):  # if the forecast timescale is not at the same timescale as MONTHLY, then expand it to be monthly by dividing out the annual
                   (data_model, updated_meta_data, pred_col_id) = ForecastDataModel.convert_timescale(data_model, updated_meta_data, target = ForecastModelTimescale.MONTH, step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
 
-                  print(f"updated_meta_data={updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]}")
-
-            #pred_col_id = data_model.columns[-1]
             num_NTP_per = data_model[pred_col_id]
-
-
-            # ------------------
-            #      pred_values_id = f"{pred_col_id}_Yearly_to_Monthly"
-            #      data_model = ForecastDataModel.yearly_to_monthly(data_model)
-            #      data_model[pred_values_id] = data_model[pred_col_id]
-            #      num_NTP_per = data_model[pred_values_id]
-            #
-            #      pred_display_name = updated_meta_data.model[pred_col_id].meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME]
-            #      updated_meta_data = updated_meta_data.add_col_meta_data(frame = updated_meta_data,
-                                                                        #   id = pred_values_id,
-                                                                        #   step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                                                        #   action = ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH,
-                                                                        #   data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                        #   display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                        #   display_name = f"From '{pred_display_name}' (converted from years to months)",
-                                                                        #   data_values = num_NTP_per.to_list(),
-                                                                        #   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                        #   pred = [pred_col_id],
-                                                                        #   verify_integrity=True,
-                                                                        #   drop_dups = False)
-            # ---------------------
-            #pred_col_id = pred_values_id
 
             # SETUP data and meta_data for BY TREATMENT MONTH and LEAVING_BY_TREATMENT_MONTH
             pat_by_treatment_month_data = copy.deepcopy(data_model)
@@ -272,10 +246,6 @@ class ForecastDataModel(DataFrame):
 
             list_of_on_treatment_ids = []
             list_of_leaving_treatment_ids = []
-
-            # print()
-            # print()
-            # print(treatment_display_name)
 
             # CALCULATE BY TREATMENT MONTH and LEAVING BY TREATMENT MONTH FOR EACH TREATMENT MONTH
             for i in range(treatment_duration):
@@ -303,13 +273,10 @@ class ForecastDataModel(DataFrame):
                                                                                                         verify_integrity=True,
                                                                                                         drop_dups = False)
                   list_of_on_treatment_ids.append(col_id) # add to list of preds to be used for totals calculation
-
-                  # new_line = ["{:.0f}".format(val) for val in pat_by_treatment_month_data[col_id].to_list()[:8]]
-                  # print(new_line)
-
                   
                   # LEAVING BY TREATMENT MONTH
                   col_leaving_id = f"{treatment_name}_{ForecastDataModel.TREATMENT_PAT_LEAVING_BY_MONTH}_{month_label_postfix}_{i+1}"
+                  # TODO:  FINISH TOTAL PATIENTS LEAVING
                   # ZIV
                   if(i > 0):
                         pat_leaving_by_treatment_month_data[col_leaving_id] = 0
@@ -334,7 +301,6 @@ class ForecastDataModel(DataFrame):
 
                   # save current values as prev values for next loop
                   prev_month_id = col_id
-                  #prev_month_values = pat_by_treatment_month_data[col_id]
 
 
             # GENERATE TOTALS PATIENTS BY MONTH
@@ -376,8 +342,6 @@ class ForecastDataModel(DataFrame):
             
             # CONVERT MONTHLY TO YEARLY (if needed)
             if((forecast_timescale != ForecastModelTimescale.MONTH) and (not keep_granular)):
-                  print(f"pat_by_treatment_month_meta_data={pat_by_treatment_month_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]}")
-                  print(f"pat_leaving_by_treatment_month_meta_data={pat_leaving_by_treatment_month_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]}")
                   (pat_by_treatment_month_data, pat_by_treatment_month_meta_data, pred_col_id_on_treatment) = ForecastDataModel.convert_timescale(data_model = pat_by_treatment_month_data, 
                                                                                                                                                   meta_data = pat_by_treatment_month_meta_data,
                                                                                                                                                   target = ForecastModelTimescale.YEAR,
@@ -387,53 +351,6 @@ class ForecastDataModel(DataFrame):
                                                                                                                                                                        meta_data = pat_leaving_by_treatment_month_meta_data,
                                                                                                                                                                        target = ForecastModelTimescale.YEAR, 
                                                                                                                                                                        step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
-
-                  ## PATIENTS ON TREATMENT
-                  #last_series = pat_by_treatment_month_meta_data.get_last_series()
-                  #last_id = pat_by_treatment_month_meta_data.get_last_id()
-                  #new_id = f"{last_id}_Monthly_to_Yearly"
-
-
-                  #pat_by_treatment_month_data = ForecastDataModel.monthly_to_yearly(pat_by_treatment_month_data)
-                  #pat_by_treatment_month_data[new_id] = pat_by_treatment_month_data[last_id]
-                  #data_values = pat_by_treatment_month_data[new_id]
-
-                  #pred_display_name = last_series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME]
-                  # pat_by_treatment_month_meta_data = pat_by_treatment_month_meta_data.add_col_meta_data(frame = pat_by_treatment_month_meta_data,
-                  #                                                                                       id = new_id,
-                  #                                                                                       step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                  #                                                                                       action = ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR,
-                  #                                                                                       data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                  #                                                                                       display_type = ForecastDataSeriesMetaDataDataType.INT,
-                  #                                                                                       display_name = f"From '{pred_display_name}' (converted from months to years)",
-                  #                                                                                       data_values = data_values.to_list(),
-                  #                                                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                  #                                                                                       pred = [last_id],
-                  #                                                                                       verify_integrity=True,
-                  #                                                                                       drop_dups = False)
-
-                  # # PATIENTS LEAVING TREATMENT
-                  # last_leaving_series = pat_leaving_by_treatment_month_meta_data.get_last_series()
-                  # last_leaving_id = pat_leaving_by_treatment_month_meta_data.get_last_id()
-                  # new_leaving_id = f"{last_leaving_id}_Monthly_to_Yearly"
-
-                  # pat_leaving_by_treatment_month_data = ForecastDataModel.yearly_to_monthly(pat_leaving_by_treatment_month_data)
-                  # pat_leaving_by_treatment_month_data[new_leaving_id] = pat_leaving_by_treatment_month_data[last_leaving_id]
-                  # data_leaving_values = pat_leaving_by_treatment_month_data[new_leaving_id]
-
-                  # pred_leaving_display_name = last_leaving_series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME]
-                  # pat_leaving_by_treatment_month_meta_data = pat_leaving_by_treatment_month_meta_data.add_col_meta_data(frame = pat_leaving_by_treatment_month_meta_data,
-                  #                                                                                                       id = new_leaving_id,
-                  #                                                                                                       step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                  #                                                                                                       action = ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR,
-                  #                                                                                                       data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                  #                                                                                                       display_type = ForecastDataSeriesMetaDataDataType.INT,
-                  #                                                                                                       display_name = f"From '{pred_leaving_display_name}' (converted from months to years)",
-                  #                                                                                                       data_values = data_leaving_values.to_list(),
-                  #                                                                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                  #                                                                                                       pred = [last_leaving_id],
-                  #                                                                                                       verify_integrity=True,
-                  #                                                                                                       drop_dups = False)
 
             # RETURN RESULTS
             return(DataFrame(data=pat_by_treatment_month_data), 
@@ -483,7 +400,6 @@ class ForecastDataModel(DataFrame):
            # SETUP data and meta_data for BY TREATMENT MONTH
             product_rx_per_treatment_month = product_model.values
             treatment_duration = len(product_rx_per_treatment_month)
-            #product_name = product_meta_data.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME]
 
             # get just the total patients per treatent month columns, we do this by dropping the last row ("_Total") and
             # getting the last X rows before it where X = the total treatment duration:
@@ -491,8 +407,6 @@ class ForecastDataModel(DataFrame):
             
             # set-up list of references to store for _Total Rx calc at the end
             list_of_by_treatment_month_rx = []
-
-            # print(product_display_name)
 
             # CALCULATE BY TREATMENT MONTH
             # calculate the number of RXs by multipying to total number of patients in each month of their treatment (for every month of the forecast)
@@ -521,13 +435,6 @@ class ForecastDataModel(DataFrame):
                                                                                             pred = [const_full_id, pred_col_name],
                                                                                             verify_integrity=True,
                                                                                             drop_dups = False)
-                  #list_of_by_treatment_month_rx.append(num_rx_col_id)
-                  #print(const_full_id, pred_col_name)
-
-                  # new_line = ["{:.0f}".format(val) for val in forecast_product_rx_by_prog_month[num_rx_col_id].to_list()[:8]]
-                  # print(new_line)
-
-
 
             # GENERATE TOTALS RX BY FORECAST MONTH
             totals_col_id = f"{product_id}_{ForecastDataModel.TREATMENT_PRODUCT_RX_BY_MONTH}_{total_label_postfix}"
@@ -567,26 +474,6 @@ class ForecastDataModel(DataFrame):
 
             if(doConvert):
                   (forecast_product_rx_by_prog_month, pat_on_treatment_meta_data, new_id) = ForecastDataModel.convert_timescale(data_model = forecast_product_rx_by_prog_month, meta_data = pat_on_treatment_meta_data, target = ForecastModelTimescale.YEAR)
-
-                  # last_id = pat_on_treatment_meta_data.get_last_id()
-                  # last_id_display_name = pat_on_treatment_meta_data.get_last_series().meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME]
-                  # new_id = f"{last_id}_Monthly_to_Yearly"
-                  # forecast_product_rx_by_prog_month = ForecastDataModel.yearly_to_monthly(forecast_product_rx_by_prog_month)
-                  # forecast_product_rx_by_prog_month[new_id] = forecast_product_rx_by_prog_month[last_id]
-                  # new_id_values = forecast_product_rx_by_prog_month[new_id]
-
-                  # pat_on_treatment_meta_data = pat_on_treatment_meta_data.add_col_meta_data(frame = pat_on_treatment_meta_data,
-                  #                                                                           id = new_id,
-                  #                                                                           step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                  #                                                                           action = ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR,
-                  #                                                                           data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                  #                                                                           display_type = ForecastDataSeriesMetaDataDataType.INT,
-                  #                                                                           display_name = f"From '{last_id_display_name}' (converted from months to years)",
-                  #                                                                           data_values = new_id_values.to_list(),
-                  #                                                                           validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                  #                                                                           pred = [last_id],
-                  #                                                                           verify_integrity=True,
-                  #                                                                           drop_dups = False)
 
             return(DataFrame(data=forecast_product_rx_by_prog_month), pat_on_treatment_meta_data)
 
@@ -685,9 +572,6 @@ class ForecastDataModel(DataFrame):
             # run the validation loop against all data sets to ensure they are valid, and grab the ids from
             # the last (i.e. total line) of each one
             for i in range(len(datas)):
-                  #print(datas[i])
-                  #print()
-                  #print()
                   total_col_name = datas[i].columns[-1]
                   total_col_values = datas[i][total_col_name].to_numpy()
 
@@ -922,7 +806,3 @@ class ForecastDataModel(DataFrame):
             meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] = target
             
             return(data_model, meta_data, new_id)
-
-
-
-

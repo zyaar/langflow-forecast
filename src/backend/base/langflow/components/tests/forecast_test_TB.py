@@ -178,7 +178,6 @@ class ForecastTestTB(ForecastComponent):
     # OUTPUTS:
     #   DataFrame
     def update_forecast_model(self) -> Data:
-        print(self.display_name)
 
         # generate the dataframe
         updated_model = DataFrame(self.patient_count).rename(columns={"patient_counts":str(self._id)})
