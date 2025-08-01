@@ -362,7 +362,7 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}, 
                                                                                   {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataComparisonType.LE}],
                                                                     pred = pct_col_pred, # this is already a list
-                                                                    args = {ForecastDataSeriesMetaDataComparisonType.LT: 1}) # add argument with the value for LESS_EQUAL_THAN validation
+                                                                    args = {ForecastDataSeriesMetaDataComparisonType.LE: 1}) # add argument with the value for LESS_EQUAL_THAN validation
 
 
         # add remainder not covered by all segments to data/model and meta-data
@@ -477,7 +477,12 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     # OUTPUTS:
     #   build_config
     def generate_table_schema(self, build_config, field_value, field_name):
-        num_segments = int(field_value)
+
+        if (field_name == "num_segments") and isinstance(field_value, (int, float, str)):
+            num_segments = int(field_value)
+        else:
+            num_segments = int(self.num_segments)
+
 
         # generate the table schema
         # first generate the Dates column def (it will always have this)

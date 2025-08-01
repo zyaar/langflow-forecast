@@ -119,7 +119,7 @@ class ForecaseSumInputTB(ForecastComponent):
         super()._forecast_model_common_input()
 
         # unpack the data packet into lists of data, meta_data, and ids
-        (updated_models, updated_meta_datas, totals_ids) = ForecastDataPacket.unpack_data_packets(self.forecasts_in)
+        (updated_models, updated_meta_datas, totals_ids) = self._unpack_data_packets(self.forecasts_in)
 
         # combine data frames and add a totals line if multiple are being added
         (new_summation_created, updated_model, new_summation_id, new_total_line_id) = ForecastDataModel.concat_and_sum(datas = updated_models,

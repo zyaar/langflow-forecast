@@ -249,8 +249,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
     def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
-        print("update_outputs")
-        print(frontend_node)
         curr_prod_outputs = len(frontend_node["outputs"])-self.NUM_STATIC_OUTPUTS
 
         # check if this is an update to the number of segments, in which case we definitely need

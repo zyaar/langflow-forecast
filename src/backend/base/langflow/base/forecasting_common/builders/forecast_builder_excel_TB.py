@@ -1,5 +1,5 @@
 #####################################################################
-# forecast_renderer_excel_TB.py
+# forecast_builder_excel_TB.py
 #
 # Implements the a summation component.  It's already implemented everywhere
 # this just makes it explicit (for visual presentation purposes)
@@ -43,9 +43,9 @@ from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import Protection
 
-from langflow.base.forecasting_common.renderers.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
-from langflow.base.forecasting_common.renderers.excel.forecast_excel_validation_builder import ForecastExcelValidationRuleBuilder
-from langflow.base.forecasting_common.renderers.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
+from langflow.base.forecasting_common.builders.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
+from langflow.base.forecasting_common.builders.excel.forecast_excel_validation_builder import ForecastExcelValidationRuleBuilder
+from langflow.base.forecasting_common.builders.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
 
 
 
@@ -63,6 +63,13 @@ class ForecastBuilderExcelArithmeticFunctions(str, Enum):
     SUB = " - "
     PROD = " * "
     DIV = " / "
+
+# Enum of EXCEL Required Tabs
+class ForecastBuilderExcelRequiredTabs(str, Enum):
+    INPUTS = "Inputs"
+    SUMMARY = "Summary"
+    TIME_CONVERT = "Time Convert"
+
 
 
 
@@ -100,12 +107,113 @@ class IdToCellReferenceMap():
         return(tab_name, cell_ref)
     
 
+# IdToCellReferenceMap
+# map ForecastMetaDataFrame id's to the cell locations that they represent
+class IdToCellReferenceMaps():
+    # INSTANCE VARIABLES
+    # player_model = handle to the Workbook object for excel
+    # default_ref_map_id = if no ref_map_id provided, use this one
 
+    # CLASS VARIABLES
+    ref_maps = {}
+
+    def __init__(self, default_ref_map_id: str = ""):
+        self.default_ref_map_id = ""
+
+        if(default_ref_map_id != ""):
+            self.create_ref_map(ref_map_id = default_ref_map_id, is_default = True)
+
+
+
+    def add(self, id: str, tab_name: str, cell_ref: Cell, ref_map_id: str = None):
+        if ref_map_id is None:
+            if(self.default_ref_map_id == ""):
+                raise ValueError(f"\n* add: error, add method called without ref_map_id, and no default ref_map_id available {id} {tab_name} {cell_ref}.")
+            else:
+                return self.ref_maps[self.default_ref_map_id].add(id, tab_name, cell_ref)
+        else:
+            return self.ref_maps[ref_map_id].add(id, tab_name, cell_ref)
+
+
+
+    def get(self, id: str, ref_map_id: str = None) -> Tuple[str, Cell]:
+        (ref_map_id, cell_id, cell_offset) = self._parse_id(id)
+
+        if ref_map_id in self.ref_maps.keys():
+            (tab_name, cell_ref) = self.ref_maps[ref_map_id].get(cell_id)
+        else:
+            raise ValueError(f"\n* get: error, invalid ref_map '{ref_map_id}' provided in {id}, current ref maps {self.ref_maps.keys()}.")
+
+        # if there is a cell offset, need to provide a cell address with is offset (to the right) by the offset amount
+        if cell_offset > 0:
+            cell_ref = cell_ref.offset(column = cell_offset)
+
+        return(tab_name, cell_ref)
+
+        
+    def create_ref_map(self, ref_map_id, is_default = False):
+        if(ref_map_id in self.ref_maps.keys()):
+            raise ValueError(f"\n* add_ref_map:  error, attempting to create duplicate ref_map {ref_map_id}.")
+        else:
+            self.ref_maps[ref_map_id] = IdToCellReferenceMap()
+            
+            if is_default:
+                self.default_ref_map_id = ref_map_id
+
+
+                
+    # should probably be moved to forecast_meta_data
+    def _parse_id(self, id: str) -> tuple[str, str, int | None]:
+        ref_map_id = None
+        cell_id = None
+        cell_offset = None
+
+        # GET THE REF_MAP ID
+        results_ref = id.split('.')
+
+        if(len(results_ref) == 2):
+            ref_map_id = results_ref[0]
+            cell_part = results_ref[1]
+
+        elif(len(results_ref) == 1):
+            if(self.default_ref_map_id == ""):
+                raise ValueError(f"\n* _parse_id: error, id provided without ref_map_id, and no default ref_map_id available {id}.")
+            else:
+                ref_map_id = self.default_ref_map_id
+            
+            cell_part = results_ref[0]
+
+        else:   # results_ref > 2
+            raise ValueError(f"\n*  _parse_id:  error, improperly formatted id provided ({id}), too many '.'.")
+        
+        # GET THE ROW OFFSET NUMBER
+        results_offset = cell_part.split(":")
+
+        if(len(results_offset) == 2):
+            cell_id = results_offset[0]
+            cell_offset = int(results_offset[1])
+
+        elif(len(results_offset) == 1):
+            cell_id = results_offset[0]
+            cell_offset = 0
+
+        else:   # results_offset > 2
+            raise ValueError(f"\n*  _parse_id:  error, improperly formatted id provided ({id}), too many '.'.")
+
+        return(ref_map_id, cell_id, cell_offset)        
+
+
+
+
+
+
+
+    
         
 
 # ForecastRendererExcel
-# Class which renders a Forecast Model player for excel using an Time Based model
-class ForecastRendererExcelTB():
+# Class which builds a Forecast Model player for excel using an Time Based model
+class ForecastBuilderExcelTB():
     # CONSTANTS
     # =========
 
@@ -115,11 +223,11 @@ class ForecastRendererExcelTB():
 
 
     # EXCEL PLAYER CONSTANTS
-    EXCEL_REQUIRED_WORKBOOK_TABS = ["Summary"]
+    EXCEL_REQUIRED_WORKBOOK_TABS = ["Inputs", "Summary", "Time Convert"]
 
     # PLAYER ROW COLUMN LAYOUT  (NOTE:  per openpyxl, all ROW colum numbers are 1's indexed, not 0's indexed like regular python)
-    EXCEL_START_ROW = 4 # The first row of a worsheet for any rendering, 
-    EXCEL_START_COL = 2 # The first row of a worsheet for any rendering
+    EXCEL_START_ROW = 4 # The first row of a worsheet for any building, 
+    EXCEL_START_COL = 2 # The first row of a worsheet for any building
     EXCEL_LABEL_COL = EXCEL_START_COL               # Row label
     EXCEL_ID_COL = EXCEL_LABEL_COL+1                # ForecastMetaDataSeries ID for row
     EXCEL_NAME_COL = EXCEL_ID_COL+1                 # User doing the data entry's name
@@ -156,22 +264,22 @@ class ForecastRendererExcelTB():
     # timescale - the minimum unit for a period in the forecast (can be MONTH or YEAR)
     # num_periods - the number of periods in the forecast
     # forecast_model - the forecast model generated by the DESIGNER
-    # output_location - the location to put the rendered player
-    # hasTemplate - True if the render uses a template, False if not
+    # output_location - the location to put the player
+    # hasTemplate - True if the builder uses a template, False if not
     # template_location (optional) - the location to load the template
     # template (optional) - a template to use when developing the player
     # template_num_sheets - the number of sheets that came with the template (all our sheets must go in front of those)
 
     # player_model - the object model for the player being developed (openpyxl.Workbook class)
     # row_trackers - dict of ints, each tab in the spreadsheet is the key, and the current location to add a new row is the int
-    # id_cellref_map - holds the mapping from all IDs to excel cell references (full references including tab name and cell coordinates)
+    # id_cellref_maps - holds the all the ref_maps which map from all IDs to excel cell references (full references including tab name and cell coordinates)
 
 
 
     # CONSTRUCTOR
     # ===========
-    # The constructor gets all the variables which are specific to this particular renderer vs generic to all implementers of RENDER INTERFACE.
-    # In the case of this excel renderer, this include if we are using a template and where that template is located, as well as the location to
+    # The constructor gets all the variables which are specific to this particular builder vs generic to all implementers of RENDER INTERFACE.
+    # In the case of this excel builder, this include if we are using a template and where that template is located, as well as the location to
     # save the output file to
     #
     # INPUTS:
@@ -202,18 +310,18 @@ class ForecastRendererExcelTB():
 
 
     
-    # BUILDER INTERFACE FUNCTIONS
-    # ==========================
+    # BUILD INTERFACE FUNCTIONS
+    # =========================
 
-    # render_player
-    # RENDER INTERFACE:  render a player and return to the caller function 
+    # build_player
+    # BUILD INTERFACE:  build a player and return to the caller function 
     #  
     # INPUTS:
     #   TBD
     # 
     # OUTPUTS:
     #   TBD
-    def render_player(self):
+    def build_player(self):
 
         # save these as instance variables
         # TODO:  rewrite this so that it isn't manually setup for variables
@@ -224,19 +332,19 @@ class ForecastRendererExcelTB():
         self.timescale = self.meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]
         self.input_type = self.meta_data.meta_data[ForecastMetaDataFrameSchema.INPUT_TYPE]
 
-        # initial setup when rendering
-        self._initialize_new_render()
+        # initial setup when building
+        self._initialize_new_builder()
 
         # generate the model
         self._build_model_excel()
 
         # save the model
-        self._finalize_new_render()
+        self._finalize_new_builder()
 
 
 
     # action_DATES
-    # RENDER INTERFACE:  handle the DATES action by creating a row of dates
+    # BUILD INTERFACE:  handle the DATES action by creating a row of dates
     #  
     # INPUTS:
     #   id = the id of the row
@@ -251,12 +359,12 @@ class ForecastRendererExcelTB():
         # so that openpyxl can correctly pass them to excel
         values = [datetime.strptime(s, "%Y-%m-%dT%H:%M:%S") for s in curr_df_col.to_list()]
 
-        self._add_values_row(id = id, tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], values = values, curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        self._add_values_row(id = id, tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, values = values, curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
         
 
 
     # action_INPUT
-    # RENDER INTERFACE:  handle the INPUT action by putting a row of values and blank cells for entering data
+    # BUILD INTERFACE:    handle the INPUT action by putting a row of values and blank cells for entering data
     #  
     # INPUTS:
     #   id = the id of the row
@@ -267,12 +375,12 @@ class ForecastRendererExcelTB():
         curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
         curr_df_col = self.data_frame[id] # get current DataFrame col
 
-        self._add_values_row(id = id, tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], values = curr_df_col.to_list(), curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        self._add_values_row(id = id, tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, values = curr_df_col.to_list(), curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
     
 
 
     # action_SUM
-    # RENDER INTERFACE:  handle the SUM action by creating a row SUM'd variables based on the PREDs provided
+    # BUILD INTERFACE:  handle the SUM action by creating a row SUM'd variables based on the PREDs provided
     #  
     # INPUTS:
     #   id = the id of the row
@@ -285,8 +393,8 @@ class ForecastRendererExcelTB():
 
         self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.ADD,
                             id = id,
-                            tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
-                            values = curr_df_col.to_list(),
+                            tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, 
+                            values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
 
@@ -294,7 +402,7 @@ class ForecastRendererExcelTB():
 
 
     # action_PROD
-    # RENDER INTERFACE:  handle the PROD action by creating a row PROD'd variables based on the PREDs provided
+    # BUILD INTERFACE:  handle the PROD action by creating a row PROD'd variables based on the PREDs provided
     #  
     # INPUTS:
     #   id = the id of the row
@@ -307,8 +415,8 @@ class ForecastRendererExcelTB():
 
         self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.PROD,
                             id = id,
-                            tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
-                            values = curr_df_col.to_list(),
+                            tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, 
+                            values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
 
@@ -316,7 +424,7 @@ class ForecastRendererExcelTB():
 
 
     # action_SUB
-    # RENDER INTERFACE:  handle the subtraction action by creating a row of subtracted variables based on the PREDs provided
+    # BUILD INTERFACE:  handle the subtraction action by creating a row of subtracted variables based on the PREDs provided
     #  
     # INPUTS:
     #   id = the id of the row
@@ -329,10 +437,32 @@ class ForecastRendererExcelTB():
 
         self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.SUB,
                             id = id,
-                            tab_name = self.EXCEL_REQUIRED_WORKBOOK_TABS[0], 
-                            values = curr_df_col.to_list(),
+                            tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, 
+                            values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        
+
+
+
+    # action_YEAR_TO_MONTH
+    # BUILD INTERFACE:  handle the YEAR_TO_MONTH action by creating a row in the TIME_CONVERT tab with the source values expanded to monthly values
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_YEAR_TO_MONTH(self, id: str):
+        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
+        curr_df_col = self.data_frame[id] # get current DataFrame col
+
+        self._add_YTM_row(id = id,
+                          tab_name = ForecastBuilderExcelRequiredTabs.TIME_CONVERT,
+                          values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
+                          curr_row_meta_data = curr_meta_col,
+                          row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+
 
 
 
@@ -340,7 +470,7 @@ class ForecastRendererExcelTB():
     # BUILDER INTERNAL FUNCTIONS
     # ==========================
 
-    # _initialize_new_render
+    # _initialize_new_builder
     # All the excel specific set-up steps to start the process of building a new player:
     # copy the template, open a new workbook object, set-up the initial tabs, 
     #  set-up the id to cell references tracking structures, etc.
@@ -350,7 +480,7 @@ class ForecastRendererExcelTB():
     # 
     # OUTPUTS:
     #   TBD
-    def _initialize_new_render(self):
+    def _initialize_new_builder(self):
         # create new workbook or copy template
         if(self.hasTemplate):
             # since openpyxl has no object copy method for a workbook, we have to copy the template workbook
@@ -379,11 +509,11 @@ class ForecastRendererExcelTB():
             self.row_trackers[tab] = self.EXCEL_START_ROW    # NOTE:  All row references are 1-based based per openpyxl
 
         # set up the mapper between ForecastDataModel id's and cell references in excel
-        self.id_cellref_map = IdToCellReferenceMap()
+        self.id_cellref_maps = IdToCellReferenceMaps(default_ref_map_id = self.id)
 
         
 
-    # _finalize_new_render
+    # _finalize_new_builder
     # All the excel specific steps to finalize the new player, mostly saving it to a target file location
     # TODO:  extend this to add save to sharepoint functionality
     #  
@@ -392,11 +522,11 @@ class ForecastRendererExcelTB():
     # 
     # OUTPUTS:
     #   TBD
-    def _finalize_new_render(self):
+    def _finalize_new_builder(self):
         self.player_model.save(self.output_location)
 
         # TODO:  figure out what the return here, the intent is to provide a way to
-        # return things in realtime if a renderer doesn't save to a file (for example a dynamic JSON file)
+        # return things in realtime if a builder doesn't save to a file (for example a dynamic JSON file)
         # but have to figure out what (if anything) to return when it does save a file
         return(self.player_model)
 
@@ -428,7 +558,8 @@ class ForecastRendererExcelTB():
                     self.action_INPUT(id)
 
                 case ForecastDataSeriesMetaDataAction.COPY:             # TODO:  implement copy action
-                    print("COPY not implemented")
+                    print(f"COPY not implemented: {id}")
+                    break
 
                 case ForecastDataSeriesMetaDataAction.SUM:
                     self.action_SUM(id)
@@ -440,16 +571,19 @@ class ForecastRendererExcelTB():
                     self.action_SUB(id)
 
                 case ForecastDataSeriesMetaDataAction.SHIFT:            # TODO:  implement shift action
-                    print("SHIFT not implemented")
+                    print(f"SHIFT not implemented: {id}")
+                    break
 
                 case ForecastDataSeriesMetaDataAction.STEP_INIT:        # TODO:  implement step_init action
-                    print("STEP_INIT not implemented")
+                    print(f"STEP_INIT not implemented: {id}")
 
                 case ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH:    # TODO:  implement year_to_month action
-                    print("YEAR_TO_MONTH not implemented")
+                    self.action_YEAR_TO_MONTH(id)
+                    break
 
                 case ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR:    # TODO:  implement month_to_year action
-                    print("MONTH_TO_YEAR not implemented")
+                    print(f"MONTH_TO_YEAR not implemented: {id}")
+                    break
 
                 case _:
                     raise ValueError(f"\n*  _build_model_excel:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
@@ -568,7 +702,7 @@ class ForecastRendererExcelTB():
     # INPUTS:
     #   
     #   tab = the tab to add it to
-    #   values = the series of values to multiply
+    #   values = the series of values to run an arithmetic function
     #   type = the data type (for formatting purposes)
     #   restrictions = the set of restrictions on data entry
     # 
@@ -588,7 +722,7 @@ class ForecastRendererExcelTB():
 
         # make sure it's a legit tab to go to start writing
         if(tab_name not in self.row_trackers.keys()):
-            raise ValueError(f"* add_prod_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
+            raise ValueError(f"* add_arith_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
         
         # get meta_data values that we need for this function, if it wasn't provided
         if preds is None:
@@ -619,6 +753,80 @@ class ForecastRendererExcelTB():
                                         apply_to_preds = True)
            
            curr_cell = curr_cell.offset(row = 0, column = 1)
+
+
+
+    # _add_YTM_row
+    # Add a YEAR TO MONTH conversion row
+    #  
+    # INPUTS:
+    #   
+    #   tab = the tab to add it to
+    #   values = the input row
+    #   type = the data type (for formatting purposes)
+    #   restrictions = the set of restrictions on data entry
+    # 
+    # OUTPUTS:
+    #   worksheet
+
+    def _add_YTM_row(self, 
+                       id: str, 
+                       tab_name: str,
+                       values: list,
+                       curr_row_meta_data: ForecastMetaDataSeries,
+                       preds: list[str] = None, 
+                       restriction: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]] = None, 
+                       row_name: str = None):
+        
+        # make sure it's a legit tab to go to start writing
+        if(tab_name not in self.row_trackers.keys()):
+            raise ValueError(f"\n* _add_YTM_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
+        
+        # get meta_data values that we need for this function, if it wasn't provided
+        if preds is None:
+            preds = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED]
+
+            if(len(preds) != 1):
+                raise ValueError(f"\n* _add_YTM_row:  only 1 pred can be provided, total preds provided {len(preds)}: {len(preds)}")
+            else:
+                preds = preds[0]
+        
+        if restriction is None:
+            restriction = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.VALIDATION]
+        
+        # boilerplate set-up of the row
+        # and place the curr_cell pointer in the row and column to start adding values
+        (curr_cell, data_type, display_type)  = self._add_row_setup(id, tab_name, curr_row_meta_data, row_name)
+
+        # Iterate over all the columns in the row that need values
+        num_vals_add = len(values)
+        i = 0 # counter on the months (if it's % 12 == 0, we've reached a new year)
+        curr_pred_col = curr_cell.column # the column for the pred cells (which are the years)
+
+        for curr_col in range(curr_cell.column, curr_cell.column + num_vals_add):
+           # if we are an even division of 12, then grab the next year's values from the reference to add
+           #if (curr_col % 12) == 0:
+           if i % 12 == 0:
+               formula_ref = self._id_to_formula_ref(preds, col_num = curr_pred_col) # get the value for the current year
+               curr_pred_col += 1 # increment so that next time, we get the following year
+               formula = f"={formula_ref} / 12" # create the formula (i.e. = 'Summary'!A1 / 12)
+           
+           # add formula and validation rules to the current cell
+           # put in the cell value pointing to the formula
+           curr_cell.value = formula 
+            
+           # add validation rules (if any)
+           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, 
+                                        curr_cell = curr_cell, 
+                                        data_type = data_type, 
+                                        display_type = display_type, 
+                                        validation_rules = restriction,
+                                        curr_formula = formula,
+                                        apply_to_preds = True)
+            
+           curr_cell = curr_cell.offset(row = 0, column = 1)
+           i += 1
+        
 
 
 
@@ -777,7 +985,7 @@ class ForecastRendererExcelTB():
     #
 
     def _track_add_row(self, id: str, tab_name: str, cell_ref: Cell):
-        self.id_cellref_map.add(id = id, tab_name = tab_name, cell_ref = cell_ref)  # add the id of the row to our mapper
+        self.id_cellref_maps.add(id = id, tab_name = tab_name, cell_ref = cell_ref)  # add the id of the row to our mapper
         self.row_trackers[tab_name] += 1  # increment our row tracker for this tab, so we know location of next row to add
 
 
@@ -828,7 +1036,7 @@ class ForecastRendererExcelTB():
             # if ID, get the 
             else:
                 id = id_or_const
-                (tab_name, cell_ref) = self.id_cellref_map.get(id)  # get the tab_name and the cell reference
+                (tab_name, cell_ref) = self.id_cellref_maps.get(id)  # get the tab_name and the cell reference
                 col_offset = col_num - self.EXCEL_START_COL # figure out how many cells over we need to shift the reference to get our values
                 cell_ref = cell_ref.offset(row = 0, column = col_offset)
                 return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_ref, with_ws_name=with_ws_name))

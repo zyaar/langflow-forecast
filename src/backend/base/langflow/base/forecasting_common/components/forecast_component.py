@@ -388,19 +388,25 @@ class ForecastComponent(Component):
     # DATAPACKET
 
     # unpack a LIST of data packets into two LISTS:  one of Dataframes, one of ForecastMetaDataFrames
-    def _unpack_data_packets(self, data_packet: list[Data]) -> tuple[DataFrame, ForecastMetaDataFrame]:
-        (dataframe, meta_data) = ForecastDataPacket.unpack_data_packets(data_packet)
-        return(dataframe, meta_data)
+    def _unpack_data_packets(self, data_packet: list[Data]) -> tuple[list[DataFrame], list[ForecastMetaDataFrame], list[str]]:
+        (dataframes, meta_datas, last_ids) = ForecastDataPacket.unpack_data_packets(data_packet)
+        return(dataframes, meta_datas, last_ids)
 
     # updacks an individual data packet into a single Dataframe and a single ForecastMetaDataFrame
     def _unpack_data_packet(self, data_packet: Data) -> tuple[DataFrame, ForecastMetaDataFrame]:
-        (dataframe, meta_data) = ForecastDataPacket.unpack_data_packet(data_packet)
-        return(dataframe, meta_data)
+        (dataframe, meta_data, last_id) = ForecastDataPacket.unpack_data_packet(data_packet)
+        return(dataframe, meta_data, last_id)
 
     # given a dataframe and meta_data, returns a DataPacket with both in it
-    def _gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, check_ids: bool = True) -> Data:
-         data_packet = ForecastDataPacket.gen_data_packet(dataframe = dataframe, meta_data = meta_data, check_ids = check_ids)
+    def _gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, last_id: str, check_ids: bool = True) -> Data:
+        # gen_data_packet(dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, last_id: str = None, default_value: str = "data missing") -> Data:
+
+         data_packet = ForecastDataPacket.gen_data_packet(dataframe = dataframe, meta_data = meta_data, last_id = last_id, default_value = last_id)
          return(data_packet)
+    
+    # generate a pickle and save it to a file location
+    def _pickle_and_save_data_packet(self, data_packet: ForecastDataPacket, path: str):
+        ForecastDataPacket.pickle_data_packet(data_packet = data_packet, path = path)
 
 
 

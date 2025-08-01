@@ -16,7 +16,7 @@
 from openpyxl import Workbook, worksheet
 from openpyxl.cell.cell import Cell
 from openpyxl.styles import Protection
-from langflow.base.forecasting_common.renderers.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
+from langflow.base.forecasting_common.builders.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
 
 
 class ForecastExcelBaseHelpers:

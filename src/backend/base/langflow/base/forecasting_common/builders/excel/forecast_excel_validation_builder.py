@@ -17,7 +17,7 @@
 # FORECAST SPECIFIC IMPORTS
 # =========================
 from langflow.base.forecasting_common.models.forecast_meta_data import ForecastDataSeriesMetaDataDataType, ForecastMetaDataSeries, ForecastMetaDataSeriesSchema, ForecastDataSeriesMetaDataComparisonType
-from langflow.base.forecasting_common.renderers.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
+from langflow.base.forecasting_common.builders.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
 
 
 # COMPONENT SPECIFIC IMPORTS

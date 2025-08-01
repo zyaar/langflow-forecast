@@ -10,12 +10,13 @@
 
 # FORECAST SPECIFIC IMPORTS
 # =========================
-from langflow.base.forecasting_common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
-from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
-from langflow.base.forecasting_common.forms.forecast_form_updater import ForecastFormUpdater
-from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
-from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
-from langflow.base.forecasting_common.models.forecast_data_packet import ForecastDataPacket
+# from langflow.base.forecasting_common.constants import FORECAST_COMMON_MONTH_NAMES_AND_VALUES, ForecastModelInputTypes, ForecastModelTimescale
+# from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
+# from langflow.base.forecasting_common.forms.forecast_form_updater import ForecastFormUpdater
+# from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
+# from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
+# from langflow.base.forecasting_common.models.forecast_data_packet import ForecastDataPacket
+from langflow.base.forecasting_common.components.forecast_component import ForecastComponent
 from langflow.schema import Data, DataFrame
 
 
@@ -43,7 +44,7 @@ from langflow.io import (
 
 # ForecastBuildModelExcel
 # This class takes a ForecastDataModel and exports it to an excel file Player
-class ForecastBuildModelExcel(Component):
+class ForecastBuildModelExcel(ForecastComponent):
 
     # CONSTANTS
     # =========
@@ -58,74 +59,59 @@ class ForecastBuildModelExcel(Component):
     name = "BuildModelExcelTB"
 
 
-    # COMPONENT INPUTS
-    # ================
+    # GENERATE INPUTS / OUTPUTS
+    # =========================
+    def _gen_inputs(self) -> list:
+        inputs_list = [
+            # parent attributes
+            *super()._gen_inputs(),
 
-    inputs = [
-        DataInput(
-            name=f"forecast_in",
-            display_name=f"Forecast",
-            info=f"Time-based forecast Data",
-            dynamic=True,
-            real_time_refresh=True,
-            is_list = True,
-        ),
-        StrInput(
-            name="file_path",
-            display_name="File Path (including filename)",
-            info="The full file path (including filename and extension).",
-            value="./output/output",
-        ),
-    ]
+            DataInput(
+                name=f"forecasts_in",
+                display_name=f"Forecast",
+                info=f"Time-based forecast Data",
+                dynamic=True,
+                real_time_refresh=True,
+                is_list = True,
+            ),
+            StrInput(
+                name="file_path",
+                display_name="File Path (including filename)",
+                info="The full file path (including filename and extension).",
+                value="./output/output",
+            ),
+        ]
 
-
-    # COMPONENT OUTPUTS
-    # =================
-
-    outputs = [
-        Output(
-            name="confirmation",
-            display_name="Confirmation",
-            method="save_to_file",
-            info="Confirmation message after saving the file.",
-        ),
-    ]
-
-
-
-    # FORM UPDATE RULES
-    # =================
-    form_update_rules = {}
-    form_trigger_rules = []
-
-
-    # update_build_config
-    # Updates real_time_refreshing INPUTS fields whenever an update happens from a dynamic field
-    def update_build_config(self, build_config, field_value, field_name=None):
-
-        # update the fields in the form to show/hide, based on the field updated
-        forecastFormUpdater = ForecastFormUpdater()
-        build_config = forecastFormUpdater.forecast_update_fields(build_config, 
-                                                                  self.form_update_rules,
-                                                                  field_value = field_value,
-                                                                  field_name = field_name,
-                                                                  only_shown_fields=True)
-        
-        # update the calculated values of fields in the form based on the field updated        
-        forecastFormTriggerCalc = ForecastFormTriggerCalc()
-        build_config = forecastFormTriggerCalc.execute_trigger(build_config=build_config,
-                                                               form_trigger_rules=self.form_trigger_rules,
-                                                               field_value=field_value,
-                                                               field_name=field_name,)
-
-        # return updated config         
-        return(build_config)
+        return(inputs_list)
     
-    
+    def _gen_outputs(self) -> list:
+        outputs_list = [
+            *super()._gen_outputs(),
+
+            Output(
+                name="confirmation",
+                display_name="Confirmation",
+                method="save_to_file",
+                info="Confirmation message after saving the file.",
+            ),
+        ]
+
+        return(outputs_list)
+
+
 
     # OUTPUT FUNCTIONS
     # ================
 
+    # _forecast_model_common_input(self)
+    def _forecast_model_common_input(self):
+        super()._forecast_model_common_input()
+
+        # unpack the data packet into lists of data, meta_data, and ids
+        (updated_models, updated_meta_datas, totals_ids) = self._unpack_data_packets(self.forecasts_in)
+
+        return(updated_models, updated_meta_datas, totals_ids)
+    
     # save_to_file
     # Generate the forecast player for excel and save it to a file
     # 
@@ -133,9 +119,19 @@ class ForecastBuildModelExcel(Component):
     # OUTPUTS:
     #   Message with confirmation of save
     def save_to_file(self) -> str:
-        self.validate_inputs()
+        (updated_models, updated_meta_datas, totals_ids)  = self._forecast_model_common_input()
+
+        if len(updated_models) != 1:
+            raise ValueError(f"\n*  save_to_file:  required 1 and only 1 updated_models in input, {len(updated_models)} were provided")
+        
+        if len(updated_meta_datas) != 1:
+            raise ValueError(f"\n*  save_to_file:  required 1 and only 1 updated_meta_datas in input, {len(updated_meta_datas)} were provided")
+        
+        if len(totals_ids) != 1:
+            raise ValueError(f"\n*  save_to_file:  required 1 and only 1 totals_ids in input, {len(totals_ids)} were provided")
 
         file_path = Path(self.file_path).expanduser()
+        file_path_json = Path(self.file_path + ".json").expanduser()
 
         # Ensure the directory exists
         if not file_path.parent.exists():
@@ -143,26 +139,14 @@ class ForecastBuildModelExcel(Component):
 
         file_path = self._adjust_file_path_with_format(file_path)
 
-        data_packet = self.forecast_in
-        return self._save_data_packet(data_packet, file_path) 
+        data_packet = self._gen_data_packet(dataframe = updated_models[0], meta_data = updated_meta_datas[0], last_id = totals_ids[0], check_ids = False)
+        self._pickle_and_save_data_packet(data_packet = data_packet, path = file_path)
 
+        # Quick and dirty dump of the json file as well
+        with open(file_path_json, "w") as f:
+            f.write(updated_meta_datas[0].to_json())
 
-
-    # INPUT VALIDATION
-    # ================
-    def validate_inputs(self):
-        msg = ""
-
-        # TODO:  ADD COMPONENT SPECIFIC CODE HERE
-            
-        # if any errors occurred during validation, stop everything and raise an error
-        if(msg != ""):
-            self.status = msg
-            self.stop
-            raise ValueError(msg)
-
-
-
+        return f"DataFrame and ForecastMetaDataFrame saved successfully as '{file_path}'"
 
 
 
@@ -179,31 +163,3 @@ class ForecastBuildModelExcel(Component):
     def _adjust_file_path_with_format(self, path: Path) -> Path:
         file_extension = path.suffix.lower().lstrip(".")
         return Path(f"{path}.pickle").expanduser() if file_extension not in ["pickle"] else path
-    
-
-
-    # _save_dataframe
-    # HELPER FUNCTION:  create the right format save file with path
-    # 
-    # INPUTS:
-    #   dataframe - ForecastDateModel to use to generate model
-    #   path - file path to save model location
-    # OUTPUTS:
-    #   Confirmation message
-    def _save_dataframe(self, dataframe: DataFrame, path: Path) -> str:
-        dataframe.to_excel(path, index=False, engine="openpyxl")
-        return f"DataFrame saved successfully as '{path}'"
-    
-    # _save_data_packet
-    # HELPER FUNCTION:  save a data_packet to a pickle file
-    # 
-    # INPUTS:
-    #   data_packet - data_packet used to generate the forecast
-    #   path - file path to save the data_packet
-    #
-    # OUTPUTS:
-    #   Confirmation message
-    def _save_data_packet(self, data_packet: Data, path: Path) -> str:
-        #dataframe.to_excel(path, index=False, engine="openpyxl")
-        ForecastDataPacket.pickle_data_packet(data_packet = data_packet, path = path)
-        return f"DataFrame saved successfully as '{path}'"
