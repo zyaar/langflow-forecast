@@ -1,5 +1,5 @@
 #####################################################################
-# forecast_excel_validation_builder.py
+# forecast_excel_cell_style_builder.py
 #
 # Helper object which builds an Excel DataValidation rule 
 # using openpyxl which can be added to a cell
@@ -47,6 +47,7 @@ class ForecastExcelCellStyleBuilder:
     # ============
     EXCEL_STYLES_WORKSHEET_HEADER = "Headline 1"
     EXCEL_ROW_HEADER_LABEL = "Row Header Label"
+    EXCEL_STYLES_DEFAULT_INIT_STEP_HEADER = "Headline 3"
 
 
 
@@ -86,6 +87,10 @@ class ForecastExcelCellStyleBuilder:
     @staticmethod
     def generate_ws_header(cell: Cell):
          cell.style = ForecastExcelCellStyleBuilder.EXCEL_STYLES_WORKSHEET_HEADER
+
+    @staticmethod
+    def generate_init_step_header(cell: Cell):
+         cell.style = ForecastExcelCellStyleBuilder.EXCEL_STYLES_DEFAULT_INIT_STEP_HEADER
          
     @staticmethod
     def generate_row_header_label(cell: Cell):
