@@ -278,6 +278,9 @@ src/frontend/temp
 .dspy_cache/
 *.db
 
+# output files folder
+output/*
+
 # Excel output files
 *.xls
 *.xlsx
