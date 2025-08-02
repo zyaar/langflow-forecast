@@ -73,6 +73,9 @@ class ForecastBuilderExcelRequiredTabs(str, Enum):
 
 
 
+
+
+
 # IdToCellReferenceMap
 # map ForecastMetaDataFrame id's to the cell locations that they represent
 class IdToCellReferenceMap():
@@ -105,7 +108,10 @@ class IdToCellReferenceMap():
             raise ValueError(f"\n* IdToCellReferenceMap.get: error, id {id} not found in map:\n{self.id_to_ref_map.keys()}")
         
         return(tab_name, cell_ref)
-    
+
+
+
+
 
 # IdToCellReferenceMap
 # map ForecastMetaDataFrame id's to the cell locations that they represent
@@ -211,7 +217,7 @@ class IdToCellReferenceMaps():
     
         
 
-# ForecastRendererExcel
+# ForecastBuilderExcelTB
 # Class which builds a Forecast Model player for excel using an Time Based model
 class ForecastBuilderExcelTB():
     # CONSTANTS
@@ -222,19 +228,29 @@ class ForecastBuilderExcelTB():
     DATAMODEL_PRED_COL = "input_rows"
 
 
-    # EXCEL PLAYER CONSTANTS
+    # PLAYER REQUIRED TABS
     EXCEL_REQUIRED_WORKBOOK_TABS = ["Inputs", "Summary", "Time Convert"]
 
-    # PLAYER ROW COLUMN LAYOUT  (NOTE:  per openpyxl, all ROW colum numbers are 1's indexed, not 0's indexed like regular python)
-    EXCEL_START_ROW = 4 # The first row of a worsheet for any building, 
-    EXCEL_START_COL = 2 # The first row of a worsheet for any building
-    EXCEL_LABEL_COL = EXCEL_START_COL               # Row label
-    EXCEL_ID_COL = EXCEL_LABEL_COL+1                # ForecastMetaDataSeries ID for row
-    EXCEL_NAME_COL = EXCEL_ID_COL+1                 # User doing the data entry's name
-    EXCEL_COUNTRY_COL = EXCEL_NAME_COL+1            # Country
-    EXCEL_PRODUCT_COL = EXCEL_COUNTRY_COL+1         # Product
-    EXCEL_INDICATION_COL = EXCEL_PRODUCT_COL+1      # Indication for product (if needed)
-    EXCEL_VALUES_START_COL = 4 # NOTE:  All COLUMN references are 1's indexed, not zero-indexed per openpyxl
+    # PLAYER ROW LAYOUT  NOTE:  row numbers are 1-index like excel, not 0-index like python (per openpyxl)
+    EXCEL_START_ROW = 4 # The first row of a worsheet for any building,
+    
+    # COLUMN WIDTH CONSTANTS (these constants are set based on an average char width of 7 pixels per character)
+    AVG_CHAR_WIDTH_IN_PIXELS = 7 # 3360/480
+    LABEL_COL_WIDTH = 480 / AVG_CHAR_WIDTH_IN_PIXELS # 480 pixels = 70 chars long
+
+
+    # THE COLUMN LAYOUT FOR EXCEL ROW, NOTE:  column numbers are 1-index like excel, not 0-index like python (per openpyxl)
+    class ExcelField(int, Enum):
+        START = 2                       # The first row of a worsheet for any building
+        LABEL = START                   # Row label
+        ID = LABEL + 1                  # ForecastMetaDataSeries ID for row
+        NAME = ID + 1                   # User ID who is entered the data into row
+        COUNTRY = NAME + 1              # Country
+        PRODUCT = COUNTRY + 1           # Product
+        INDICATION = PRODUCT + 1        # Indication for product (if needed)
+        VALUES = INDICATION + 1         #  The first column where forecast values start
+
+    EXCEL_FIELD_TO_LETTER_MAP = {}      # Mapping table from ExcelField column numbers to Excel column letters/cell-refs (set-up during _initialize_new_builder)
 
 
     # VARIABLES
@@ -306,6 +322,8 @@ class ForecastBuilderExcelTB():
         else:
             self.hasTemplate = True
             self.template_location = template_location
+
+        
 
 
 
@@ -465,6 +483,24 @@ class ForecastBuilderExcelTB():
 
 
 
+    # action_STEP_INIT
+    # BUILD INTERFACE:  handle the STEP_INIT action, this is a dispatcher to a set of internal INIT helper functions
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_STEP_INIT(self, id: str):
+        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
+        #curr_df_col = self.data_frame[id] # get current DataFrame col
+        step_type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE]
+
+        match step_type:
+
+            case _:
+                self._add_step_init_default(id = id, tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, curr_row_meta_data = curr_meta_col, display_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+
 
 
     # BUILDER INTERNAL FUNCTIONS
@@ -503,6 +539,15 @@ class ForecastBuilderExcelTB():
         # generate the core tabs if they don't exist
         self._generate_core_tabs()
 
+
+        # initialize core constants / variables
+
+        # setup the EXCEL_FIELD_TO_LETTER_MAP map
+        ws = self.player_model[ForecastBuilderExcelRequiredTabs.SUMMARY]
+
+        for element in self.ExcelField:
+            self.EXCEL_FIELD_TO_LETTER_MAP[element] = ws.cell(row = 1, column = element.value).column_letter
+
         # initialize the current row trackers
         self.row_trackers = {}
         for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
@@ -523,6 +568,15 @@ class ForecastBuilderExcelTB():
     # OUTPUTS:
     #   TBD
     def _finalize_new_builder(self):
+
+        # set width of the label column (column 'B' at the time of writing)
+        #ws = self.player_model[ForecastBuilderExcelRequiredTabs.SUMMARY]
+
+        for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
+            ws = self.player_model[tab]
+            ws.column_dimensions[self.EXCEL_FIELD_TO_LETTER_MAP[self.ExcelField.LABEL]].width = self.LABEL_COL_WIDTH
+
+        # save the file
         self.player_model.save(self.output_location)
 
         # TODO:  figure out what the return here, the intent is to provide a way to
@@ -574,8 +628,8 @@ class ForecastBuilderExcelTB():
                     print(f"SHIFT not implemented: {id}")
                     break
 
-                case ForecastDataSeriesMetaDataAction.STEP_INIT:        # TODO:  implement step_init action
-                    print(f"STEP_INIT not implemented: {id}")
+                case ForecastDataSeriesMetaDataAction.STEP_INIT:
+                    self.action_STEP_INIT(id)
 
                 case ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH:    # TODO:  implement year_to_month action
                     self.action_YEAR_TO_MONTH(id)
@@ -829,6 +883,53 @@ class ForecastBuilderExcelTB():
         
 
 
+    def _add_step_init_default(self,
+                               id: str,
+                               tab_name: str,
+                               curr_row_meta_data: ForecastMetaDataSeries, 
+                               display_name : str):
+        
+        # make sure it's a legit tab to go to start writing
+        if(tab_name not in self.row_trackers.keys()):
+            raise ValueError(f"* add_input_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
+
+        # add a blank row
+        self._add_blank_row(tab_name)
+
+        # boilerplate set-up of the row
+        curr_cell  = self._add_row_label_setup(id, tab_name)
+
+        curr_cell.value = display_name
+        ForecastExcelCellStyleBuilder.generate_init_step_header(curr_cell)
+
+
+
+        # # # go cell by cell adding the row values
+        # # for value in values:
+        # #     curr_cell.value = value # set the value of the cell
+        # self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, data_type = data_type, display_type = display_type, validation_rules = restriction) # add validation rules (if any)
+        # #     curr_cell = curr_cell.offset(row = 0, column = 1) # move the current cell pointer by one over to the right of the row
+        
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     
     # _generate_core_tabs
@@ -955,22 +1056,63 @@ class ForecastBuilderExcelTB():
         # set-up for the adding a row, get a worksheet for the tab name, and the next row to add to
         ws = self.player_model[tab_name]
         curr_row = self.row_trackers[tab_name]
-        start_row_ref = ws.cell(row = curr_row, column = self.EXCEL_START_COL)
+        start_row_ref = ws.cell(row = curr_row, column = ForecastBuilderExcelTB.ExcelField.START)
         
         # add any common row prefix stuff if needed:
         # row label
         if(row_name is not None):
-            curr_cell = ws.cell(row = curr_row, column = self.EXCEL_LABEL_COL)
+            curr_cell = ws.cell(row = curr_row, column = ForecastBuilderExcelTB.ExcelField.LABEL)
             self._add_label(value = row_name, curr_cell = curr_cell)
 
         # save the start cell ref for this id, and the tab_name (tab name not needed, but for convenience)
         self._track_add_row(id = id, tab_name = tab_name, cell_ref = start_row_ref) # store this 
 
         # move current cell to the start of the values entry
-        curr_cell = ws.cell(row = curr_row, column = self.EXCEL_VALUES_START_COL)
+        curr_cell = ws.cell(row = curr_row, column = ForecastBuilderExcelTB.ExcelField.VALUES)
 
         return(curr_cell, data_type, display_type)
-   
+    
+
+
+    # _add_row_label_setup
+    # Common boilerplate for adding a label not inputs or calculated values
+    # INPUT
+    #   id - ForecastMetaDataSeries ID
+    #   tab_name - Tab to add the row to
+    #   curr_row_meta_data - ForecastMetaDataSeries information to grab additional row information
+    #   row_name (optional) - if a row name (label) should be added, put it here
+    #
+    # OUTPUT:
+    #   curr_cell - a reference to an excel spreadsheet pointing to the first location to write a value
+    #   data_type - the data_type to be written
+    #   display_type - the data_type to be displayed (for example, we may have a float, but needs to be displayed as an int)
+
+    def _add_row_label_setup(self, id: str, tab_name: str, column = ExcelField.START):
+        ws = self.player_model[tab_name]
+        curr_row = self.row_trackers[tab_name]
+        curr_cell = ws.cell(row = curr_row, column = column)
+        
+        # save the start cell ref for this id, and the tab_name (tab name not needed, but for convenience)
+        self._track_add_row(id = id, tab_name = tab_name, cell_ref = curr_cell) # store this 
+
+        return(curr_cell)
+
+
+
+    
+
+
+    # _add_blank_row
+    # Add a blank row without any ids
+    #
+    # INPUT
+    #   tab_name - Tab to add the row to
+    #
+    # OUTPUT:
+    # NA
+    def _add_blank_row(self, tab_name: str):
+        self.row_trackers[tab_name] += 1
+
 
 
     # _track_add_row
@@ -984,9 +1126,12 @@ class ForecastBuilderExcelTB():
     # OUTPUTS:
     #
 
-    def _track_add_row(self, id: str, tab_name: str, cell_ref: Cell):
-        self.id_cellref_maps.add(id = id, tab_name = tab_name, cell_ref = cell_ref)  # add the id of the row to our mapper
+    def _track_add_row(self, id: str, tab_name: str, cell_ref: Cell, store_ref = True):
+        if(store_ref): 
+             self.id_cellref_maps.add(id = id, tab_name = tab_name, cell_ref = cell_ref)  # add the id of the row to our mapper
+
         self.row_trackers[tab_name] += 1  # increment our row tracker for this tab, so we know location of next row to add
+
 
 
     # _ids_to_formula_refs
@@ -1037,7 +1182,7 @@ class ForecastBuilderExcelTB():
             else:
                 id = id_or_const
                 (tab_name, cell_ref) = self.id_cellref_maps.get(id)  # get the tab_name and the cell reference
-                col_offset = col_num - self.EXCEL_START_COL # figure out how many cells over we need to shift the reference to get our values
+                col_offset = col_num - ForecastBuilderExcelTB.ExcelField.START # figure out how many cells over we need to shift the reference to get our values
                 cell_ref = cell_ref.offset(row = 0, column = col_offset)
                 return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_ref, with_ws_name=with_ws_name))
             
