@@ -114,9 +114,11 @@ class ForecaseSumInputTB(ForecastComponent):
     # INPUT/OUTPUTS CALCULATIONS
     # ==========================
 
-    # _forecast_model_common_input(self)
     def _forecast_model_common_input(self):
         super()._forecast_model_common_input()
+
+        if(self.forecasts_in is None):
+            raise ValueError(f"\n*  _forecast_model_common_input:  input '{self.get_input_display_name("forecasts_in")}' is not connected")
 
         # unpack the data packet into lists of data, meta_data, and ids
         (updated_models, updated_meta_datas, totals_ids) = self._unpack_data_packets(self.forecasts_in)
