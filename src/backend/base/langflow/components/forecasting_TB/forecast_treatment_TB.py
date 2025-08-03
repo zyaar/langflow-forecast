@@ -38,7 +38,8 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataAction, 
                                                                         ForecastDataSeriesMetaDataDataType, 
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
-                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions)
+                                                                        ForecastDataSeriesMetaDataValidateInputRestrictions,
+                                                                        ForecastDataSeriesMetaDataComparisonType)
 
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
@@ -519,15 +520,15 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
 
         (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
-                                                                    updated_meta_data,
-                                                                    id = col_treat_col_id,
-                                                                    display_name = self._get_input_table_col_display_name(table_name = table_name, col = col_name),
-                                                                    data_values = col_treat_col_values,
-                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                                                    action = ForecastDataSeriesMetaDataAction.DATES,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)
+                                                                                    updated_meta_data,
+                                                                                    id = col_treat_col_id,
+                                                                                    display_name = self._get_input_table_col_display_name(table_name = table_name, col = col_name),
+                                                                                    data_values = col_treat_col_values,
+                                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                                    action = ForecastDataSeriesMetaDataAction.VALUES,
+                                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)
 
         # Add Progression
         col_name = ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME
@@ -535,15 +536,17 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         col_treat_col_id = f"{treat_group_id}_{col_name}"
 
         (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
-                                                                    updated_meta_data,
-                                                                    id = col_treat_col_id,
-                                                                    display_name = self._get_input_table_col_display_name(table_name = table_name, col = col_name),
-                                                                    data_values = col_treat_col_values,
-                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                                                    action = ForecastDataSeriesMetaDataAction.DATES,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],)
+                                                                                  updated_meta_data,
+                                                                                  id = col_treat_col_id,
+                                                                                  display_name = self._get_input_table_col_display_name(table_name = table_name, col = col_name),
+                                                                                  data_values = col_treat_col_values,
+                                                                                  step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                                  action = ForecastDataSeriesMetaDataAction.INPUT,
+                                                                                  data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                                  display_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK},
+                                                                                                {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataComparisonType.LE}],
+                                                                                  args = {ForecastDataSeriesMetaDataComparisonType.LE: 1}) # add argument with the value for LESS_EQUAL_THAN validation
 
         # Add the variable number of products
         num_cols = len(treatment_details.columns) - self.NUM_STATIC_COLS
