@@ -43,6 +43,8 @@ from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import Protection
 
+from  langflow.components.forecasting_TB.forecast_epidemiology_TB import FORECAST_EPIDEMIOLOGY_DATES_LABEL
+
 from langflow.base.forecasting_common.builders.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
 from langflow.base.forecasting_common.builders.excel.forecast_excel_validation_builder import ForecastExcelValidationRuleBuilder
 from langflow.base.forecasting_common.builders.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
@@ -108,7 +110,6 @@ class IdToCellReferenceMap():
             raise ValueError(f"\n* IdToCellReferenceMap.get: error, id {id} not found in map:\n{self.id_to_ref_map.keys()}")
         
         return(tab_name, cell_ref)
-
 
 
 
@@ -229,7 +230,9 @@ class ForecastBuilderExcelTB():
 
 
     # PLAYER REQUIRED TABS
-    EXCEL_REQUIRED_WORKBOOK_TABS = ["Inputs", "Summary", "Time Convert"]
+    #EXCEL_REQUIRED_WORKBOOK_TABS = ["Inputs", "Summary", "Time Convert"]    # the names of the tabs which are required for every player build
+    NEW_TAB_INSERT_INDEX_FROM_END = 2   # the place (from the end of all the tabs to insert a new tab, this allows us to put new tabs AHEAD of any config tabs we may have)
+    DEFAULT_CARD = ForecastBuilderExcelRequiredTabs.SUMMARY
 
     # PLAYER ROW LAYOUT  NOTE:  row numbers are 1-index like excel, not 0-index like python (per openpyxl)
     EXCEL_START_ROW = 4 # The first row of a worsheet for any building,
@@ -257,19 +260,7 @@ class ForecastBuilderExcelTB():
     # =========
 
     # CLASS VARIABLES
-    input_type = ForecastModelInputTypes.TIME_BASED
-
-    # data validation objects
-    dv_integer = DataValidation(type="whole") # ensure it's an integer
-    dv_float = "" # ensure it's a float (i.e. numeric)
-    dv_currency = "" # ensure it's currency
-    dv_percent = "" # ensure it's a percent
-
-    dv_lt = ""  # less than validation rule
-    dv_le = ""  # less than or equal to rule
-    dv_eq = ""  # equal to rule
-    dv_ge = ""  # greater to equal to rule
-    dv_gt = ""  # greater than rule
+    # ---------------
 
 
 
@@ -361,23 +352,119 @@ class ForecastBuilderExcelTB():
 
 
 
+    # _build_model_excel
+    # The main dispathcher for the builder, iterates over all the rows in the ForecastMetaDataFrame model, and dispatches
+    # different functions the handle the different ACTIONS to build the excel player
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   NA
+    def _build_metadataframe_model(self, model: ForecastMetaDataFrame, default_card: str):
+        # iterate through the forecast model, column by column, dispatching as needed
+        for id in model:
+            # get the next ForecastMetaDataSeries in the model
+            curr_col = model[id] # get the current ForecastMetaDataSeries
+
+            # dispatch based on the action
+            match curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]:
+                case ForecastDataSeriesMetaDataAction.VALUES:
+                    self.action_VALUES(id, default_card, curr_col)
+
+                case ForecastDataSeriesMetaDataAction.DATES:
+                    self.action_DATES(id, default_card, curr_col)
+
+                case ForecastDataSeriesMetaDataAction.INPUT:
+                    self.action_INPUT(id, default_card, curr_col)
+
+                case ForecastDataSeriesMetaDataAction.COPY:             # TODO:  implement copy action
+                    print(f"COPY not implemented: {id}")
+                    break
+
+                case ForecastDataSeriesMetaDataAction.SUM:
+                    self.action_SUM(id, default_card, curr_col)
+
+                case ForecastDataSeriesMetaDataAction.PROD:
+                    self.action_PROD(id, default_card, curr_col)
+
+                case ForecastDataSeriesMetaDataAction.SUB:
+                    self.action_SUB(id, default_card, curr_col)
+
+                case ForecastDataSeriesMetaDataAction.SHIFT:            # TODO:  implement shift action
+                    print(f"SHIFT not implemented: {id}")
+                    break
+
+                case ForecastDataSeriesMetaDataAction.STEP_INIT:
+                    default_card = self.action_STEP_INIT(id, default_card, curr_col)
+
+                case ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH:    # TODO:  implement year_to_month action
+                    self.action_YEAR_TO_MONTH(id, default_card, curr_col)
+                    break
+
+                case ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR:    # TODO:  implement month_to_year action
+                    print(f"MONTH_TO_YEAR not implemented: {id}")
+                    break
+
+                case _:
+                    raise ValueError(f"\n*  _build_metadataframe_model:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
+
+
+
+    # action_VALUES
+    # BUILD INTERFACE:  handle the VALUES action by creating a row of whatever values are provided
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_VALUES(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries):
+        self._add_values_row(id = id, 
+                             tab_name = card_name, 
+                             values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES], 
+                             curr_row_meta_data = curr_meta_col, 
+                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+
+
+
     # action_DATES
     # BUILD INTERFACE:  handle the DATES action by creating a row of dates
     #  
     # INPUTS:
     #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
     #   NA
-    def action_DATES(self, id: str):
-        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
-        curr_df_col = self.data_frame[id] # get current DataFrame col
-
+    def action_DATES(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries):
         # dates are in strings formatted as: '2027-12-31T00:00:00', so convert to datetime
         # so that openpyxl can correctly pass them to excel
-        values = [datetime.strptime(s, "%Y-%m-%dT%H:%M:%S") for s in curr_df_col.to_list()]
+        values = []
+        #values = [datetime.strptime(s, "%Y-%m-%dT%H:%M:%S") for s in curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES]]
 
-        self._add_values_row(id = id, tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, values = values, curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        for date in curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES]:
+            # if it's string
+            if(isinstance(date, str)):
+                values.append(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S"))
+
+            # if it's pd.Timestamp
+            elif(isinstance(date, pd.Timestamp)):
+                values.append(date.to_pydatetime())
+
+            # else throw an error
+            else:
+                raise ValueError(f"\n*  action_DATES:  invalidate type provided {type(date)}")
+
+
+        self._add_values_row(id = id, 
+                             tab_name = card_name, 
+                             values = values, 
+                             curr_row_meta_data = curr_meta_col, 
+                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
         
 
 
@@ -386,14 +473,17 @@ class ForecastBuilderExcelTB():
     #  
     # INPUTS:
     #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
     #   NA
-    def action_INPUT(self, id: str):
-        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
-        curr_df_col = self.data_frame[id] # get current DataFrame col
-
-        self._add_values_row(id = id, tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, values = curr_df_col.to_list(), curr_row_meta_data = curr_meta_col, row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+    def action_INPUT(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries):
+        self._add_values_row(id = id, 
+                             tab_name = card_name, 
+                             values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES], 
+                             curr_row_meta_data = curr_meta_col, 
+                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
     
 
 
@@ -402,16 +492,15 @@ class ForecastBuilderExcelTB():
     #  
     # INPUTS:
     #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
     #   NA
-    def action_SUM(self, id: str):
-        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
-        curr_df_col = self.data_frame[id] # get current DataFrame col
-
+    def action_SUM(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries):
         self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.ADD,
                             id = id,
-                            tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, 
+                            tab_name = card_name, 
                             values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
@@ -424,16 +513,15 @@ class ForecastBuilderExcelTB():
     #  
     # INPUTS:
     #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
     #   NA
-    def action_PROD(self, id: str):
-        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
-        curr_df_col = self.data_frame[id] # get current DataFrame col
-
+    def action_PROD(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries):
         self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.PROD,
                             id = id,
-                            tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, 
+                            tab_name = card_name, 
                             values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
@@ -446,16 +534,15 @@ class ForecastBuilderExcelTB():
     #  
     # INPUTS:
     #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
     #   NA
-    def action_SUB(self, id: str):
-        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
-        curr_df_col = self.data_frame[id] # get current DataFrame col
-
+    def action_SUB(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries):
         self._add_arith_row(arith_funct = ForecastBuilderExcelArithmeticFunctions.SUB,
                             id = id,
-                            tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, 
+                            tab_name = card_name, 
                             values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
                             curr_row_meta_data = curr_meta_col,
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
@@ -468,15 +555,15 @@ class ForecastBuilderExcelTB():
     #  
     # INPUTS:
     #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
     #   NA
-    def action_YEAR_TO_MONTH(self, id: str):
-        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
-        curr_df_col = self.data_frame[id] # get current DataFrame col
-
+    def action_YEAR_TO_MONTH(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries):
         self._add_YTM_row(id = id,
-                          tab_name = ForecastBuilderExcelRequiredTabs.TIME_CONVERT,
+                          #tab_name = ForecastBuilderExcelRequiredTabs.TIME_CONVERT,
+                          tab_name = card_name,
                           values = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES],
                           curr_row_meta_data = curr_meta_col,
                           row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
@@ -488,18 +575,32 @@ class ForecastBuilderExcelTB():
     #  
     # INPUTS:
     #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
     #   NA
-    def action_STEP_INIT(self, id: str):
-        curr_meta_col = self.meta_data.model[id] # get current MetaDataSeries col
-        #curr_df_col = self.data_frame[id] # get current DataFrame col
+    def action_STEP_INIT(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries) -> str:
         step_type = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE]
 
         match step_type:
+            case ForecastDataSeriesMetaDataStepTypes.TREATMENT:
+                target_card = self._add_step_init_treatment(id = id, 
+                                                            curr_row_meta_data = curr_meta_col, 
+                                                            display_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
 
             case _:
-                self._add_step_init_default(id = id, tab_name = ForecastBuilderExcelRequiredTabs.SUMMARY, curr_row_meta_data = curr_meta_col, display_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+                target_card = self._add_step_init_default(id = id, 
+                                                          tab_name = card_name, 
+                                                          curr_row_meta_data = curr_meta_col, 
+                                                          display_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+                
+        return(target_card)
+
+
+
+
+
 
 
 
@@ -534,9 +635,9 @@ class ForecastBuilderExcelTB():
                 for i in range(num_sheets):
                     ws = ForecastExcelBaseHelpers.get_ws(0, self.player_model)
                     self.player_model.remove(ws)
-                    
-        
+
         # generate the core tabs if they don't exist
+        self.row_trackers = {}
         self._generate_core_tabs()
 
 
@@ -547,11 +648,6 @@ class ForecastBuilderExcelTB():
 
         for element in self.ExcelField:
             self.EXCEL_FIELD_TO_LETTER_MAP[element] = ws.cell(row = 1, column = element.value).column_letter
-
-        # initialize the current row trackers
-        self.row_trackers = {}
-        for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
-            self.row_trackers[tab] = self.EXCEL_START_ROW    # NOTE:  All row references are 1-based based per openpyxl
 
         # set up the mapper between ForecastDataModel id's and cell references in excel
         self.id_cellref_maps = IdToCellReferenceMaps(default_ref_map_id = self.id)
@@ -572,7 +668,7 @@ class ForecastBuilderExcelTB():
         # set width of the label column (column 'B' at the time of writing)
         #ws = self.player_model[ForecastBuilderExcelRequiredTabs.SUMMARY]
 
-        for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
+        for tab in self.row_trackers.keys():
             ws = self.player_model[tab]
             ws.column_dimensions[self.EXCEL_FIELD_TO_LETTER_MAP[self.ExcelField.LABEL]].width = self.LABEL_COL_WIDTH
 
@@ -597,50 +693,7 @@ class ForecastBuilderExcelTB():
     #   NA
     def _build_model_excel(self):
         model = self.meta_data.model
-
-        # iterate through the forecast model, column by column, dispatching as needed
-        for id in model:
-            # get the next ForecastMetaDataSeries in the model
-            curr_col = model[id] # get the current ForecastMetaDataSeries
-
-            # dispatch based on the action
-            match curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]:
-                case ForecastDataSeriesMetaDataAction.DATES:
-                    self.action_DATES(id)
-
-                case ForecastDataSeriesMetaDataAction.INPUT:
-                    self.action_INPUT(id)
-
-                case ForecastDataSeriesMetaDataAction.COPY:             # TODO:  implement copy action
-                    print(f"COPY not implemented: {id}")
-                    break
-
-                case ForecastDataSeriesMetaDataAction.SUM:
-                    self.action_SUM(id)
-
-                case ForecastDataSeriesMetaDataAction.PROD:
-                    self.action_PROD(id)
-
-                case ForecastDataSeriesMetaDataAction.SUB:
-                    self.action_SUB(id)
-
-                case ForecastDataSeriesMetaDataAction.SHIFT:            # TODO:  implement shift action
-                    print(f"SHIFT not implemented: {id}")
-                    break
-
-                case ForecastDataSeriesMetaDataAction.STEP_INIT:
-                    self.action_STEP_INIT(id)
-
-                case ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH:    # TODO:  implement year_to_month action
-                    self.action_YEAR_TO_MONTH(id)
-                    break
-
-                case ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR:    # TODO:  implement month_to_year action
-                    print(f"MONTH_TO_YEAR not implemented: {id}")
-                    break
-
-                case _:
-                    raise ValueError(f"\n*  _build_model_excel:  Unknown action {curr_col.meta_data[ForecastMetaDataSeriesSchema.ACTION]}")
+        self._build_metadataframe_model(model = model, default_card = ForecastBuilderExcelRequiredTabs.SUMMARY)
                 
 
 
@@ -700,16 +753,8 @@ class ForecastBuilderExcelTB():
 
 
 
-    # RULE VALIDATION
-    # ===============
-
-
-        
-
-
-
-    # EXCEL PRIMITIVES
-    # ================
+    # BUILDER ACTION HANDLERS
+    # =======================
 
     # _add_values_row
     # Add a row of values to the model
@@ -883,11 +928,29 @@ class ForecastBuilderExcelTB():
         
 
 
+
+
+    # BUILDER STEP_INIT HANDLERS
+    # ==========================
+
+    #  _add_step_init_default
+    # Default handler for STEP_INIT function, adds a blank row and then displays the STEP's display name as a header 3 style
+    #  
+    # INPUTS:
+    #
+    #   id - the id the column
+    #   tab_name - the target tab_name to place the step information
+    #   curr_row_meta_data - the FormatMetaDataSeries information
+    #   display_name - the display name to show
+    # 
+    # OUTPUTS:
+    #   worksheet
+
     def _add_step_init_default(self,
                                id: str,
                                tab_name: str,
                                curr_row_meta_data: ForecastMetaDataSeries, 
-                               display_name : str):
+                               display_name : str) -> str:
         
         # make sure it's a legit tab to go to start writing
         if(tab_name not in self.row_trackers.keys()):
@@ -902,15 +965,98 @@ class ForecastBuilderExcelTB():
         curr_cell.value = display_name
         ForecastExcelCellStyleBuilder.generate_init_step_header(curr_cell)
 
+        return(self.DEFAULT_CARD)
 
 
-        # # # go cell by cell adding the row values
-        # # for value in values:
-        # #     curr_cell.value = value # set the value of the cell
-        # self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, curr_cell = curr_cell, data_type = data_type, display_type = display_type, validation_rules = restriction) # add validation rules (if any)
-        # #     curr_cell = curr_cell.offset(row = 0, column = 1) # move the current cell pointer by one over to the right of the row
+
+
+    #  _add_step_init_treatment
+    # Handler for STEP_INIT Treatment, creates a new tab for the treatment, displays the treatment details, and links in the appropriate row for the tab it came from
+    #
+    # INPUTS:
+    #
+    #   id - the id the column
+    #   curr_row_meta_data - the FormatMetaDataSeries information
+    #   display_name - the display name to show
+    # 
+    # OUTPUTS:
+    #   worksheet
+
+    def _add_step_init_treatment(self,
+                                 id: str,
+                                 curr_row_meta_data: ForecastMetaDataSeries, 
+                                 display_name : str):
+        
+        # SETUP
+        treatment_tab_name = ""
+        
+        # generate a new tab for the treatment
+        tab_names = self.player_model.sheetnames
+        treatment_tab_name = ForecastExcelBaseHelpers.gen_excel_tab_name(name = display_name, existing_tab_names = tab_names)
+        self._create_tab(treatment_tab_name, protect_worksheet = FORECAST_EXCEL_PROTECT_WORKSHEET, workbook = self.player_model, num_sheets = self.NEW_TAB_INSERT_INDEX_FROM_END)
+
+        # build the treatment details section
+        args = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.OBJS]
+        treatment_table_meta_data = args["meta_data"]
+
+        self._build_metadataframe_model(model = treatment_table_meta_data.model, default_card = treatment_tab_name)
+
+        # add two blank rows
+        self._add_blank_row(tab_name = treatment_tab_name)
+        self._add_blank_row(tab_name = treatment_tab_name)
+
+        # add a date row (makes it easier to understand the values calculations)
+        dates_col = ForecastMetaDataSeries(id = id,
+                                           step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                           action = ForecastDataSeriesMetaDataAction.DATES,
+                                           data_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                           display_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                           display_name = FORECAST_EPIDEMIOLOGY_DATES_LABEL,
+                                           data_values = ForecastDataModel.gen_forecast_dates(start_year = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_YEAR],
+                                                                                              num_years = self.meta_data.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS],
+                                                                                              start_month = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_MONTH],
+                                                                                              timescale = ForecastModelTimescale.MONTH),
+                                           validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                           pred = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED])
+        
+        self.action_DATES(id = id, card_name = treatment_tab_name, curr_meta_col = dates_col)
+
+        return(treatment_tab_name)
+
         
         
+        
+
+        #     (frame = pat_on_treatment_meta_data,
+        #   id = totals_col_id,
+        #   step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+        #   action = ForecastDataSeriesMetaDataAction.SUM,
+        #   data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+        #   display_type = ForecastDataSeriesMetaDataDataType.INT,
+        #   display_name = f"Total # of '{product_display_name}' Rx for patients in '{treatment_name}'",
+        #   data_values = total_values.to_list(),
+        #   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+        #   pred = list_of_by_treatment_month_rx,
+        #   verify_integrity=True,
+        #   drop_dups = False)
+
+        # # make sure it's a legit tab to go to start writing
+        # if(tab_name not in self.row_trackers.keys()):
+        #     raise ValueError(f"* add_input_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
+
+        # # add a blank row
+        # self._add_blank_row(tab_name)
+
+        # # boilerplate set-up of the row
+        # curr_cell  = self._add_row_label_setup(id, tab_name)
+
+        # curr_cell.value = display_name
+        # ForecastExcelCellStyleBuilder.generate_init_step_header(curr_cell)
+
+
+
+    # gen_excel_tab_name(name: str, existing_tab_names: list[str])        
+        
 
 
 
@@ -929,9 +1075,14 @@ class ForecastBuilderExcelTB():
 
 
 
+    # HELPER FUNCTIONS 
+    # ================
 
 
     
+    
+    # TABS
+
     # _generate_core_tabs
     # Create the initial set of tabs required by the player
     #  
@@ -946,10 +1097,25 @@ class ForecastBuilderExcelTB():
         self.template_num_sheets = len(self.player_model.sheetnames)
         
         # generate the core tabs of the model
-        for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
-            ForecastExcelBaseHelpers.create_ws(tab, protect_worksheet = FORECAST_EXCEL_PROTECT_WORKSHEET, workbook = self.player_model, num_sheets = self.template_num_sheets)
+        #for tab in self.EXCEL_REQUIRED_WORKBOOK_TABS:
+        for tab in ForecastBuilderExcelRequiredTabs:
+            self._create_tab(tab.value, protect_worksheet = FORECAST_EXCEL_PROTECT_WORKSHEET, workbook = self.player_model, num_sheets = self.template_num_sheets)
 
 
+
+    # _create_tab
+    # Adds a new tab tracker and calls the create tab utility
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def _create_tab(self, tab: str, protect_worksheet: bool, workbook: Workbook, num_sheets: int):
+        self.row_trackers[tab] = self.EXCEL_START_ROW    # NOTE:  All row references are 1-based based per openpyxl
+        ForecastExcelBaseHelpers.create_ws(tab, protect_worksheet = FORECAST_EXCEL_PROTECT_WORKSHEET, workbook = self.player_model, num_sheets = num_sheets)
+        
 
     
 
@@ -1032,8 +1198,8 @@ class ForecastBuilderExcelTB():
 
     
 
-    # HELPER FUNCTIONS 
-    # ================
+    # ROW
+
 
     # _add_row_setup
     # Common boilerplate for all _add actions (values, arith function) to add a new row for an id
@@ -1098,10 +1264,6 @@ class ForecastBuilderExcelTB():
         return(curr_cell)
 
 
-
-    
-
-
     # _add_blank_row
     # Add a blank row without any ids
     #
@@ -1133,6 +1295,9 @@ class ForecastBuilderExcelTB():
         self.row_trackers[tab_name] += 1  # increment our row tracker for this tab, so we know location of next row to add
 
 
+
+
+    # FORMULAS
 
     # _ids_to_formula_refs
     # given a list of either constants (int or float) or ForecastMetaData IDs (strings)
@@ -1188,8 +1353,21 @@ class ForecastBuilderExcelTB():
             
 
 
-    # LABELS
+    # CELL
+
+    # _add_label
+    # Add a label as the cell value/style
+    # INPUT
+    #   value = value of the label
+    #   cell = openpyxl Cell reference (object)
+    #
+    # OUTPUT:
+    #   NA
+
     def _add_label(self, value: str, curr_cell: Cell):
         curr_cell.value = value
         ForecastExcelCellStyleBuilder.generate_row_header_label(curr_cell)
         curr_cell.protection = Protection(locked = True, hidden = False)
+        
+
+
