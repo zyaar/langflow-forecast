@@ -1,4 +1,4 @@
-from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
+from langflow.base.forecasting_common.models.date_utils import gen_dates, gen_pre_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
 from langflow.base.forecasting_common.constants import ForecastModelTimescale
 
 
@@ -17,11 +17,24 @@ print(f"test2: {test2}")
 # monthly
 print("\nGenerate 3 year, monthly, end of calendar year dates, starting in 2026")
 test3 = gen_dates(start_year = 2026, num_years = 3, time_scale = ForecastModelTimescale.MONTH)
-print(f"test1: {test3}")
+print(f"test3: {test3}")
 
 print("\nGenerate 3 year, monthly, end of fiscal year dates, starting in 2026, fiscal start in April")
 test4 = gen_dates(start_year = 2026, num_years = 3, start_month=4, time_scale = ForecastModelTimescale.MONTH)
-print(f"test2: {test4}")
+print(f"test4: {test4}")
+
+
+print("\n\ngen_pre_dates")
+print("-------------")
+
+print("\nGenerate 3 pre_dates, YEARLY timescale")
+test5 = gen_pre_dates(first_forecast_date = test1[0], num_periods = 3, time_scale = ForecastModelTimescale.YEAR)
+print(f"test5 (from test1)= {test5}")
+
+
+print("\nGenerate 6 pre_dates, MONTHLY timescale")
+test6 = gen_pre_dates(first_forecast_date = test4[0], num_periods = 6, time_scale = ForecastModelTimescale.MONTH)
+print(f"test6 (from test4)= {test6}")
 
 
 print("\n\nconv_dates_monthly_to_yearly")

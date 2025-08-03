@@ -15,7 +15,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataDataType, 
                                                                         ForecastDataSeriesMetaDataValidationSchema,
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions)
-from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
+from langflow.base.forecasting_common.models.date_utils import gen_dates, gen_pre_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
 
 
 
@@ -29,6 +29,8 @@ from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_d
 import re
 import numpy as np
 import pandas as pd
+import datetime as datetime
+
 
 
 # CONSTANTS
@@ -658,9 +660,31 @@ class ForecastDataModel(DataFrame):
             num_years: int, 
             start_month: int=1, 
             timescale: ForecastModelTimescale = ForecastModelTimescale.YEAR,
-      ) -> List[pd.Timestamp]:
-            return(gen_dates(start_year=start_year, num_years=num_years, start_month=start_month, time_scale=timescale))
+      ) -> List[datetime.datetime]:
+#      ) -> List[pd.Timestamp]:
+            return(gen_dates(start_year = start_year, num_years = num_years, start_month = start_month, time_scale = timescale))
       
+
+
+      # gen_pre_dates
+      #
+      # Generate a list of dates given a first date, a number of periods to go BACK from that date, and a definition of the length of a period (YEAR or MONTH)
+      #
+      # INPUTS:
+      #   first_forecase date = earliest forecast date in the forecast date series
+      #   num_periods: number of periods to go back in generating pre-forecast-dates
+      #   time_scale (optional): the length of a time period (monthly or yearly), default is: Yearly
+      # OUTPUTS:
+      #   List of datetimes with the year end of month end dates prior to the forecast
+
+      @ staticmethod
+      def gen_pre_dates(
+            first_forecast_date:  datetime.datetime, 
+            num_periods: int, 
+            time_scale: ForecastModelTimescale = ForecastModelTimescale.YEAR
+      ) -> List[datetime.datetime]:
+            return(gen_pre_dates(first_forecast_date = first_forecast_date, num_periods = num_periods, time_scale = time_scale))
+
 
 
       # yearly_to_monthly

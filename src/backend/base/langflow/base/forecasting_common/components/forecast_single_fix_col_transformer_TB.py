@@ -430,7 +430,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
         
         # otherwise, resize the exist values into the new size (note:  always add the dates in)
         else:
-            new_df = ForecastFormModelUtilities.refill_drataframe(new_dim_rows=num_rows, new_dim_cols=2, prev_data=DataFrame(old_values), col_name_prefix="", dates=dates)
+            new_df = ForecastFormModelUtilities.refill_dataframe(new_dim_rows=num_rows, new_dim_cols=2, prev_data=DataFrame(old_values), col_name_prefix="", dates=dates)
             return new_df.to_data_list()
         
 

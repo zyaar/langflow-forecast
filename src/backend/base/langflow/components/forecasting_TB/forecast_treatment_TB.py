@@ -656,7 +656,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         # Check if we have existing data
         old_values = self.treatment_details
         if(old_values is not None and isinstance(old_values, list) and len(old_values) > 0):
-            new_df = ForecastFormModelUtilities.fill_drataframe(new_dim_rows = new_num_rows,
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows = new_num_rows,
                                                                 new_dim_cols = new_num_cols,
                                                                 prev_data  = old_values, 
                                                                 default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
@@ -665,7 +665,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                 num_static_cols = self.NUM_STATIC_COLS, 
                                                                 month = list(range(1, new_num_rows+1)))
         else:
-            new_df = ForecastFormModelUtilities.fill_drataframe(new_dim_rows = new_num_rows,
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows = new_num_rows,
                                                                 new_dim_cols = new_num_cols,
                                                                 set_col_names = ["month", ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME],  
                                                                 default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 

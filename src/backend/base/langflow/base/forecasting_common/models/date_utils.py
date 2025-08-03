@@ -27,9 +27,9 @@ from langflow.base.forecasting_common.constants import ForecastModelTimescale
 #   start_year = start year of the forecast
 #   num_years: number of years out to set the list
 #   start_month (optional): set the start month, used to supported fiscal years which do not start on a calendar year, default is: January
-#   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
+#   time_scale (optional): the length of a time period (monthly or yearly), default is: Yearly
 # OUTPUTS:
-#   List of pd.Timestamps with the year end of month end dates in the forecast
+#   List of datetime with the year end of month end dates in the forecast
 
 def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: ForecastModelTimescale = ForecastModelTimescale.YEAR)-> List[datetime.datetime]:
     time_series = None
@@ -59,7 +59,45 @@ def gen_dates(start_year: int, num_years: int, start_month: int=1, time_scale: F
     else:
         time_series = pd.date_range(start = start_date, periods=num_periods+1, freq="12ME", inclusive = "neither")
 
-    return(time_series)
+    return(time_series.tolist())
+
+
+
+# gen_pre_dates
+#
+# Generate a list of dates given a first date, a number of periods to go BACK from that date, and a definition of the length of a period (YEAR or MONTH)
+#
+# INPUTS:
+#   first_forecase date = earliest forecast date in the forecast date series
+#   num_periods: number of periods to go back in generating pre-forecast-dates
+#   time_scale (optional): the length of a time period (monthly or yearly), default is: Yearly
+# OUTPUTS:
+#   List of datetimes with the year end of month end dates prior to the forecast
+
+def gen_pre_dates(first_forecast_date:  datetime.datetime, num_periods: int, time_scale: ForecastModelTimescale = ForecastModelTimescale.YEAR) -> List[datetime.datetime]:
+    pre_dates = []
+
+    if num_periods < 1:
+        return(pre_dates)
+
+    # determine the delta to subtract
+    if(time_scale == ForecastModelTimescale.YEAR):
+        time_delta = relativedelta(years=1)
+    elif(time_scale == ForecastModelTimescale.MONTH):
+        time_delta = relativedelta(months=1)
+    else:
+        raise ValueError(f"\n*  gen_pre_dates:  invalide time_scale provided '{time_scale}'.")
+    
+    curr_pre_date = first_forecast_date
+
+    for i in range(num_periods):
+        curr_pre_date -= time_delta
+        pre_dates.insert(0, curr_pre_date) # put at start of list since we're going backwards
+
+    return(pre_dates)
+
+    
+    
 
 
 

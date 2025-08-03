@@ -27,8 +27,8 @@ import numpy as np
 
 class ForecastFormModelUtilities():
 
-    # TODO: Get rid of this function... fill_datframe can do everything it does and MORE
-    # refill_drataframe
+    # TODO: Get rid of this function... fill_dataframe can do everything it does and MORE
+    # refill_dataframe
     # Given that a dataframe field has been flagged to be updated, and there is previous data in that dataframe, figure 
     # out how to "stuff" the previous data back into the updated dataframe, so that users don't have to continously re-type data
     # 
@@ -36,12 +36,22 @@ class ForecastFormModelUtilities():
     #   new_dim_rows - number of rows in the new dataframe
     #   new_dim_cols - number of columns in the new dataframe
     #   prev_data - the data from the previous dimension dataframe
+    #   default_value - the default value to put in a new cell
+    #   col_name_prefix - the prefix to use when creating new columns
+    #   change_from_bottom - (optional) if TRUE, grows / shrinks DataFrame from the bottom of the DataFrame,
+    #                                   if FALSE, grows / shrinks DataFrame from the top of the DataFrame
     #
     # OUTPUTS:
     #   new_dataframe - a new dataframe which matches the new_dim_rows and new_dim_cols, but includes as much
     #                   of the prev_data as makes since
     @staticmethod
-    def refill_drataframe(new_dim_rows: int, new_dim_cols: int, prev_data: DataFrame, default_value: float = ForecastDataModel.EDITABLE_VALUES_TOKEN, col_name_prefix: str = "col_", **kwargs) -> DataFrame:
+    def refill_dataframe(new_dim_rows: int, 
+                          new_dim_cols: int, 
+                          prev_data: DataFrame, 
+                          default_value: float = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
+                          col_name_prefix: str = "col_", 
+                          change_from_bottom = True, 
+                          **kwargs) -> DataFrame:
 
         # first, handle the case the the new dimensions are not legitimate, if so, throw an error
         if(new_dim_rows < 1 or new_dim_cols < 1):
@@ -72,6 +82,7 @@ class ForecastFormModelUtilities():
 
         # finally, handle all the cases where there's a mismatch in the dimensions betwee new and old
         else:
+            # Mismatching columns
             if(new_dim_cols > prev_dim_cols):
                 new_col_names = prev_data.columns.to_list() + list(map(lambda item: f"{col_name_prefix}{item}", list(range((prev_dim_cols), new_dim_cols))))
             elif(new_dim_cols == prev_dim_cols):
@@ -79,7 +90,11 @@ class ForecastFormModelUtilities():
             else:
                 new_col_names = prev_data.columns.to_list()[:new_dim_cols]
 
-            data = prev_data.reindex(index=list(range(new_dim_rows)), columns = new_col_names, fill_value=default_value)
+            # mismatching rows
+            new_index = list(range(new_dim_rows))
+            data = prev_data.reindex(index=new_index, columns = new_col_names, fill_value=default_value)
+
+            # regenerate the dataframe
             new_df = DataFrame(data=data)
 
         # one last step added, use kwargs to offer the ability to ovveride any existing column in the dataframe with
@@ -165,7 +180,7 @@ class ForecastFormModelUtilities():
     
 
     
-    # fill_drataframe
+    # fill_dataframe
     # This function is used to generate the correct dataframe (usually for TableInputs in components), either from scratch or given existing date.
     # Since it is meant to greatly reduce the amount of "boilerplate" code used in the individual components, it's a bit "over-featured" and has 
     # a lot of arguments and options (and the supporting lines of business logic), which developers of components can use to generate exactly
@@ -189,7 +204,7 @@ class ForecastFormModelUtilities():
     #   new_dataframe - a new dataframe which matches the new_dim_rows and new_dim_cols, but includes as much
     #                   of the prev_data as makes since
     @staticmethod
-    def fill_drataframe(new_dim_rows: int, 
+    def fill_dataframe(new_dim_rows: int, 
                         new_dim_cols: int,
                         set_col_names: list = None,  
                         prev_data: DataFrame | List[dict] | None = None, 
@@ -198,18 +213,19 @@ class ForecastFormModelUtilities():
                         col_name_prefix: str = "col_", 
                         num_static_cols: int = 1, 
                         start_num: int = -1, 
-                        start_index_at: Literal[0, 1] = 1, 
+                        start_index_at: Literal[0, 1] = 1,
+                        change_from_bottom = True,
                         **kwargs) -> DataFrame:
         
         # can't use set_col_names AND have prev_data, so throw error if both are not None
         if(set_col_names is not None and prev_data is not None):
-            raise ValueError(f"* refill_dataframe error:  cannot have values for argument 'set_col_names' and 'prev_data' at the same time.  'set_col_names' should only be used to determine the column names when you are not passing in existing data.")
+            raise ValueError(f"* fill_dataframe error:  cannot have values for argument 'set_col_names' and 'prev_data' at the same time.  'set_col_names' should only be used to determine the column names when you are not passing in existing data.")
 
         
         # first, handle the case the the new dimensions are not legitimate, that would only be a case with no columns
         # if so, throw an error
         if(new_dim_cols < 1):
-            raise ValueError(f"* refill_dataframe error:  invalid row dimension for new dataframe rows: {new_dim_rows}, cols: {new_dim_cols}")
+            raise ValueError(f"* fill_dataframe error:  invalid row dimension for new dataframe rows: {new_dim_rows}, cols: {new_dim_cols}")
 
         
         # second, handle the case where there is no existing data
@@ -272,7 +288,25 @@ class ForecastFormModelUtilities():
                 # we do this using pandas 'reindex' feature which will automatically put NaN into any new cells that
                 # get generated (or NaT for date columns).
                 # use reindex to resize the old_values to the new values
-                new_df = old_df.reindex(index=list(range(new_dim_rows)), columns = col_names)
+                new_index = list(range(new_dim_rows))
+
+                # HOWEVER:  if rows need adjustments and we're doing change_from_top (i.e. NOT change_from_bottom), 
+                # then handle the rows separately, before reindexing
+                if (old_dim_rows != new_dim_rows) and (not change_from_bottom):
+
+                    # to add rows from top in reindex, reset the index values
+                    # so that the old df has to bottom part of the new_index
+                    if(old_dim_rows < new_dim_rows):
+                        rows_to_add = new_dim_rows - old_dim_rows
+                        old_df.index = new_index[rows_to_add:]
+                    
+                    # cut rows from the top
+                    else:
+                        rows_to_remove = old_dim_rows - new_dim_rows
+                        old_df = old_df[rows_to_remove:]
+                        old_df.index = new_index
+                    
+                new_df = old_df.reindex(index = new_index, columns = col_names)
 
                 # iterate over all the individually assigned default colums and fill
                 # in their default values

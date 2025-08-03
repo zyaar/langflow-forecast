@@ -161,24 +161,6 @@ print("=============")
 import pandas as pd
 from datetime import datetime
 
-# print("\n\nStart by creating a new dataframe")
-# new_df1 = ForecastFormModelUtilities.fill_drataframe(new_dim_rows= 4,
-#                                                      new_dim_cols = 5,
-#                                                      set_col_names = list = None,  
-#                                                      prev_data =  None, 
-#                                                      default_col_value = pd.NA, 
-#                                                      individual_default_col_values = None, 
-#                                                      col_name_prefix = "col_", 
-#                                                      num_static_cols = 1, 
-#                                                      start_num = -1, 
-#                                                      start_index_at = 1)
-
-
-
-
-
-
-
 print("\n\nStart by creating a new dataframe")
 new_df1 = ForecastFormModelUtilities.fill_drataframe(new_dim_rows= 4,
                                                      new_dim_cols = 5,
@@ -259,6 +241,20 @@ new_df1 = ForecastFormModelUtilities.fill_drataframe(new_dim_rows= 7,
                                                      month = list(range(1,8)))
 
 print(new_df1)
+
+print("\n\nWith above dataframe, add a row FROM TOP")
+new_df1 = ForecastFormModelUtilities.fill_drataframe(new_dim_rows= 8,
+                                                     new_dim_cols = 3,
+                                                     prev_data =  new_df1,
+                                                     default_col_value = pd.NA, 
+                                                     individual_default_col_values = {"patient_progression": 1}, 
+                                                     col_name_prefix = "treatment_", 
+                                                     num_static_cols = 2,
+                                                     month = list(range(1,9)))
+
+print(new_df1)
+
+exit()
 
 
 print("\n\nWith above dataframe, add another row but don't provide any values")

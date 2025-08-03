@@ -42,6 +42,8 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 from typing import List
 import pandas as pd
 import copy
+from langflow.field_typing.range_spec import RangeSpec
+
 
 
 # CONSTANTS
@@ -56,13 +58,22 @@ FORECAST_EPIDEMIOLOGY_DATES_LABEL = "Dates (end-of)"
 # This class set-up up the model of the forecast to be used and the initial numbers that all others will filter down or compute from
 class ForecastEpidemiologyTB(ForecastComponent):
 
-    # COMPONENT META-DATA
-    # ===================
+    # CONFIG CONSTANTS
+    # ================
+
+    # COMPONENT INFO
     display_name: str = "Epidemiology TB"
     description: str = "Build an epidemiology stream of patients using a TIME BASED model."
     icon = "Globe"
     name: str = "EpidemiologyTB"
 
+    # ROW_SET VAR
+    ROW_SET_DISPLAY_NAME = "Number of pre-forecast periods"
+    ROW_SET_INFO = "Number of pre-forecast periods to provide.  Only required when using components (i.e. Treatment, Delay) which require pre_forecast patient flows"
+    ROW_SET_DEFAULT = 0
+    ROW_SET_MIN = 0
+    ROW_SET_MAX = 120
+    ROW_SET_STEP = 1
 
 
     # GENERATE INPUTS / OUTPUTS
@@ -70,6 +81,20 @@ class ForecastEpidemiologyTB(ForecastComponent):
     def _gen_inputs(self) -> list:
         inputs_list = [
             *super()._gen_inputs(),
+
+            # # Pre-Forecast Patients
+            # # Variable which controls the number of rows in the table
+            # IntInput(
+            #     name = "row_set_var",
+            #     display_name = self.ROW_SET_DISPLAY_NAME,
+            #     info = self.ROW_SET_INFO,
+            #     value = self.ROW_SET_DEFAULT,
+            #     dynamic = True,
+            #     real_time_refresh = True,
+            #     show = True,
+            #     required = True,
+            #     range_spec = RangeSpec(min = self.ROW_SET_MIN, max = self.ROW_SET_MAX, step = self.ROW_SET_STEP),
+            # ),
 
             # patient_count
             TableInput(
@@ -80,7 +105,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
                 show=True,
                 dynamic=True,
                 real_time_refresh=True,
-                refresh_button=True,
+                refresh_button=False,
                 table_schema=[
                     {
                         "name": "dates",
@@ -118,12 +143,23 @@ class ForecastEpidemiologyTB(ForecastComponent):
 
 
 
-    # COMPONENT FORM UPDATE RULES
-    # ===========================
+    # INPUT/OUTPUT VALIDATIONS
+    # ========================
+    # def validate_inputs(self):
+    #     super().validate_inputs()
+
+    # def validate_outputs(self):
+    #     super().validate_outputs()
+
+
+
+
+    # FORM UPDATE RULES
+    # =================
     form_update_rules = {}
     form_trigger_rules = [
         #(ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("generate_table_values", ["patient_count"])),
-        (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("patient_count", "generate_table_values", ["patient_count"])),
+        (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("patient_count", "generate_table_values", ["patient_count", "row_set_var"])),
     ]
 
 
@@ -194,6 +230,8 @@ class ForecastEpidemiologyTB(ForecastComponent):
         # NOTE:  Since EPI is the origination of a forecast, we need to add a lot of meta-data here, specifically:
         # create the meta-dataframe, create the dates line, and the epi line
 
+
+
         # generate the meta-dataframe
         meta_data = ForecastMetaDataFrame(input_type = ForecastModelInputTypes(self.input_type),
                                           timescale = ForecastModelTimescale(self.timescale),
@@ -255,6 +293,14 @@ class ForecastEpidemiologyTB(ForecastComponent):
                                                      start_month = int(self.start_month),
                                                      num_years = int(self.num_years),
                                                      timescale = ForecastModelTimescale(self.timescale))
+        
+        # # if pre-forecast dates are requested, generate those as well
+        # if(self.row_set_var > 0):
+        #     pre_forecast_dates = ForecastDataModel.gen_pre_dates(first_forecast_date = dates[0], 
+        #                                                          num_periods = self.row_set_var, 
+        #                                                          time_scale = ForecastModelTimescale(self.timescale))
+        #     dates = pre_forecast_dates + dates
+
         num_rows = len(dates)
 
         # if there are no old values, generate a brand list of dicts for the table
@@ -263,5 +309,11 @@ class ForecastEpidemiologyTB(ForecastComponent):
         
         # otherwise, resize the exist values into the new size (note:  always add the dates in)
         else:
-            new_df = ForecastFormModelUtilities.refill_drataframe(new_dim_rows=num_rows, new_dim_cols=2, prev_data=DataFrame(old_values), col_name_prefix="patient_counts", dates=dates)
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows=num_rows, 
+                                                               new_dim_cols=2,
+                                                               prev_data=DataFrame(old_values),
+                                                               col_name_prefix="patient_counts",
+                                                               num_static_cols = 2,
+                                                               change_from_bottom = False,
+                                                               dates=dates)
             return new_df.to_data_list()

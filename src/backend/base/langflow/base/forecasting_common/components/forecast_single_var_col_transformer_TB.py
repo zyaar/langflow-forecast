@@ -242,7 +242,7 @@ class ForecastSingleVarColTransformerTB(ForecaseSumInputTB):
         # Check if we have existing data
         old_values = self.table_inputs
         if(old_values is not None and isinstance(old_values, list) and len(old_values) > 0):
-            new_df = ForecastFormModelUtilities.fill_drataframe(new_dim_rows =num_rows,
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows =num_rows,
                                                                 new_dim_cols = 2,
                                                                 prev_data  = old_values, 
                                                                 default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
@@ -250,7 +250,7 @@ class ForecastSingleVarColTransformerTB(ForecaseSumInputTB):
                                                                 num_static_cols = 2, 
                                                                 col_1 = list(range(1, num_rows+1)))
         else:
-            new_df = ForecastFormModelUtilities.fill_drataframe(new_dim_rows = num_rows,
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows = num_rows,
                                                                 new_dim_cols = 2,
                                                                 set_col_names = ["col_1", "col_2"],  
                                                                 default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
