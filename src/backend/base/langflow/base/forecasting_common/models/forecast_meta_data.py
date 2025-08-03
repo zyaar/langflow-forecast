@@ -82,7 +82,8 @@ class ForecastDataSeriesMetaDataStepTypes(str, Enum):
 # Enum of ACTION
 # Within in forecast step, what different actions are taken
 class ForecastDataSeriesMetaDataAction(str, Enum):
-    DATES = "dates" 
+    VALUES = "values" # display read-only values
+    DATES = "dates" # display a set of dates
     INPUT = "input" # set-up an input row for data entry
     COPY = "copy" # copy the values from another row
     SUM = "sum" # sum up a series of col ids (in preds) or constants
@@ -731,26 +732,6 @@ class ForecastMetaDataFrame():
 
         return(last_display_type, last_data_type)
     
-
-    # # _get_last_series
-    # # Get the last ForecastMetaDataSeries in a ForecastMetaDataFrame
-    # #  
-    # # INPUTS:
-    # #   meta_data - ForecastMetaDataFrame to check
-    # # 
-    # # OUTPUTS:
-    # #   ForecastMetaDataSeries - the last series in the frame
-
-    # @staticmethod
-    # def get_last_series(meta_data : Type['ForecastMetaDataFrame']) -> ForecastMetaDataSeries:
-    #     if(meta_data is None or len(meta_data.model.keys()) < 1):
-    #         raise ValueError("*  _get_last_series:  meta_data is None or has no columns")
-
-    #     last_id = list(meta_data.model.keys())[-1]
-    #     return(meta_data.model[last_id])
-
-
-
 
     # _check_meta_data
     # Check all the NONE-model meta-data between two frames and ensure they are the same (since we can't combine different types of forecasts)
