@@ -26,13 +26,17 @@ class ForecastExcelBaseHelpers:
     # Standardizes the creation of a tab, including adding headers and anything else need
     #  
     # INPUTS:
-    #   tab = either the name of a worksheet or the 0-based index of the worksheet in a workbook
+    #   tab = name of the worksheet
+    #   protect_worksheet = should all the cells in the worksheet be protected
+    #   workbook = the openpyxl Workbook object which will hold this worksheet
+    #   num_sheets = (optional) how many sheets FROM THE END to insert this workbook
+    #   
     # 
     # OUTPUTS:
     #   worksheet
 
     @staticmethod
-    def create_ws(tab: str, protect_worksheet: bool, workbook: Workbook, num_sheets = int) -> worksheet:
+    def create_ws(tab: str, protect_worksheet: bool, workbook: Workbook, num_sheets: int = 0) -> worksheet:
         ws = ForecastExcelBaseHelpers.safe_create_ws(tab, workbook = workbook, num_sheets = num_sheets)
         ws['A1'] = tab
         ForecastExcelCellStyleBuilder.generate_ws_header(ws['A1'])
@@ -207,4 +211,75 @@ class ForecastExcelBaseHelpers:
             formula = formula[1:]
         
         return(f"({formula})")
+    
+
+    # gen_excel_tab_name
+    @staticmethod
+    def gen_excel_tab_name(name: str, existing_tab_names: list[str]) -> str:
+        MAX_TAB_ID_NUM = 1000
+        num_tries = 0
+
+        # generate a candidate tab name
+        tab_name = ForecastExcelBaseHelpers._gen_excel_tab_name_candidate(name = name)
+
+        # if candiate name already exists and a counter to the name (i.e."name1", "name2", ...) and keep iterating till we find
+        # one that works (or we have tried 999 names)
+        while(tab_name in existing_tab_names):
+            num_tries += 1
+
+            if(num_tries >= MAX_TAB_ID_NUM):
+                raise ValueError(f"\n*  gen_excel_tab_name:  unable to generate unique tab name for {name}, no unique name up to '999'")
+
+            tab_name = ForecastExcelBaseHelpers._gen_excel_tab_name_candidate(name = name, id = num_tries)
+        
+        return tab_name
+            
+
+
+
+    # gen_excel_tab_name_candidate
+    # takes any variable and generates a name suitable which will fit in an excel tab as a name
+    # this is not guaranteed to be unique, but if given a last_id for the name, will increment the last id
+    # by one
+    @staticmethod
+    def _gen_excel_tab_name_candidate(name: str, id: int = None) -> str:
+        chars_to_remove = 0
+
+        # if we have an id, figure out how many character it will need in the tab name
+        # (tabs in EXCEL are limited to 31 chars, so any id characters must decrement from that 31)
+        if(id is not None):
+            chars_to_remove = len(str(id))
+
+        # Replace invalid characters
+        invalid_chars = r'\/?:*[]'
+        for char in invalid_chars:
+            name = name.replace(char, '_')  # Replace with underscore or other suitable character
+
+        # Remove leading/trailing apostrophes if present
+        if name.startswith("'"):
+            name = name[1:]
+        if name.endswith("'"):
+            name = name[:-1]
+
+        # Truncate if longer than 31 characters
+        if len(name) > 31:
+            if id is None:
+                name = name[:31]
+            else:
+                name = name[:(31-chars_to_remove)]    # remove enough characters to be able to add the id
+
+        # Ensure the name is not empty after cleaning
+        if not name:
+            name = "Sheet"  # Default name if cleaning results in an empty string
+
+        if id is not None:
+            name = f"{name}{id}"
+
+        return name
+
+        
+
+
+
+
 
