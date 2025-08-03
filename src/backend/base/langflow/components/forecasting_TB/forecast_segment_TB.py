@@ -209,24 +209,24 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
         # there is an edge case when the component first starts the number of outputs may not match
         # the number of segments, in which case, we need to do it anyway
         if(field_name == "num_segments"):
-            target_segments = field_value
+            target_segments = int(field_value)
         else:
-            target_segments = self.num_segments
+            target_segments = int(self.num_segments)
 
         # check if the length of outputs is different than the value of num_segments, if not, then return
         if(target_segments != curr_num_output_nodes):
             remainder_output = frontend_node["outputs"].pop()
 
             # if less value, then remove the last few nodes
-            if(field_value < curr_num_output_nodes):
-                num_nodes_remove = curr_num_output_nodes - field_value
+            if(target_segments < curr_num_output_nodes):
+                num_nodes_remove = curr_num_output_nodes - target_segments
 
                 for i in range(num_nodes_remove):
                     frontend_node["outputs"].pop()
         
             # if it's greater than, then add a bunch of blank nodes
             else:
-                num_nodes_add = field_value - curr_num_output_nodes
+                num_nodes_add = target_segments - curr_num_output_nodes
 
                 for i in range(num_nodes_add):
                     curr_num = curr_num_output_nodes + (i+1)
