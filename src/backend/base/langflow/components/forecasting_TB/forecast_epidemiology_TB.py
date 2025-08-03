@@ -46,7 +46,7 @@ import copy
 
 # CONSTANTS
 # =========
-
+FORECAST_EPIDEMIOLOGY_DATES_LABEL = "Dates (end-of)"
 
 
 # CLASSES
@@ -207,7 +207,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
                                                         action = ForecastDataSeriesMetaDataAction.DATES,
                                                         data_type = ForecastDataSeriesMetaDataDataType.DATE,
                                                         display_type = ForecastDataSeriesMetaDataDataType.DATE,
-                                                        display_name = "Dates (end-of)",
+                                                        display_name = FORECAST_EPIDEMIOLOGY_DATES_LABEL,
                                                         data_values = updated_model[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].to_list(),
                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)
         
