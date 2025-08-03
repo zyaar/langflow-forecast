@@ -386,7 +386,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
             pat_on_treatment_data_timescale_adjusted = pat_on_treatment_data
         
         # get product information:  product_id, product_display_name
-        product_id = f"{ForecastTreatmentTB.COL_PREFIX}{seg_num}"
+        product_id = f"{self._id}_{ForecastTreatmentTB.COL_PREFIX}{seg_num}"
         product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
         product_model = treatment_details_model[product_id]
         product_meta_data = treatment_details_meta_data.model[product_id]
@@ -554,7 +554,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         for i in range(num_cols):
             col_name = treatment_details.columns[i+self.NUM_STATIC_COLS]
             col_treat_prod_values = treatment_details[col_name]
-            col_treat_prod_id = f"{ForecastTreatmentTB.COL_PREFIX}{i+1}"
+            col_treat_prod_id = f"{self._id}_{ForecastTreatmentTB.COL_PREFIX}{i+1}"
+
 
 
             # add the product's number of Rx's per month to meta-data
@@ -759,6 +760,9 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     #   index of column name in table
 
     def _get_input_table_col_num_from_name(self, table_name: str, col_name: str) -> int:
+        # remove prefix from col_name
+        col_name = col_name.removeprefix(f"{self._id}_")
+
         if not self._hidden_exists():
             return super()._get_input_table_col_num_from_name(table_name, col_name)
         
