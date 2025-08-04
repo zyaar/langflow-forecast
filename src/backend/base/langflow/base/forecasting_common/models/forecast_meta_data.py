@@ -67,6 +67,16 @@ class ForecastMetaDataSeriesSchema(str, Enum):
     OBJS = "objs" # any additional objects which are required for this step
 
 
+# Enum holding the schema of the meta-data model
+# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
+class ForecastMetaDataActionSchema(str, Enum):
+    ACTION = "action"
+    COUNT = "count" # the number of cells to apply this, if None, assume all remaining cells
+    PRED = "pred" # predecessors, a set of column ids necessary for the action
+    ARGS = "args" # any additional values necessary for actions, or validations
+    OBJS = "objs" # any additional objects which are required for this step
+
+
 # Enum of STEP_TYPE
 # What are the different steps in the forecast process
 class ForecastDataSeriesMetaDataStepTypes(str, Enum):
@@ -146,6 +156,8 @@ def ForecastJsonSerializer(obj):
     if isinstance(obj, ForecastMetaDataFrame):
         return ({"meta_data": obj.meta_data, "model": obj.model})
     elif isinstance(obj, ForecastMetaDataSeries):
+        return obj.meta_data
+    elif isinstance(obj, ForecastMetaDataAction):
         return obj.meta_data
     elif isinstance(obj, DataFrame):
         return obj.to_dict()
@@ -227,6 +239,145 @@ class ForecastMetaDataSeriesIdGenerator():
             return rel_id
         else:
             raise ValueError(f"\n*  full_to_rel_id:  Invalid full ID provided '{full_id}', full id must have one and only one '{self.FULL_ID_SEP_CHAR}' in the string.")
+
+
+
+
+
+# ForecastMetaDataAction
+# Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
+class ForecastMetaDataAction():
+
+    # CLASS VARIABLES
+    # ---------------
+
+
+    # INSTANCE VARIABLES
+    # ------------------
+    # meta_data - stores all the meta-data for this instance
+
+
+    # __init__
+    # Adds initializing all meta-data attributes to None.
+    #  
+    # INPUTS:
+    #   Any of the meta-data attributes can be set
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def __init__(self, *args, **kwargs):
+        self.meta_data = {}
+
+        # init all meta_data attributes
+        for attrib in ForecastMetaDataActionSchema:
+            if attrib in kwargs:
+                self.meta_data[attrib] = kwargs.get(attrib)
+            else:
+                self.meta_data[attrib] = None
+
+
+    # set_forecast_meta_data
+    # Takes all the meta_data forecast as a set of arguments and stuffs them in the attributes of the object
+    # easier to do than manually updating each attribute in the DataFrame object
+    #  
+    # INPUTS:
+    #   Each meta-data field in the ForecastDataSeriesMetaDataSchema
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def set_forecast_meta_data(self, *args, **kwargs):
+        for arg_name in kwargs:
+            if arg_name in ForecastMetaDataActionSchema:
+                self.meta_data[arg_name] = kwargs.get(arg_name)
+            else:
+                raise ValueError(f"*  set_forecast_meta_data:  invalid arg_name '{arg_name}'")
+        
+
+    # set_forecast_meta_data_bulk
+    # Takes all the meta_data forecast as a set of arguments and stuffs them in the attributes of the object
+    # but in a bulk format (dict), might be easier to do when constantly copying from only pandas data series to new ones
+    # (after a concat operations, for example, which wipes out all the meta-data)
+    #  
+    # INPUTS:
+    #   Dict with name_value pairs for all the meta-data
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def set_forecast_meta_data_bulk(self, meta_data_attribs: dict):
+        for key in meta_data_attribs.keys():
+            if key in ForecastMetaDataActionSchema:
+                self.meta_data[key] = meta_data_attribs[key]
+            else:
+                raise ValueError(f"*  set_forecast_meta_data_bulk:  invalid key '{key}'")
+        
+
+
+    # get_forecast_meta_data_bulk
+    # Returns a dump of all the meta-data_attributes from the pandas data series, but in a bulnk format (dict)
+    # might be easier to do when constantly copying from only pandas data series to new ones
+    # (after a concat operations, for example, which wipes out all the meta-data)
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Dict with name_value pairs for all the meta-data
+
+    def get_forecast_meta_data_bulk(self) -> dict:
+        meta_data_attribs = {}
+
+        for attrib in ForecastMetaDataActionSchema:
+            meta_data_attribs[attrib] = self.meta_data[attrib]
+
+        return meta_data_attribs
+    
+
+
+    # __str__
+    # Return a printable version of the class instance
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Str with printable version of instance data
+
+    def __str__(self):
+        results = super().__str__()
+
+        for attrib in ForecastMetaDataActionSchema:
+            results += f"\n{attrib} = {self.meta_data[attrib]}"
+
+        return results
+    
+
+    
+    # to_json
+    # Return a printable version of the class instance
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Str with printable version of instance data
+
+    def to_json(self, indent: int = 4) -> str:
+        import json
+        return json.dumps(self, default=ForecastJsonSerializer, indent=indent)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
