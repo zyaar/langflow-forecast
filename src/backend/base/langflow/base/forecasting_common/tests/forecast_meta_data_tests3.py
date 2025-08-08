@@ -20,10 +20,9 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions,
                                                                         ForecastMetaDataSeriesIdGenerator)
 
-from langflow.base.forecasting_common.builders.excel.forecast_excel_iterator import ForecastPredIterator
-from langflow.base.forecasting_common.builders.forecast_builder_excel_TB import (IdToCellReferenceMap,
-                                                                                 IdToCellReferenceMaps,
-                                                                                 ForecastPredRef)
+from langflow.base.forecasting_common.builders.forecast_builder_excel_TB import IdToCellReferenceMaps
+from langflow.base.forecasting_common.models.forecast_data_interface import ForecastPredIterator
+
 
 from openpyxl import Workbook, worksheet, load_workbook
 from openpyxl.cell.cell import Cell
@@ -321,9 +320,9 @@ def main():
         output_results += "\n\n"
         output_results = output_results +"\n" + print_header(model_to_test.model[col], num_elements_in_row)
         forecast_predictor = ForecastPredIterator(col = model_to_test.model[col],
-                                                address_maps = address_map,
-                                                default_card = address_map.default_ref_map_id,
-                                                total_elements = num_elements_in_row)
+                                                  address_maps = address_map,
+                                                  default_card = address_map.default_ref_map_id,
+                                                  total_elements = num_elements_in_row)
     
         i = 0
         left_in_range = 0

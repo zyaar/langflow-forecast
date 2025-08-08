@@ -11,6 +11,7 @@ import nanoid
 #from langflow.schema.dataframe import DataFrame, Data
 from langflow.schema.data import Data
 from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_text_file_to_data
+#from langflow.base.forecasting_common.models.forecast_data_interface import ForecastMetaDataRange
 
 #from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
 #from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
@@ -70,15 +71,6 @@ class ForecastMetaDataSeriesSchema(str, Enum):
     OBJS = "objs" # any additional objects which are required for this step
 
 
-# Enum holding the schema of the meta-data model
-# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
-class ForecastMetaDataRangeSchema(str, Enum):
-    COUNT = "count" # the number of elements in the column to apply this, if None, assume all remaining cells
-    PRED = "pred" # predecessors, a set of column ids necessary for the action
-    ARGS = "args" # any additional values necessary for actions, or validations
-    OBJS = "objs" # any additional objects which are required for this step
-
-
 # Enum of STEP_TYPE
 # What are the different steps in the forecast process
 class ForecastDataSeriesMetaDataStepTypes(str, Enum):
@@ -131,12 +123,6 @@ class ForecastDataSeriesMetaDataValidateInputRestrictions(str, Enum):
     TOKEN_CHECK = "token_check"
 
 
-# # Enum of VALUE_CHECK
-# class ForecastDataSeriesMetaDataValidateValueChecks(str, Enum):
-#     LESS_EQUAL_THAN = "less_equal_than"
-
-
-
 # Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
 # Within in forecast step, what different actions are taken
 class ForecastDataSeriesMetaDataComparisonType(str, Enum):
@@ -150,29 +136,13 @@ class ForecastDataSeriesMetaDataComparisonType(str, Enum):
         NOT_BETWEEN = "NOT_BETWEEN"
 
 
-
-# ForecastJsonSerializer
-def ForecastJsonSerializer(obj):
-    from langflow.schema.dataframe import DataFrame
-
-    if isinstance(obj, ForecastMetaDataFrame):
-        return ({"meta_data": obj.meta_data, "model": obj.model})
-    elif isinstance(obj, ForecastMetaDataSeries):
-        return obj.meta_data
-    elif isinstance(obj, ForecastMetaDataRange):
-        return obj.meta_data
-    elif isinstance(obj, DataFrame):
-        return obj.to_dict()
-    elif isinstance(obj, pd.Series):
-        return obj.to_list()
-    elif isinstance(obj, pd.Timestamp):
-        return obj.isoformat()
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, Enum):
-        return obj.value
-    else:
-        raise TypeError(f"Type {type(obj)} not serializable by ForecastJsonSerializer")
+# Enum holding the schema of the meta-data model
+# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
+class ForecastMetaDataRangeSchema(str, Enum):
+    COUNT = "count" # the number of elements in the column to apply this, if None, assume all remaining cells
+    PRED = "pred" # predecessors, a set of column ids necessary for the action
+    ARGS = "args" # any additional values necessary for actions, or validations
+    OBJS = "objs" # any additional objects which are required for this step
 
 
 
@@ -512,7 +482,7 @@ class ForecastMetaDataRange():
 
     def to_json(self, indent: int = 4) -> str:
         import json
-        return json.dumps(self, default=ForecastJsonSerializer, indent=indent)
+        return json.dumps(self, default=ForecastMetaDataJsonSerializer, indent=indent)
 
 
 
@@ -650,7 +620,7 @@ class ForecastMetaDataSeries():
 
     def to_json(self, indent: int = 4) -> str:
         import json
-        return json.dumps(self, default=ForecastJsonSerializer, indent=indent)
+        return json.dumps(self, default=ForecastMetaDataJsonSerializer, indent=indent)
     
 
 
@@ -668,6 +638,24 @@ class ForecastMetaDataSeries():
             return False
         else:
             return True
+        
+
+    # has_pred
+    # Return true if this Series has pred (i.e. one or more entries in the ranges meta_data), False otherwise
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   True or False
+
+    def has_preds(self) -> bool:
+        if(ForecastMetaDataSeriesSchema.PRED not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.PRED] is None):
+            return False
+        else:
+            return True
+        
+
 
 
 
@@ -1180,7 +1168,7 @@ class ForecastMetaDataFrame():
 
     def to_json(self, indent:int = 4) -> str:
         import json
-        return json.dumps(self, default=ForecastJsonSerializer, indent=indent)
+        return json.dumps(self, default=ForecastMetaDataJsonSerializer, indent=indent)
 
 
 
@@ -1208,3 +1196,30 @@ class ForecastMetaDataFrame():
             text = [normalize_text(item) if isinstance(item, str) else item for item in text]
 
         return Data(data=text)
+    
+
+
+
+# ForecastMetaDataJsonSerializer
+def ForecastMetaDataJsonSerializer(obj):
+    from langflow.schema.dataframe import DataFrame
+
+    if isinstance(obj, ForecastMetaDataFrame):
+        return ({"meta_data": obj.meta_data, "model": obj.model})
+    elif isinstance(obj, ForecastMetaDataSeries):
+        return obj.meta_data
+    elif isinstance(obj, ForecastMetaDataRange):
+        return obj.meta_data
+    elif isinstance(obj, DataFrame):
+        return obj.to_dict()
+    elif isinstance(obj, pd.Series):
+        return obj.to_list()
+    elif isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, Enum):
+        return obj.value
+    else:
+        raise TypeError(f"Type {type(obj)} not serializable by ForecastMetaDataJsonSerializer")
+    
