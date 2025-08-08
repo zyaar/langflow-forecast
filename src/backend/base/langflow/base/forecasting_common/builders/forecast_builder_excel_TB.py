@@ -74,6 +74,35 @@ class ForecastBuilderExcelRequiredTabs(str, Enum):
 
 
 
+# simple class to hold the pred reference ID for sharing across the iterator and a specific builder address lookup
+class ForecastPredRef():
+    const = None
+    full_id = None
+    rel_id = None
+    single_value = None
+    shift_value = None
+    has_full_id = None
+    has_single_value = None
+    has_shift_value = None
+
+    def __init__(self, 
+                 const: int | float = None,
+                 full_id : str = None,
+                 rel_id : str = None,
+                 single_value : int = None,
+                 shift_value : int = None,
+                 has_full_id : bool = None,
+                 has_single_value : bool = None,
+                 has_shift_value: bool = None):
+        
+        self.const = const
+        self.full_id = full_id
+        self.rel_id = rel_id
+        self.single_value = single_value
+        self.shift_value = shift_value
+        self.has_full_id = has_full_id
+        self.has_single_value = has_single_value
+        self.has_shift_value = has_shift_value
 
 
 
@@ -81,35 +110,76 @@ class ForecastBuilderExcelRequiredTabs(str, Enum):
 # IdToCellReferenceMap
 # map ForecastMetaDataFrame id's to the cell locations that they represent
 class IdToCellReferenceMap():
+
     # INSTANCE VARIABLES
     # id_to_ref_map - a dictionary which maps all ForecastDataModel IDs to the tab and the cell reference of their rows in excel
+    # default_num_elements - the default number of elements to store for an id
 
     # __init__ function, does nothing right now
     id_to_ref_map = {}
 
-    def __init__(self):
-        pass
+    def __init__(self, default_num_elements: int):
+        self.default_num_elements = default_num_elements
 
     # Add a new entry to the map: id is the key, tab_name and cell references are the values
     # TODO:  change the returned value of 'Any' into the name of the 'cell' object
-    def add(self, id: str, tab_name: str, cell_ref: Cell):
+    def add(self, id: str, tab_name: str, cell_ref: Cell, num_elements: int = None):
         if(id in self.id_to_ref_map.keys()):
             raise ValueError(f"\n* IdToCellReferenceMap.add: error, id {id} already exists in map:\n{self.id_to_ref_map.keys()}")
 
-        self.id_to_ref_map[id] = {"tab": tab_name, "ref": cell_ref}
+        if num_elements is None:
+            num_elements = self.default_num_elements
+
+        self.id_to_ref_map[id] = {"tab": tab_name, "ref": cell_ref, "num_elements": num_elements}
 
 
     # Given an id, return the: tab_name, cell object pointing to the start of row
     # TODO:  change the returned value of 'Any' into the name of the 'cell' object
-    def get(self, id: str) -> Tuple[str, Any]:
+    def get(self, id: str) -> Tuple[str, Any, int]:
         try:
             full_ref = self.id_to_ref_map[id]
             tab_name = full_ref["tab"]
             cell_ref = full_ref["ref"]
+            num_elements = full_ref["num_elements"]
         except:
             raise ValueError(f"\n* IdToCellReferenceMap.get: error, id {id} not found in map:\n{self.id_to_ref_map.keys()}")
         
-        return(tab_name, cell_ref)
+        return(tab_name, cell_ref, num_elements)
+    
+
+    # Return a PRED ref, which is more complicated than a simple get
+    def ref_to_obj(self, id: ForecastPredRef, element_num: int) -> tuple[str, Any, int]:
+        if id.const is not None:
+            raise ValueError(f"\n*  ref_to_obj:  invalid ForecastPrefRef passed, ref is a constant {id.const}.")
+        
+        # get the reference
+        (tab_name, cell_ref, num_elements) = self.get(id.rel_id)
+
+        # figure out which element number of return
+        if(id.has_single_value):
+            element_idx = id.single_value
+        else:
+            element_idx = element_num
+
+        if(id.has_shift_value):
+            element_idx += id.shift_value
+
+        # handle the element being outside of bounds
+        if (element_idx >= num_elements) or (element_idx < 0):
+            # for convenience, it is expected when using shift that elements may fall outside of bounds,
+            # so if that is the case, don't raise an error, just return zero
+            if(id.has_shift_value):
+                return(tab_name, 0, num_elements)
+            else:
+                raise ValueError(f"\n*  ref_to_obj:  element number requested {element_num} is outside of id ({id.full_id}_{id.rel_id}) bounds ({num_elements}).")
+            
+        # if element inside bounds, return the object
+        else:
+            if(element_idx > 0):
+                cell_ref= cell_ref.offset(row = 0, column = element_idx)
+
+            return(tab_name, cell_ref, num_elements)
+
 
 
 
@@ -124,30 +194,30 @@ class IdToCellReferenceMaps():
     # CLASS VARIABLES
     ref_maps = {}
 
-    def __init__(self, default_ref_map_id: str = ""):
+    def __init__(self, default_num_elements: int, default_ref_map_id: str = ""):
         self.default_ref_map_id = ""
 
         if(default_ref_map_id != ""):
-            self.create_ref_map(ref_map_id = default_ref_map_id, is_default = True)
+            self.create_ref_map(ref_map_id = default_ref_map_id, default_num_elements = default_num_elements, is_default = True)
 
 
 
-    def add(self, id: str, tab_name: str, cell_ref: Cell, ref_map_id: str = None):
+    def add(self, id: str, tab_name: str, cell_ref: Cell, ref_map_id: str = None, num_elements: int = None):
         if ref_map_id is None:
             if(self.default_ref_map_id == ""):
                 raise ValueError(f"\n* add: error, add method called without ref_map_id, and no default ref_map_id available {id} {tab_name} {cell_ref}.")
             else:
-                return self.ref_maps[self.default_ref_map_id].add(id, tab_name, cell_ref)
+                return self.ref_maps[self.default_ref_map_id].add(id, tab_name, cell_ref, num_elements)
         else:
-            return self.ref_maps[ref_map_id].add(id, tab_name, cell_ref)
+            return self.ref_maps[ref_map_id].add(id, tab_name, cell_ref, num_elements)
 
 
 
-    def get(self, id: str, ref_map_id: str = None) -> Tuple[str, Cell]:
+    def get(self, id: str, ref_map_id: str = None) -> Tuple[str, Cell, int]:
         (ref_map_id, cell_id, cell_offset) = self._parse_id(id)
 
         if ref_map_id in self.ref_maps.keys():
-            (tab_name, cell_ref) = self.ref_maps[ref_map_id].get(cell_id)
+            (tab_name, cell_ref, num_elements) = self.ref_maps[ref_map_id].get(cell_id)
         else:
             raise ValueError(f"\n* get: error, invalid ref_map '{ref_map_id}' provided in {id}, current ref maps {self.ref_maps.keys()}.")
 
@@ -155,14 +225,15 @@ class IdToCellReferenceMaps():
         if cell_offset > 0:
             cell_ref = cell_ref.offset(column = cell_offset)
 
-        return(tab_name, cell_ref)
+        return(tab_name, cell_ref, num_elements)
+
 
         
-    def create_ref_map(self, ref_map_id, is_default = False):
+    def create_ref_map(self, ref_map_id: str, default_num_elements: int, is_default = False):
         if(ref_map_id in self.ref_maps.keys()):
             raise ValueError(f"\n* add_ref_map:  error, attempting to create duplicate ref_map {ref_map_id}.")
         else:
-            self.ref_maps[ref_map_id] = IdToCellReferenceMap()
+            self.ref_maps[ref_map_id] = IdToCellReferenceMap(default_num_elements = default_num_elements)
             
             if is_default:
                 self.default_ref_map_id = ref_map_id
@@ -207,7 +278,13 @@ class IdToCellReferenceMaps():
         else:   # results_offset > 2
             raise ValueError(f"\n*  _parse_id:  error, improperly formatted id provided ({id}), too many '.'.")
 
-        return(ref_map_id, cell_id, cell_offset)        
+        return(ref_map_id, cell_id, cell_offset)
+    
+
+    # take an ForecastPrefRef and the element in the range current at and return a Cell object
+    def ref_to_obj(self, id: ForecastPredRef, element_num: int) -> tuple[str, Any, int]:
+        return self.ref_maps[id.full_id].ref_to_obj(id, element_num)
+
 
 
 
@@ -342,7 +419,7 @@ class ForecastBuilderExcelTB():
         self.input_type = self.meta_data.meta_data[ForecastMetaDataFrameSchema.INPUT_TYPE]
 
         # initial setup when building
-        self._initialize_new_builder()
+        self._initialize_new_builder(default_num_elements = self.num_periods)
 
         # generate the model
         self._build_model_excel()
@@ -617,7 +694,7 @@ class ForecastBuilderExcelTB():
     # 
     # OUTPUTS:
     #   TBD
-    def _initialize_new_builder(self):
+    def _initialize_new_builder(self, default_num_elements: int):
         # create new workbook or copy template
         if(self.hasTemplate):
             # since openpyxl has no object copy method for a workbook, we have to copy the template workbook
@@ -650,7 +727,7 @@ class ForecastBuilderExcelTB():
             self.EXCEL_FIELD_TO_LETTER_MAP[element] = ws.cell(row = 1, column = element.value).column_letter
 
         # set up the mapper between ForecastDataModel id's and cell references in excel
-        self.id_cellref_maps = IdToCellReferenceMaps(default_ref_map_id = self.id)
+        self.id_cellref_maps = IdToCellReferenceMaps(default_ref_map_id = self.id, default_num_elements = default_num_elements)
 
         
 
@@ -995,31 +1072,53 @@ class ForecastBuilderExcelTB():
         treatment_tab_name = ForecastExcelBaseHelpers.gen_excel_tab_name(name = display_name, existing_tab_names = tab_names)
         self._create_tab(treatment_tab_name, protect_worksheet = FORECAST_EXCEL_PROTECT_WORKSHEET, workbook = self.player_model, num_sheets = self.NEW_TAB_INSERT_INDEX_FROM_END)
 
+        # TREATMENT DETAILS SECTION
         # build the treatment details section
         args = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.OBJS]
         treatment_table_meta_data = args["meta_data"]
 
         self._build_metadataframe_model(model = treatment_table_meta_data.model, default_card = treatment_tab_name)
 
+        # add a blank rows
+        self._add_blank_row(tab_name = treatment_tab_name)
+
+        # PC initial State
+        by_month_forecast_dates = ForecastDataModel.gen_forecast_dates(start_year = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_YEAR],
+                                                                       num_years = self.meta_data.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS],
+                                                                       start_month = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_MONTH],
+                                                                       timescale = ForecastModelTimescale.MONTH)
+        pc_initial_state = args["pc_initial_state"]
+        num_months_back = len(pc_initial_state)
+        pc_dates_row = ForecastExcelBaseHelpers.quick_static_date_series(id = f"{id}_pc_dates", 
+                                                                         step = ForecastDataSeriesMetaDataStepTypes.TREATMENT, 
+                                                                         label = FORECAST_EPIDEMIOLOGY_DATES_LABEL,
+                                                                         values = ForecastDataModel.gen_pre_dates(first_forecast_date = by_month_forecast_dates[0], 
+                                                                                                                  num_periods = num_months_back, 
+                                                                                                                  time_scale = ForecastModelTimescale.MONTH))
+        self.action_DATES(id = pc_dates_row.meta_data[ForecastMetaDataSeriesSchema.ID], card_name = treatment_tab_name, curr_meta_col = pc_dates_row)
+
+        pc_values_row = ForecastExcelBaseHelpers.quick_static_input_series(id = f"{id}_pc_values",
+                                                                           step = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                           label = "PC Initial state",
+                                                                           values = pc_initial_state)
+        self.action_INPUT(id = pc_values_row.meta_data[ForecastMetaDataSeriesSchema.ID], card_name = treatment_tab_name, curr_meta_col = pc_values_row)
+        
+        
         # add two blank rows
         self._add_blank_row(tab_name = treatment_tab_name)
         self._add_blank_row(tab_name = treatment_tab_name)
 
+
+        # DATES ROW
         # add a date row (makes it easier to understand the values calculations)
-        dates_col = ForecastMetaDataSeries(id = id,
-                                           step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                           action = ForecastDataSeriesMetaDataAction.DATES,
-                                           data_type = ForecastDataSeriesMetaDataDataType.DATE,
-                                           display_type = ForecastDataSeriesMetaDataDataType.DATE,
-                                           display_name = FORECAST_EPIDEMIOLOGY_DATES_LABEL,
-                                           data_values = ForecastDataModel.gen_forecast_dates(start_year = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_YEAR],
-                                                                                              num_years = self.meta_data.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS],
-                                                                                              start_month = self.meta_data.meta_data[ForecastMetaDataFrameSchema.START_MONTH],
-                                                                                              timescale = ForecastModelTimescale.MONTH),
-                                           validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                           pred = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED])
-        
-        self.action_DATES(id = id, card_name = treatment_tab_name, curr_meta_col = dates_col)
+        dates_row = ForecastExcelBaseHelpers.quick_static_date_series(id = f"{id}_dates", 
+                                                                      step = ForecastDataSeriesMetaDataStepTypes.TREATMENT, 
+                                                                      label = FORECAST_EPIDEMIOLOGY_DATES_LABEL, 
+                                                                      values = by_month_forecast_dates)
+
+        self.action_DATES(id = dates_row.meta_data[ForecastMetaDataSeriesSchema.ID], card_name = treatment_tab_name, curr_meta_col = dates_row)
+
+
 
         return(treatment_tab_name)
 
@@ -1346,7 +1445,7 @@ class ForecastBuilderExcelTB():
             # if ID, get the 
             else:
                 id = id_or_const
-                (tab_name, cell_ref) = self.id_cellref_maps.get(id)  # get the tab_name and the cell reference
+                (tab_name, cell_ref, num_elements) = self.id_cellref_maps.get(id)  # get the tab_name and the cell reference
                 col_offset = col_num - ForecastBuilderExcelTB.ExcelField.START # figure out how many cells over we need to shift the reference to get our values
                 cell_ref = cell_ref.offset(row = 0, column = col_offset)
                 return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_ref, with_ws_name=with_ws_name))
