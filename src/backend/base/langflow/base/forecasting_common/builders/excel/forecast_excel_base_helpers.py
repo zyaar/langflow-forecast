@@ -196,7 +196,31 @@ class ForecastExcelBaseHelpers:
         return re.sub(r"(?:'[^']+'|[A-Za-z0-9_]+)!", "", formula)
     
 
+    # remove_worksheet_names_from_string
+    # Alias for 'remove_worksheet_names_from_formula'
+    @staticmethod
+    def remove_worksheet_names_from_string(ref: str) -> str:
+        return(ForecastExcelBaseHelpers.remove_worksheet_names_from_formula(ref))  
+    
 
+
+    # remove_worksheet_names_from_list
+    # Given a list of strings, all of which are excel cell reference ready for formulas (i.e. 'Summary'!A1), remove the worksheet name in the reference
+    # INPUTS
+    #   formula = excel formula as a string to parse
+    #
+    # OUTPUT
+    #   formula string with cell references without worksheet names
+    @staticmethod
+    def remove_worksheet_names_from_list(list_of_refs: list[str]) -> list[str]:
+        list_of_refs_without_worksheet_names = []
+
+        for full_ref_str in list_of_refs:
+            list_of_refs_without_worksheet_names.append(ForecastExcelBaseHelpers.remove_worksheet_names_from_string(full_ref_str))
+
+        return(list_of_refs_without_worksheet_names)
+    
+    
     # convert_formula_to_sub_term
     # Takes a formula, removes the "=" at the from, and surrounds with parens, making it
     # suitable for inclusion in another formula
@@ -276,10 +300,36 @@ class ForecastExcelBaseHelpers:
             name = f"{name}{id}"
 
         return name
+    
 
-        
+    # quick_static_date_series
+    # generates a date ForecastMetaDataSeries with the minimum of inputs, used by the builder to quickly generate inputs for "action_DATES" calls
+    @staticmethod
+    def quick_static_date_series(id, step, label, values):
+        from langflow.base.forecasting_common.models.forecast_meta_data import ForecastMetaDataSeries, ForecastDataSeriesMetaDataAction, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataValidationSchema, ForecastDataSeriesMetaDataValidateInputRestrictions
+        return(
+            ForecastMetaDataSeries(id = id,
+                                   step_type = step,
+                                   action = ForecastDataSeriesMetaDataAction.DATES,
+                                   data_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                   display_type = ForecastDataSeriesMetaDataDataType.DATE,
+                                   display_name = label,
+                                   data_values = values,
+                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)
+        )
+    
 
-
-
-
-
+    @staticmethod
+    def quick_static_input_series(id, step, label, values):
+        from langflow.base.forecasting_common.models.forecast_meta_data import ForecastMetaDataSeries, ForecastDataSeriesMetaDataAction, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataValidationSchema, ForecastDataSeriesMetaDataValidateInputRestrictions
+        return(
+            ForecastMetaDataSeries(id = id,
+                                   step_type = step,
+                                   action = ForecastDataSeriesMetaDataAction.INPUT,
+                                   data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                   display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                   display_name = label,
+                                   data_values = values,
+                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],)
+        )
+    

@@ -20,6 +20,7 @@ from langflow.schema.dataframe import DataFrame, Data
 # FORECAST SPECIFIC IMPORTS
 # =========================
 from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
+
 from langflow.base.forecasting_common.models.forecast_data_model import ForecastDataModel
 from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
                                                                         ForecastMetaDataFrame, 
@@ -31,6 +32,9 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions,
                                                                         ForecastDataSeriesMetaDataComparisonType)
+
+from langflow.base.forecasting_common.models.forecast_data_interface import IdElementToHandleMap, IdElementToHandleMaps, ForecastPredRef, ForecastPredIterator
+
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -48,7 +52,6 @@ from  langflow.components.forecasting_TB.forecast_epidemiology_TB import FORECAS
 from langflow.base.forecasting_common.builders.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
 from langflow.base.forecasting_common.builders.excel.forecast_excel_validation_builder import ForecastExcelValidationRuleBuilder
 from langflow.base.forecasting_common.builders.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
-
 
 
 # CONFIG STUFF
@@ -74,42 +77,10 @@ class ForecastBuilderExcelRequiredTabs(str, Enum):
 
 
 
-# simple class to hold the pred reference ID for sharing across the iterator and a specific builder address lookup
-class ForecastPredRef():
-    const = None
-    full_id = None
-    rel_id = None
-    single_value = None
-    shift_value = None
-    has_full_id = None
-    has_single_value = None
-    has_shift_value = None
-
-    def __init__(self, 
-                 const: int | float = None,
-                 full_id : str = None,
-                 rel_id : str = None,
-                 single_value : int = None,
-                 shift_value : int = None,
-                 has_full_id : bool = None,
-                 has_single_value : bool = None,
-                 has_shift_value: bool = None):
-        
-        self.const = const
-        self.full_id = full_id
-        self.rel_id = rel_id
-        self.single_value = single_value
-        self.shift_value = shift_value
-        self.has_full_id = has_full_id
-        self.has_single_value = has_single_value
-        self.has_shift_value = has_shift_value
-
-
-
 
 # IdToCellReferenceMap
 # map ForecastMetaDataFrame id's to the cell locations that they represent
-class IdToCellReferenceMap():
+class IdToCellReferenceMap(IdElementToHandleMap):
 
     # INSTANCE VARIABLES
     # id_to_ref_map - a dictionary which maps all ForecastDataModel IDs to the tab and the cell reference of their rows in excel
@@ -176,7 +147,11 @@ class IdToCellReferenceMap():
         # if element inside bounds, return the object
         else:
             if(element_idx > 0):
+                print(element_idx)
                 cell_ref= cell_ref.offset(row = 0, column = element_idx)
+
+            # Add the VALUE offset as well (since PREDs are always values) ZIV
+            cell_ref = cell_ref.offset(row = 0, column = (ForecastBuilderExcelTB.ExcelField.VALUES - ForecastBuilderExcelTB.ExcelField.START))
 
             return(tab_name, cell_ref, num_elements)
 
@@ -184,9 +159,8 @@ class IdToCellReferenceMap():
 
 
 
-# IdToCellReferenceMap
 # map ForecastMetaDataFrame id's to the cell locations that they represent
-class IdToCellReferenceMaps():
+class IdToCellReferenceMaps(IdElementToHandleMaps):
     # INSTANCE VARIABLES
     # player_model = handle to the Workbook object for excel
     # default_ref_map_id = if no ref_map_id provided, use this one
@@ -282,6 +256,15 @@ class IdToCellReferenceMaps():
     
 
     # take an ForecastPrefRef and the element in the range current at and return a Cell object
+    # INPUT
+    #   id - id of the row requested
+    #   element_num - the number of the element in that row being requested (0-index... I think)
+    #
+    # OUTPUT
+    #   tab_name - (str) tab name in excel of the tab holding this cell
+    #   cell - (Cell) the openpyxl Cell class holding the reference to the cell
+    #   num_elements - (int) total number of elements in the row requested    tab_name, cell_ref, num_elements
+    #   
     def ref_to_obj(self, id: ForecastPredRef, element_num: int) -> tuple[str, Any, int]:
         return self.ref_maps[id.full_id].ref_to_obj(id, element_num)
 
@@ -455,7 +438,7 @@ class ForecastBuilderExcelTB():
                 case ForecastDataSeriesMetaDataAction.INPUT:
                     self.action_INPUT(id, default_card, curr_col)
 
-                case ForecastDataSeriesMetaDataAction.COPY:             # TODO:  implement copy action
+                case ForecastDataSeriesMetaDataAction.COPY:             # TODO:  implement copy action (DO WE REALLY NEED THIS?)
                     print(f"COPY not implemented: {id}")
                     break
 
@@ -468,9 +451,9 @@ class ForecastBuilderExcelTB():
                 case ForecastDataSeriesMetaDataAction.SUB:
                     self.action_SUB(id, default_card, curr_col)
 
-                case ForecastDataSeriesMetaDataAction.SHIFT:            # TODO:  implement shift action
-                    print(f"SHIFT not implemented: {id}")
-                    break
+                # case ForecastDataSeriesMetaDataAction.SHIFT:            # TODO:  implement shift action
+                #     print(f"SHIFT not implemented: {id}")
+                #     break
 
                 case ForecastDataSeriesMetaDataAction.STEP_INIT:
                     default_card = self.action_STEP_INIT(id, default_card, curr_col)
@@ -784,16 +767,17 @@ class ForecastBuilderExcelTB():
     # OUTPUTS:
     #   NA
 
-    def _build_validation_excel(self, 
+    def _build_validation_excel(self,
                                 curr_cell_meta_data: ForecastMetaDataSeries, 
                                 curr_cell: Cell,
                                 data_type: ForecastMetaDataSeriesSchema, 
                                 display_type: ForecastMetaDataSeriesSchema, 
                                 validation_rules: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]],
                                 curr_formula: str = None,
-                                apply_to_preds: bool = False):
+                                apply_to_preds: bool = False,
+                                list_of_pred_refs: list[str] = None):
         
-        if ((apply_to_preds) and (curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED] is None)):
+        if ((apply_to_preds) and (list_of_pred_refs is None)):
             raise ValueError(f"\n*  _build_validation_excel:  apply_to_preds is True, but no pred field in ForecastDataSeries meta_data")
         
         for rule in validation_rules:
@@ -811,18 +795,21 @@ class ForecastBuilderExcelTB():
                 case ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK:
                     # if preds exists, they needed to determine where to put the value check, so generate the formulas
                     # since data_validation in excel CANNOT work with Worksheet names (i.e. A1 works, 'Summary'!A1 does not)
-                    # we generate the values without ws names
-                    preds = curr_cell_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED]
+                    # we have to remove the worksheet name portion of all the cell references we were given
 
-                    if apply_to_preds:
-                        preds = self._ids_to_formula_refs(preds, col_num = curr_cell.column, with_ws_name = False) 
+                    # if apply_to_preds:
+                    #     preds = self._ids_to_formula_refs(preds, col_num = curr_cell.column, with_ws_name = False) 
+
+                    # TODO:  Add function that removes tab names from list of ref strings
+                    if list_of_pred_refs is not None:
+                        list_of_pred_refs = ForecastExcelBaseHelpers.remove_worksheet_names_from_list(list_of_pred_refs)
 
                     # adds the value comparison
                     self._add_value_comparison(curr_cell = curr_cell,
                                                comparison_type = rule_value,
                                                curr_cell_meta_data = curr_cell_meta_data,
-                                               preds = preds,
-                                               curr_formula=curr_formula)
+                                               preds = list_of_pred_refs,
+                                               curr_formula = curr_formula)
 
                 case _:
                     raise ValueError(f"*  _build_validation_excel:  Unknown validation rule {rule}")
@@ -863,6 +850,15 @@ class ForecastBuilderExcelTB():
         
         # boilerplate set-up of the row
         (curr_cell, data_type, display_type) = self._add_row_setup(id, tab_name, curr_row_meta_data, row_name)
+
+        
+        # create an iterator for the PREDs
+        if(curr_row_meta_data.has_preds()):
+            preds_iterator = iter(ForecastPredIterator(col = curr_row_meta_data, address_maps = self.id_cellref_maps, default_card = self.id_cellref_maps.default_ref_map_id, total_elements = num_vals_add))
+            list_of_pred_refs = [pred_ref for pred_ref in preds_iterator]
+        else:
+            list_of_pred_refs = None
+
 
         # go cell by cell adding the row values
         for value in values:
@@ -914,13 +910,19 @@ class ForecastBuilderExcelTB():
         # Iterate over all the columns in the row that need values
         num_vals_add = len(values)
 
+        # create an iterator for the PREDs
+        preds_iterator = iter(ForecastPredIterator(col = curr_row_meta_data, address_maps = self.id_cellref_maps, default_card = self.id_cellref_maps.default_ref_map_id, total_elements = num_vals_add))
+
+
+        # generate and write the arith values to the ROW
         for curr_col in range(curr_cell.column, curr_cell.column + num_vals_add):
-           list_of_formula_refs = self._ids_to_formula_refs(preds, col_num = curr_col)  # generate a list of formula referenes, and constants
+           list_of_formula_refs = self._ids_to_formula_refs(next(preds_iterator))  # generate a list of formula referenes, and constants
            formula = f"={arith_funct.value.join(list_of_formula_refs)}"
            curr_cell.value = formula # create the formula (i.e. = 'Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
            
            # add validation rules (if any)
-           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, 
+           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data,
+                                        list_of_pred_refs = list_of_formula_refs,
                                         curr_cell = curr_cell, 
                                         data_type = data_type, 
                                         display_type = display_type, 
@@ -950,7 +952,7 @@ class ForecastBuilderExcelTB():
                        tab_name: str,
                        values: list,
                        curr_row_meta_data: ForecastMetaDataSeries,
-                       preds: list[str] = None, 
+                       #preds: list[str] = None, 
                        restriction: List[Dict[ForecastDataSeriesMetaDataValidationSchema, Any]] = None, 
                        row_name: str = None):
         
@@ -958,14 +960,21 @@ class ForecastBuilderExcelTB():
         if(tab_name not in self.row_trackers.keys()):
             raise ValueError(f"\n* _add_YTM_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
         
-        # get meta_data values that we need for this function, if it wasn't provided
-        if preds is None:
-            preds = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED]
+        # Iterate over all the columns in the row that need values
+        num_vals_add = len(values)
 
-            if(len(preds) != 1):
-                raise ValueError(f"\n* _add_YTM_row:  only 1 pred can be provided, total preds provided {len(preds)}: {len(preds)}")
-            else:
-                preds = preds[0]
+        # create an iterator for the PREDs
+        preds_iterator = iter(ForecastPredIterator(col = curr_row_meta_data, address_maps = self.id_cellref_maps, default_card = self.id_cellref_maps.default_ref_map_id, total_elements = num_vals_add))
+
+        # # get meta_data values that we need for this function, if it wasn't provided
+        
+        # if preds is None:
+        #     preds = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.PRED]
+
+        #     if(len(preds) != 1):
+        #         raise ValueError(f"\n* _add_YTM_row:  only 1 pred can be provided, total preds provided {len(preds)}: {len(preds)}")
+        #     else:
+        #         preds = preds[0]
         
         if restriction is None:
             restriction = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.VALIDATION]
@@ -974,8 +983,6 @@ class ForecastBuilderExcelTB():
         # and place the curr_cell pointer in the row and column to start adding values
         (curr_cell, data_type, display_type)  = self._add_row_setup(id, tab_name, curr_row_meta_data, row_name)
 
-        # Iterate over all the columns in the row that need values
-        num_vals_add = len(values)
         i = 0 # counter on the months (if it's % 12 == 0, we've reached a new year)
         curr_pred_col = curr_cell.column # the column for the pred cells (which are the years)
 
@@ -983,16 +990,18 @@ class ForecastBuilderExcelTB():
            # if we are an even division of 12, then grab the next year's values from the reference to add
            #if (curr_col % 12) == 0:
            if i % 12 == 0:
-               formula_ref = self._id_to_formula_ref(preds, col_num = curr_pred_col) # get the value for the current year
+               # formula_ref = self._id_to_formula_ref(preds, col_num = curr_pred_col) # get the value for the current year
+               list_of_formula_refs = self._ids_to_formula_refs(next(preds_iterator)) # return a list by default, but will only be one value (or it's an error)
                curr_pred_col += 1 # increment so that next time, we get the following year
-               formula = f"={formula_ref} / 12" # create the formula (i.e. = 'Summary'!A1 / 12)
+               formula = f"={list_of_formula_refs[0]} / 12" # create the formula (i.e. = 'Summary'!A1 / 12)
            
            # add formula and validation rules to the current cell
            # put in the cell value pointing to the formula
            curr_cell.value = formula 
             
            # add validation rules (if any)
-           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data, 
+           self._build_validation_excel(curr_cell_meta_data = curr_row_meta_data,
+                                        list_of_pred_refs = list_of_formula_refs,
                                         curr_cell = curr_cell, 
                                         data_type = data_type, 
                                         display_type = display_type, 
@@ -1412,12 +1421,21 @@ class ForecastBuilderExcelTB():
     # OUTPUTS:
     #   list of strings - each string being either a constant (string version of float or int) or a cell reference suitable for an excel formula
 
-    def _ids_to_formula_refs(self, list_of_ids: list[int | str | float], col_num: int, with_ws_name: bool = True) -> list[str]:
+    # def _ids_to_formula_refs(self, list_of_ids: list[int | str | float], col_num: int, with_ws_name: bool = True) -> list[str]:
+    #     list_of_refs = []
+
+    #     # iterate of all the list
+    #     for id_or_const in list_of_ids:
+    #         list_of_refs.append(self._id_to_formula_ref(id_or_const, col_num, with_ws_name = with_ws_name))
+
+    #     return(list_of_refs)
+    
+    def _ids_to_formula_refs(self, list_of_ids: dict, with_ws_name: bool = True) -> list[str]:
         list_of_refs = []
 
         # iterate of all the list
-        for id_or_const in list_of_ids:
-            list_of_refs.append(self._id_to_formula_ref(id_or_const, col_num, with_ws_name = with_ws_name))
+        for id in list_of_ids.keys():
+            list_of_refs.append(self._id_to_formula_ref(list_of_ids[id], with_ws_name = with_ws_name))
 
         return(list_of_refs)
     
@@ -1429,27 +1447,44 @@ class ForecastBuilderExcelTB():
     # i.e. ('Summary'!A1 + 'Summary'!B1 + 'Summary'!C1)
     # 
     # INPUTS:
-    #   list_of_ids - list with a mix of ForecastMetaDataSeries IDs or constants (ints or floats)
-    #   col_num = the ABSOLUTE column number for for the cell (we will then convert it to a relative number, which we will then use to offset the row location)
+    #   id - (list) get the information for a SINGLE ID as a list with three values:
+    #       tab_name = tab name for the id
+    #       constant or Cell = either an int/float number, or an openpyxl Cell object holding the reference to the cell
+    #       num_elements - (int) the number of elements in the row
+    #   with_ws_name - (optional)(bool) when creating the cell formula reference, keep the worksheet name (i.e. 'Summary'!A1) or not (i.e. A1)
+    #   
     #
     # OUTPUTS:
-    #   list of strings - each string being either a constant (string version of float or int) or a cell reference suitable for an excel formula
+    #   cell_formula_reference - (str) either a constant (string version of float or int) or a cell reference suitable for an excel formula
 
-    def _id_to_formula_ref(self, id_or_const: int | str | float, col_num: int, with_ws_name: bool = True) -> str:
+    # def _id_to_formula_ref(self, id_or_const: int | str | float, col_num: int, with_ws_name: bool = True) -> str:
+    #         # determine if this is an ID or a constant
+    #         # if constant, return a string version of the constant
+    #         if isinstance(id_or_const, int | float):
+    #             const = id_or_const
+    #             return(str(const))
+
+    #         # if ID, get the 
+    #         else:
+    #             id = id_or_const
+    #             (tab_name, cell_ref, num_elements) = self.id_cellref_maps.get(id)  # get the tab_name and the cell reference
+    #             col_offset = col_num - ForecastBuilderExcelTB.ExcelField.START # figure out how many cells over we need to shift the reference to get our values
+    #             cell_ref = cell_ref.offset(row = 0, column = col_offset)
+    #             return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_ref, with_ws_name=with_ws_name))
+            
+
+    def _id_to_formula_ref(self, id: list, with_ws_name: bool = True) -> str:
+            cell_or_const = id[1]   
+
             # determine if this is an ID or a constant
             # if constant, return a string version of the constant
-            if isinstance(id_or_const, int | float):
-                const = id_or_const
+            if isinstance(cell_or_const, int | float):
+                const = cell_or_const
                 return(str(const))
-
-            # if ID, get the 
-            else:
-                id = id_or_const
-                (tab_name, cell_ref, num_elements) = self.id_cellref_maps.get(id)  # get the tab_name and the cell reference
-                col_offset = col_num - ForecastBuilderExcelTB.ExcelField.START # figure out how many cells over we need to shift the reference to get our values
-                cell_ref = cell_ref.offset(row = 0, column = col_offset)
-                return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_ref, with_ws_name=with_ws_name))
             
+            # get the addess for this cell
+            else:
+                return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_or_const, with_ws_name=with_ws_name))            
 
 
     # CELL
