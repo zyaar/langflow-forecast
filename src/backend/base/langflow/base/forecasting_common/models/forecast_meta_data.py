@@ -71,6 +71,16 @@ class ForecastMetaDataSeriesSchema(str, Enum):
     OBJS = "objs" # any additional objects which are required for this step
 
 
+# Enum holding the schema of the meta-data model
+# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
+class ForecastMetaDataActionSchema(str, Enum):
+    ACTION = "action"
+    COUNT = "count" # the number of cells to apply this, if None, assume all remaining cells
+    PRED = "pred" # predecessors, a set of column ids necessary for the action
+    ARGS = "args" # any additional values necessary for actions, or validations
+    OBJS = "objs" # any additional objects which are required for this step
+
+
 # Enum of STEP_TYPE
 # What are the different steps in the forecast process
 class ForecastDataSeriesMetaDataStepTypes(str, Enum):
