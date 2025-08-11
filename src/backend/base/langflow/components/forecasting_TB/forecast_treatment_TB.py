@@ -115,12 +115,11 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                 required = True,
                 range_spec = RangeSpec(min=0, max=self.MAX_TREATMENT_DURATION)
             ),
-            
 
             # num_products
             IntInput(
                 name="num_products",
-                display_name = "Number of products",
+                display_name = "Number of Products",
                 info="Total number of products used in this treatment.",
                 value=0,
                 dynamic=True,
@@ -445,6 +444,10 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         (treatment_details_model, treatment_details_meta_data) = self.create_treatment_data_meta_data(treat_group_id = treatment_details_table_group_id,
                                                                                                       table_name = "treatment_details", 
                                                                                                       treatment_details = treatment_details)
+        
+        # setup pc initial state (currently disabled), TODO:  implement an input to allow the setting of initial state
+        #pc_initial_state = [ForecastDataModel.EDITABLE_VALUES_TOKEN] * self.treatment_duration
+        pc_initial_state = list(range(100,(self.treatment_duration+1)*100, 100)) # testing set for pc initial state
 
         # TREATMENT INIT
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
@@ -458,7 +461,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                     args = {ForecastDataSeriesMetaDataAction.STEP_INIT: ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH},
                                                                     pred = [col_total_in_id],
-                                                                    objs = {"data": treatment_details_model, "meta_data": treatment_details_meta_data})
+                                                                    objs = {"data": treatment_details_model, "meta_data": treatment_details_meta_data, "pc_initial_state": pc_initial_state})
         
 
         # setup pc initial state (currently disabled), TODO:  implement an input to allow the setting of initial state
@@ -661,7 +664,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                 new_dim_cols = new_num_cols,
                                                                 prev_data  = old_values, 
                                                                 default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
-                                                                individual_default_col_values = {ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME: 1}, 
+                                                                #individual_default_col_values = {ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME: 1}, 
                                                                 col_name_prefix = self.COL_PREFIX, 
                                                                 num_static_cols = self.NUM_STATIC_COLS, 
                                                                 month = list(range(1, new_num_rows+1)))
@@ -670,7 +673,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                 new_dim_cols = new_num_cols,
                                                                 set_col_names = ["month", ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME],  
                                                                 default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
-                                                                individual_default_col_values = {ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME: 1}, 
+                                                                #individual_default_col_values = {ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME: 1}, 
                                                                 col_name_prefix = self.COL_PREFIX, 
                                                                 num_static_cols = self.NUM_STATIC_COLS, 
                                                                 month = list(range(1, new_num_rows+1)))
