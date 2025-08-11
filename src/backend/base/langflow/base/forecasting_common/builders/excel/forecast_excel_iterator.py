@@ -41,57 +41,17 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import Protection
 
 
-from langflow.base.forecasting_common.builders.forecast_builder_excel_TB import (IdToCellReferenceMap,
-                                                                                 IdToCellReferenceMaps)
-
-from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataRangeSchema,
-                                                                        ForecastMetaDataRange)
-from langflow.base.forecasting_common.builders.forecast_builder_excel_TB import ForecastPredRef
-
-
-#from langflow.base.forecasting_common.builders.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
-#from langflow.base.forecasting_common.builders.excel.forecast_excel_validation_builder import ForecastExcelValidationRuleBuilder
-#from langflow.base.forecasting_common.builders.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
+from langflow.base.forecasting_common.models.forecast_meta_data import ForecastMetaDataRangeSchema, ForecastMetaDataRange
+from langflow.base.forecasting_common.models.forecast_data_interface import ForecastPredRef, IdElementToHandleMaps
 
 
 
 # CLASSES
 # =======
 
-# # simple class to hold the pred reference ID for sharing across the iterator and a specific builder address lookup
-# class ForecastPredRef():
-#     const = None
-#     full_id = None
-#     rel_id = None
-#     single_value = None
-#     shift_value = None
-#     has_full_id = None
-#     has_single_value = None
-#     has_shift_value = None
-
-#     def __init__(self, 
-#                  const: int | float = None,
-#                  full_id : str = None,
-#                  rel_id : str = None,
-#                  single_value : int = None,
-#                  shift_value : int = None,
-#                  has_full_id : bool = None,
-#                  has_single_value : bool = None,
-#                  has_shift_value: bool = None):
-        
-#         self.const = const
-#         self.full_id = full_id
-#         self.rel_id = rel_id
-#         self.single_value = single_value
-#         self.shift_value = shift_value
-#         self.has_full_id = has_full_id
-#         self.has_single_value = has_single_value
-#         self.has_shift_value = has_shift_value
-
-
 
 # This class is given an acount and an address_mapper and, as an iterator, returns the next address to access
-class ForecastPredIterator():
+class ForecastExcelPredIterator():
     # INSTANTIATED REFERENCES
     # -----------------------
 
@@ -114,10 +74,7 @@ class ForecastPredIterator():
     # pred_calcs{}
 
     
-    # # Enum holding the schema of the meta-data model
-    # # The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
-
-    def __init__(self, col: ForecastMetaDataSeries, address_maps:  IdToCellReferenceMaps, default_card: str, total_elements:int = None):
+    def __init__(self, col: ForecastMetaDataSeries, address_maps:  IdElementToHandleMaps, default_card: str, total_elements:int = None):
         self.default_card = default_card
         self.col_meta_data = col
         self.address_mapper = address_maps
@@ -164,6 +121,13 @@ class ForecastPredIterator():
 
     # implements the iterator interface
     # returns the list of pred ids for the next iteration
+    #
+    # INPUT:
+    #   NA
+    #
+    # OUTPUT:
+    #   openpyxl cells in a dictionary of the form:
+    #       {row_id: [tab_name - (str) name of tab in excel, cell_ref - (openpyxl Cell) cell object for the element, num_elements - total number of elements in this row]}
     def __next__(self) -> dict:
         self.curr_element += 1
 
