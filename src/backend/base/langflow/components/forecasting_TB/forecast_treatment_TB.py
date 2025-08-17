@@ -43,11 +43,14 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastMetaDataRange,
                                                                         ForecastMetaDataRangeSchema)
 
+
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from typing import Any, List, Tuple
 from datetime import datetime
 import copy
+import pandas as pd
+from langflow.base.forecasting_common.controllers.forecast_treatment_TB_Controller import ForecastTreatmentTBController
 
 
 
@@ -92,6 +95,22 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
 
 
+    # INSTANCE ATTRIBUTES
+    # generated during the __init__
+    # -----------------------------
+    # forecast_treatment_controller - (ForecastTreatmentTBController) has the business logic for component
+
+
+    # __init__
+    # --------
+    def __init__(self, **kwargs) -> None:
+        # call parent init
+        super().__init__(**kwargs)
+
+        # create an instance of the Controller object (MVC framework... kind of)
+        self.forecast_treatment_controller = ForecastTreatmentTBController()
+
+    
     # GENERATE INPUTS / OUTPUTS
     # =========================
     def _gen_inputs(self) -> list:
@@ -348,13 +367,12 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     #   DataFrame with the number of patients per timeperiod and treatment stage
     def calc_patients_on_treatment(self) -> Data:
         results = self._forecast_model_common_input(keep_granular = False)
-        (treatment_details_model, treatment_details_meta_data, pat_on_treatment_data, pat_on_treatment_meta_data, updated_model) = results["pat_on_treatment"]
-        updated_model = ForecastDataModel.concat([updated_model, pat_on_treatment_data])
-        updated_meta_data = pat_on_treatment_meta_data
-    
+        
+        updated_model = results["pat_on_treatment"]["pat_by_treatment_month_data"]
+        updated_meta_data = results["pat_on_treatment"]["pat_by_treatment_month_meta_data"]
+
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
-
 
 
 
@@ -366,13 +384,12 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     #   DataFrame
     def calc_patients_leaving_treatment(self) -> Data:
         results = self._forecast_model_common_input(keep_granular = False)
-        (treatment_details_model, treatment_details_meta_data, pat_leaving_treatment_data, pat_leaving_treatment_meta_data, updated_model) = results["pat_leaving_treatment"]
-        updated_model = ForecastDataModel.concat([updated_model, pat_leaving_treatment_data])
-        updated_meta_data = pat_leaving_treatment_meta_data
+
+        updated_model = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_data"]
+        updated_meta_data = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_meta_data"]
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
-
 
 
     # update_forecast_model_product
@@ -383,37 +400,39 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     #   DataFrame
     def update_forecast_model_product(self, seg_num=1) -> Data:
         results = self._forecast_model_common_input(keep_granular = True)
-        (treatment_details_model, treatment_details_meta_data, pat_on_treatment_data, pat_on_treatment_meta_data, updated_model) = results["pat_on_treatment"]
 
-        if(self.timescale == ForecastModelTimescale.YEAR):
-            (pat_on_treatment_data_timescale_adjusted, ignore1, ignore2) = ForecastDataModel.convert_timescale(pat_on_treatment_data, pat_on_treatment_meta_data, target = ForecastModelTimescale.YEAR)
-        else:
-            pat_on_treatment_data_timescale_adjusted = pat_on_treatment_data
-        
-        # get product information:  product_id, product_display_name
-        product_id = f"{self._id}_{ForecastTreatmentTB.COL_PREFIX}_{seg_num}"
+        # unpack results
+        treatment_details_model = results["pat_on_treatment"]["treatment_table_data"]
+        treatment_details_meta_data = results["pat_on_treatment"]["treatment_table_meta_data"]
+
+        updated_data= results["pat_on_treatment"]["pat_by_treatment_month_data"]
+        updated_meta_data = results["pat_on_treatment"]["pat_by_treatment_month_meta_data"]
+
+        updated_model = results["pat_on_treatment"]["updated_data"]
+
+        # calculate the number of Rx for this product, total and by treatment month
+        product_id = f"{ForecastTreatmentTB.COL_PREFIX}_{seg_num}"
         product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
-        product_model = treatment_details_model[product_id]
-        product_meta_data = treatment_details_meta_data.model[product_id]
-       
-        (product_rx_data, product_rx_meta_data) = ForecastDataModel.calc_treatment_rx_forecast_for_product(treatment_id = self._id,
-                                                                                                           treatment_name = self.display_name,
-                                                                                                           product_id = product_id,
-                                                                                                           product_display_name = product_display_name,
-                                                                                                           treatment_details_product_full_id = treatment_details_meta_data.id_mgr.gen_full_id(product_id),
-                                                                                                           product_model = product_model,
-                                                                                                           product_meta_data = product_meta_data,
-                                                                                                           pat_on_treatment_data = pat_on_treatment_data,
-                                                                                                           pat_on_treatment_meta_data = pat_on_treatment_meta_data,
-                                                                                                           forecast_timescale = ForecastModelTimescale.MONTH, # we hardcode the timescale for monthly, because we will receive monthly for prev step
-                                                                                                           target_timescale = self.timescale)
+        (updated_data, updated_meta_data) = self.forecast_treatment_controller.calc_treatment_rx_forecast_for_product(# self variables passed in
+                                                                                                                      treatment_id = self._id,
+                                                                                                                      treatment_display_name = self.display_name,
+                                                                                                                      product_id = product_id,
+                                                                                                                      product_display_name = product_display_name,
+                                                                                                                      month_prefix = self.MONTH_PREFIX,
 
-        updated_model = ForecastDataModel.concat([updated_model, pat_on_treatment_data_timescale_adjusted, product_rx_data])
-        updated_meta_data = product_rx_meta_data
+                                                                                                                      # current forecast
+                                                                                                                      updated_data = updated_data,
+                                                                                                                      updated_meta_data = updated_meta_data,
 
-        # final common checks and output generation
+                                                                                                                      # treatment details table
+                                                                                                                      treatment_table_data = treatment_details_model,
+                                                                                                                      treatment_table_meta_data = treatment_details_meta_data)
+
+        # if the current forecast timescale is yearly, we need to convert the updated data and meta-data to yearly as well
+        if(self.timescale == ForecastModelTimescale.YEAR):
+            (updated_data, updated_meta_data, last_col_id) = ForecastDataModel.convert_timescale(updated_data, updated_meta_data, target = ForecastModelTimescale.YEAR)
+
         return self._forecast_model_common_output(updated_model, updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
-
 
 
 
@@ -431,27 +450,24 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     def _forecast_model_common_input(self, keep_granular: bool = True) -> dict[str, list]:
         (updated_model, updated_meta_data, col_total_in_id) = super()._forecast_model_common_input()
 
+        # this function can only work with monthly data, so model is set to yearly, convert here to monthly
+        if(updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] != ForecastModelTimescale.MONTH):
+            (updated_model, updated_meta_data, col_total_in_id) = ForecastDataModel.convert_timescale(data_model = updated_model,
+                                                                                                      meta_data = updated_meta_data, 
+                                                                                                      target = ForecastModelTimescale.MONTH, 
+                                                                                                      step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
         # get in totals_in values (in case we need to use it)
         col_total_in_values = updated_model[col_total_in_id]
-
 
         # setup pre_forecast_patient_flow (currently disabled), TODO:  implement an input to allow the setting of initial state
         #pre_forecast_patient_flow = [ForecastDataModel.EDITABLE_VALUES_TOKEN] * (self.treatment_duration-1)
         pre_forecast_patient_flow = list(range(100,(self.treatment_duration)*100, 100)) # testing set for pc initial state
-
-
 
         # PROCESS AND SAVE TREATMENT DETAILS TABLE
         treatment_group_id = self._id
 
         # make sure that data-types for treatment_details is set correctly
         treatment_details = ForecastDataModel.astype_first_all_cols(self.treatment_details, first_col_type="int")
-
-
-        # key variables we will need
-        treatment_table_id = ""
-        pre_forecast_inputs_table_id = ""
-        prior_month_calcuations_id = ""
 
         # Create treatment table meta_data
         # Create the data and meta-data for the treatment_details table... 
@@ -461,28 +477,14 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         (treatment_details_model, treatment_details_meta_data, pc_col_id) = self.create_treatment_data_object(id = treatment_details_table_group_id,
                                                                                                               table_name = "treatment_details", 
                                                                                                               treatment_details = treatment_details)
-        print("treatment_details")
-        print(pc_col_id)
-        print(treatment_details_meta_data)
-        print(treatment_details_model)
-        
         # create pre-forecast inputs meta_data
         pre_forecast_table_group_id = f"{treatment_group_id}_pre_forecast_inputs"
         (pre_forecast_inputs_model, pre_forecast_inputs_meta_data, pf_col_id, last_date) = self.create_pre_forecast_inputs_object(id = pre_forecast_table_group_id,
                                                                                                                                   pre_forecast_patient_flow = pre_forecast_patient_flow,
                                                                                                                                   first_forecast_date = updated_meta_data.get_first_date())
 
-        print("\n\npre_forecast_inputs")
-        print(pf_col_id)
-        print(last_date)
-        print(pre_forecast_inputs_meta_data)
-        print(pre_forecast_inputs_model)
-
-
-
         # create prior month patient flow
         pre_forecast_patient_flow_group_id = f"{treatment_group_id}_prior_month_patient_flow"
-        
         (pre_forecast_patient_flow_model, pre_forecast_patient_flow_meta_data, pmpf_col_prefix) = self.create_prior_month_patient_flow_object(id = pre_forecast_patient_flow_group_id,
                                                                                                                                               target_date = last_date,
                                                                                                                                               treatment_details_model = treatment_details_model,
@@ -491,14 +493,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                                                                               pre_forecast_inputs_model = pre_forecast_inputs_model,
                                                                                                                                               pre_forecast_inputs_meta_data = pre_forecast_inputs_meta_data,
                                                                                                                                               pf_col_id = pf_col_id)
-        
-        print("\n\npre_forecast_patient_flow")
-        print(pre_forecast_patient_flow_meta_data)
-        print(pre_forecast_patient_flow_model)
-
-        
-
-        # TREATMENT INIT
+        # TREATMENT STEP_INIT
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = f"{treatment_group_id}_Init",
                                                                     display_name = self.display_name,
@@ -516,70 +511,68 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                             "pre_forecast_inputs_meta_data": pre_forecast_inputs_meta_data,
                                                                             "pre_forecast_patient_flow_data": pre_forecast_patient_flow_model,
                                                                             "pre_forecast_patient_flow_meta_data": pre_forecast_patient_flow_meta_data})
+
+        # CALCULATE THE PATIENTS ON TREATMENT AND PATIENTS LEAVING TREATMENT
+        # generates the patients on therapy by forecast month and month of treatment, the patients leaving therapy for forecast month and month of therapy
+        # returns as a dict of two elements in the following format (need to update this)
+        # return({"pat_on_treatment": (treatment_table_data, treatment_table_meta_data, pat_by_treatment_month_data, pat_by_treatment_month_meta_data, updated_data),
+        #         "pat_leaving_treatment": (treatment_table_data, treatment_table_meta_data, pat_leaving_by_treatment_month_data, pat_leaving_by_treatment_month_meta_data, updated_data)})
+    
+        results = self.forecast_treatment_controller.calc_treatment_pat_forecast(
+            # self variables
+            id = self._id,
+            display_name = self.display_name,
+            month_prefix = self.MONTH_PREFIX,
+
+            # current forecast
+            updated_data = updated_model,
+            updated_meta_data = updated_meta_data,
+            
+            # treatment details table
+            treatment_table_data = treatment_details_model,
+            treatment_table_meta_data = treatment_details_meta_data,
+            pc_col_id = pc_col_id,
+
+            # pre-forecast input table
+            pre_forecast_inputs_data = pre_forecast_inputs_model,
+            pre_forecast_inputs_meta_data = pre_forecast_inputs_meta_data,
+            pf_col_id = pf_col_id,
+
+            # pre-forecast patient flow table
+            pre_forecast_patient_flow_data = pre_forecast_patient_flow_model,
+            pre_forecast_patient_flow_meta_data = pre_forecast_patient_flow_meta_data,
+            pmpf_col_prefix = pmpf_col_prefix)
         
 
-        # TOTAL NUMBER OF PATIENTS PER FORCAST MONTH (BY MONTH IN TREATMENT & TOTAL)
-        # TOTAL NUMBER OF PATIENTS LEAVING IN FORECAST MONTH (BY MONTH IN TREATMENT & TOTAL)
-        # Calculate the total number of patients every month by month in treatment
-        # (so for for month X OF THE FORECAST, have many patients are in their first month OF THEIR TREATMENT, how many in second month of treatment, etc. etc.)
+        # if keep_granular was set, then keep at the monthly granularity and return
+        if keep_granular:
+            return results
+        
+        # if keep_granular was NOT set, but the target forecast granularity is MONTHLY, then return
+        elif self.timescale == ForecastModelTimescale.MONTH:
+            return results
+        
+        # otherwise, convert the key data_models: "pat_on_treatment_data" and "pat_leaving_treatment_meta_data" back to YEARLY
+        else:
+            # update timescale for patients on treatment
+            (updated_pat_on_treatment_model, updated_pat_on_treatment_meta_data_model, pat_on_treatment_col_total_in_id) = ForecastDataModel.convert_timescale(data_model = results["pat_on_treatment"]["pat_by_treatment_month_data"],
+                                                                                                                                                               meta_data = results["pat_on_treatment"]["pat_by_treatment_month_meta_data"],
+                                                                                                                                                               target = ForecastModelTimescale.YEAR,
+                                                                                                                                                               step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
 
-        # KEEPING TRACK OF DATA THAT NEEDS TO MOVE OVER:
-        #
-        # treatment details:
-        #   "treatment_table_data": treatment_details_model,
-        #   "treatment_table_meta_data": treatment_details_meta_data,
-        #   "pc_col_id": pc_col_id
-        # 
-        # pre_forecast_inputs:
-        #   "pre_forecast_inputs_data": pre_forecast_inputs_model
-        #   "pre_forecast_inputs_meta_data": pre_forecast_inputs_meta_data
-        #   last_col_id
+            results["pat_on_treatment"]["updated_pat_on_treatment_model"] = updated_pat_on_treatment_model  # data
+            results["pat_on_treatment"]["updated_pat_on_treatment_meta_data_model"] = updated_pat_on_treatment_meta_data_model # meta_data
+
+            # update timescale for patients leaving treatment
+            (updated_pat_leaving_by_treatment_month_data, updated_pat_leaving_by_treatment_month_meta_data, pat_leaving_treatment_col_total_in_id) = ForecastDataModel.convert_timescale(data_model = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_data"],
+                                                                                                                                                                                         meta_data = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_meta_data"],
+                                                                                                                                                                                         target = ForecastModelTimescale.YEAR,
+                                                                                                                                                                                         step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
 
 
-        # (pat_on_treatment_data, pat_leaving_treatment_data, pat_on_treatment_meta_data, pat_leaving_treatment_meta_data) = ForecastDataModel.calc_treatment_pat_forecast(component_id = self._id,
-        #                                                                                                                                                                  updated_model = updated_model,
-        #                                                                                                                                                                  updated_meta_data = updated_meta_data,
-        #                                                                                                                                                                  treatment_display_name = self.display_name,
-        #                                                                                                                                                                  treatment_table_col_prefix = f"{treatment_details_table_group_id}",
-        #                                                                                                                                                                  treatment_details_model = treatment_details_model,
-        #                                                                                                                                                                  treatment_details_meta_data = treatment_details_meta_data,
-        #                                                                                                                                                                  forecast_timescale = self.timescale,
-        #                                                                                                                                                                  patient_progression_colname = ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME,
-        #                                                                                                                                                                  pred_col_id = col_total_in_id,
-        #                                                                                                                                                                  pc_initial_state = pc_initial_state,
-        #                                                                                                                                                                  keep_granular = keep_granular)
-
-    #   def calc_treatment_pat_forecast(treatment_id: str,
-    #                                   treatment_display_name: str,
-    #                                   month_label_postfix: str,
-
-    #                                   # current forecast
-    #                                   updated_data: DataFrame,
-    #                                   updated_meta_data: ForecastMetaDataFrame,
-
-    #                                   # treatment details table
-    #                                   treatment_table_data: DataFrame,
-    #                                   treatment_table_meta_data: ForecastMetaDataFrame,
-    #                                   pc_col_id: str,
-
-    #                                   # pre-forecast input table
-    #                                   pre_forecast_inputs_data: DataFrame,
-    #                                   pre_forecast_inputs_meta_data: ForecastMetaDataFrame,
-    #                                   pf_col_id)
-        (pat_on_treatment_data, pat_on_treatment_meta_data) = self.calc_treatment_pat_forecast(updated_data = updated_model,
-                                                                                               updated_meta_data = updated_meta_data,
-                                                                                               treatment_table_data = treatment_details_model,
-                                                                                               treatment_table_meta_data = treatment_details_meta_data,
-                                                                                               pc_col_id = pc_col_id,
-                                                                                               pre_forecast_inputs_data = pre_forecast_inputs_model,
-                                                                                               pre_forecast_inputs_meta_data = pre_forecast_inputs_meta_data,
-                                                                                               pf_col_id = pf_col_id)
-
-        return({
-            "pat_on_treatment": (treatment_details_model, treatment_details_meta_data, pat_on_treatment_data, pat_on_treatment_meta_data, updated_model),
-            "pat_leaving_treatment": (treatment_details_model, treatment_details_meta_data, pat_leaving_treatment_data, pat_leaving_treatment_meta_data, updated_model),
-        })
-    
+            results["pat_leaving_treatment"]["updated_pat_leaving_by_treatment_month_data"] = updated_pat_leaving_by_treatment_month_data
+            results["pat_leaving_treatment"]["updated_pat_leaving_by_treatment_month_meta_data"] = updated_pat_leaving_by_treatment_month_meta_data
+            return results
 
 
 
@@ -632,7 +625,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         col_treat_col_values = treatment_details[col_name]
         col_treat_col_id = f"{col_name}"
         col_pc_col_id = col_treat_col_id
-        #col_treat_col_id = f"{id_prefix}_{col_name}"
 
         (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
                                                                                   updated_meta_data,
@@ -654,7 +646,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
             col_name = treatment_details.columns[i+self.NUM_STATIC_COLS]
             col_treat_prod_values = treatment_details[col_name]
             col_treat_prod_id = f"{ForecastTreatmentTB.COL_PREFIX}_{i+1}"
-            #col_treat_prod_id = f"{self._id}_{ForecastTreatmentTB.COL_PREFIX}{i+1}"
 
 
 
@@ -740,9 +731,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
 
 
-        
-
-
 
     # create_prior_month_patient_flow_object
     # Create an ForecastMetaDataFrame object to hold the caculations which create the forecasted patient flow for the month BEFORE the first month of the forecast.
@@ -825,128 +813,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
 
 
-    # calc_treatment_pat_forecast
-    # For each month of the forecast, calculate the number of patients in treatment, total and by treatment month, as well as the number of patients leaving each month,
-    # total and by treatment month
-    #
-    # INPUTS:
-    #   TBD
-    #
-    # OUTPUTS:
-    #   TBD
-
-    def calc_treatment_pat_forecast(self,
-                                    # current forecast
-                                    updated_data: DataFrame,
-                                    updated_meta_data: ForecastMetaDataFrame,
-
-                                    # treatment details table
-                                    treatment_table_data: DataFrame,
-                                    treatment_table_meta_data: ForecastMetaDataFrame,
-                                    pc_col_id: str,
-
-                                    # pre-forecast input table
-                                    pre_forecast_inputs_data: DataFrame,
-                                    pre_forecast_inputs_meta_data: ForecastMetaDataFrame,
-                                    pf_col_id) -> Tuple[DataFrame, ForecastMetaDataFrame]:
-        
-        # CONVERT PATIENT 'NEW TO THERAPY' TO MONTHLY (IF NEEDED)
-        if(updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] != ForecastModelTimescale.MONTH):  # if the forecast timescale is not at the same timescale as MONTHLY, then expand it to be monthly by dividing out the annual
-            (data_model, updated_meta_data, pred_col_id) = ForecastDataModel.convert_timescale(data_model = updated_data,
-                                                                                               meta_data = updated_meta_data, 
-                                                                                               target = ForecastModelTimescale.MONTH, 
-                                                                                               step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
-
-        # SETUP data and meta_data for BY TREATMENT MONTH and LEAVING_BY_TREATMENT_MONTH
-        pat_by_treatment_month_data = copy.deepcopy(data_model)
-        pat_by_treatment_month_meta_data = copy.deepcopy(updated_meta_data)
-                    
-        pat_leaving_by_treatment_month_data = copy.deepcopy(data_model)
-        pat_leaving_by_treatment_month_meta_data = copy.deepcopy(updated_meta_data)
-
-        # Iterate over all treatment months
-        num_months_treatment = len(treatment_table_data)
-        list_of_on_treatment_ids = []
-
-        print(num_months_treatment)
-        for i in range(num_months_treatment):
-            print(f"Cycle: {i}")
-            
-            # generate total patients on treatment by treatment month
-            curr_col_id = f"{self._id}_{ForecastDataModel.TREATMENT_PAT_TOTAL_BY_MONTH}_{self.MONTH_PREFIX}_{i+1}"
-
-            # special case for first iteration (first treatment month), don't need to consider any pre_forecast_inputs
-            if(i == 0):
-                pat_by_treatment_month_data[curr_col_id] = data_model.iloc[:, -1:] * treatment_table_data[pc_col_id][0]
-
-                pred_pc_col_id = f"{treatment_table_meta_data.get_id()}.{pc_col_id}:{i}"
-                pred_pf_col_id = f"{updated_meta_data.get_last_id()}]"
-
-                preds = [updated_meta_data.get_last_id(), f"{treatment_table_meta_data.get_id()}.{pc_col_id}:0"]
-
-
-                # TODO:  ZIV
-                pat_by_treatment_month_meta_data = pat_by_treatment_month_meta_data.add_col_meta_data(frame = pat_by_treatment_month_meta_data,
-                                                                                                      id = curr_col_id,
-                                                                                                      step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                                                                                      action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                                                      data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                                                      display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                                                      display_name = f"# of patients in '{self.display_name}' Month {i+1}",
-                                                                                                      data_values = pat_by_treatment_month_data[curr_col_id].to_list(),
-                                                                                                      validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                                                      pred = preds,
-                                                                                                      verify_integrity=True,
-                                                                                                      drop_dups = False)
-
-
-            # otherwise, create two ranges, the first handles the calculations dependent on the pre_forecast numbers,
-            # the second handles things the usual way, but with a delay
-            else:
-                list_of_ranges = []
-                num_elements = i
-
-
-                # create a range to handle calculations including the pre_forecast_inputs
-                #pat_by_treatment_month_data[curr_col_id] = data_model.iloc[:, -1:].shift(periods = i, fill_value = ForecastDataModel.EDITABLE_VALUES_TOKEN) * treatment_table_data[pc_col_id][i]
-
-                # create a meta_data range to represent this operation
-
-                # first part works off of the pre-forecast information
-                pat_by_treatment_month_data.loc[0:(i-1), curr_col_id] = pre_forecast_inputs_data.loc[(num_months_treatment-1-i):(num_months_treatment-2), pf_col_id].values * float(treatment_table_data[pc_col_id][i])
-
-                # create the predecessors references for the PROD action (full reference, with a single element)
-                pred_pc_col_id = f"{treatment_table_meta_data.get_id()}.{pc_col_id}:{i}"
-                pred_pf_col_id = f"{pre_forecast_inputs_meta_data.get_id()}.{pf_col_id}[{(num_months_treatment-1)-i}]"
-                print(f"row {i}: {num_elements} {pred_pf_col_id} * {pred_pc_col_id}")
-
-                list_of_ranges.append(ForecastMetaDataRange(count = num_elements, pred = [pred_pf_col_id, pred_pc_col_id], args = None, objs = None))
-
-                # second part uses the regular patient flow input data
-                pat_by_treatment_month_data.loc[i:, curr_col_id] = data_model.iloc[i:, -1:].shift(periods = i, fill_value = ForecastDataModel.EDITABLE_VALUES_TOKEN).values * float(treatment_table_data[pc_col_id][i])
-                pred_pf_col_id = f"{updated_meta_data.get_last_id()}[{-i}]"
-                print(f"row {i}: {pred_pf_col_id} * {pred_pc_col_id}\n")
-
-                list_of_ranges.append(ForecastMetaDataRange(count = None, pred = [pred_pf_col_id, pred_pc_col_id], args = None, objs = None))
-
-
-                pat_by_treatment_month_meta_data = pat_by_treatment_month_meta_data.add_col_meta_data(frame = pat_by_treatment_month_meta_data,
-                                                                                                      id = curr_col_id,
-                                                                                                      step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                                                                                      action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                                                      data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                                                      display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                                                      display_name = f"# of patients in '{self.display_name}' Month {i+1}",
-                                                                                                      data_values = pat_by_treatment_month_data[curr_col_id].to_list(),
-                                                                                                      validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                                                      ranges = list_of_ranges,
-                                                                                                      verify_integrity=True,
-                                                                                                      drop_dups = False)
-                                
-            list_of_on_treatment_ids.append(curr_col_id)  # add to list of preds to be used for totals calculation
-
-
-        print(pat_by_treatment_month_meta_data.to_json())
 
 
 
@@ -1059,14 +925,14 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
 
     # _get_input_table_col_display_name
-    # Convenience function to get the name (id) of a column in an input_table
+    # Convenience function to get the display name of a column in an input_table
     #
     # INPUTS
     #   table_name = name of the TableInput
     #   col_num = column number as defined in the TableSchema
     #
     # OUTPUTS
-    #   column name (id)
+    #   column display name
 
     def _get_input_table_col_display_name(self, table_name: str, col: int | str) -> str:
         if not self._hidden_exists():

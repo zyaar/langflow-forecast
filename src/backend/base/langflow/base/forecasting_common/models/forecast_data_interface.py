@@ -1,7 +1,7 @@
 #####################################################################
-# forecast_data_interface.py
+# forecast_model_engine.py
 #
-# Implements a set of functions the provide abstraction between builders and data model objects
+# Implements the core (builder independent) algorithms of the model creation engine.
 # 
 #####################################################################
 

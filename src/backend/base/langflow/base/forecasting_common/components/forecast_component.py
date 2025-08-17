@@ -449,12 +449,18 @@ class ForecastComponent(Component):
                            verify_integrity: bool = True,
                            drop_dups: bool = False) -> tuple[DataFrame, ForecastMetaDataFrame]:
           
+          # make sure data_values is a list (empty or not)
+          if(data_values is None):
+              data_values = []
+          elif(not isinstance(data_values, list)):
+              data_values = data_values.to_list()
+
 
           # create a data values holder for meta_data
-          if(data_values is None or len(data_values) == 0):
+          if(len(data_values) == 0):
               data_values_meta_data = []
           else:
-              data_values_meta_data = data_values.to_list()
+              data_values_meta_data = data_values
           
           # add col to meta_data
           new_meta_col = ForecastMetaDataSeries(id = id,
@@ -471,6 +477,6 @@ class ForecastComponent(Component):
           updated_meta_data = ForecastMetaDataFrame.concat([meta_data, new_meta_col], verify_integrity = verify_integrity, drop_dups = drop_dups)
           
           # add col to data
-          updated_dataframe = ForecastDataModel.add_col_to_model(dataframe, data_values.to_list(), new_col_name=id)
+          updated_dataframe = ForecastDataModel.add_col_to_model(dataframe, data_values, new_col_name=id)
 
           return(updated_dataframe, updated_meta_data)

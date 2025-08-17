@@ -23,13 +23,15 @@ from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_
 
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
-#from datetime import datetime
+import datetime as datetime
 from enum import Enum
 import re as re
 import numpy as np
 import pandas as pd
 import copy
 
+from langflow.base.forecasting_common.models.date_utils import gen_dates, gen_pre_dates
+from langflow.base.forecasting_common.constants import ForecastModelTimescale
 
 
 # CONSTANTS
@@ -342,10 +344,12 @@ class ForecastMetaDataSeriesIdGenerator():
 
     # convert a relative id to a full id
     def rel_to_full_id(self, rel_id: str) -> str:
-        if(self.check_rel_id(rel_id)):
-            return(f"{self.get_id()}{self.FULL_ID_SEP_CHAR}{rel_id}")
-        else:
-            raise ValueError(f"\n*  rel_to_full_id:  Invalid relative ID provided '{rel_id}', relative id cannon contain a '{self.FULL_ID_SEP_CHAR}'.")
+        return(f"{self.get_id()}{self.FULL_ID_SEP_CHAR}{rel_id}")
+
+        # if(self.check_rel_id(rel_id)):
+        #     return(f"{self.get_id()}{self.FULL_ID_SEP_CHAR}{rel_id}")
+        # else:
+        #     raise ValueError(f"\n*  rel_to_full_id:  Invalid relative ID provided '{rel_id}', relative id cannon contain a '{self.FULL_ID_SEP_CHAR}'.")
 
         
     # convert a full_id to a relative id
@@ -513,7 +517,7 @@ class ForecastMetaDataSeries():
 
     # CLASS VARIABLES
     # ---------------
-
+    NON_VALUE_ACTIONS = [ForecastDataSeriesMetaDataAction.STEP_INIT]
 
     # INSTANCE VARIABLES
     # ------------------
@@ -665,6 +669,21 @@ class ForecastMetaDataSeries():
         else:
             return True
         
+    # is_value_action
+    # Return true if this Series generates/has values (i.e. not a pure meta_data / command action like STEP_INIT)
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   True or False
+
+    def is_value_action(self) -> bool:
+        if self.meta_data[ForecastMetaDataSeriesSchema.ACTION] in self.NON_VALUE_ACTIONS:
+            return(False)
+        else:
+            return(True)
+        
 
 
 
@@ -693,9 +712,19 @@ class ForecastMetaDataFrame():
     # OUTPUTS:
     #   NA
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, id_prefix: str = "ForecastMetaDataFrame", *args, **kwargs):
+        self.id_prefix = id_prefix
         self.meta_data = {}
         self.model = {}
+
+        # create an id_mgr and put pointer to this object as it's container
+        self.id_mgr = ForecastMetaDataSeriesIdGenerator(container = self)
+
+        if(id_prefix is not None):
+            self.meta_data[ForecastMetaDataFrameSchema.ID] = self.id_mgr.gen_rel_id(prefix = id_prefix)
+        else:
+            self.meta_data[ForecastMetaDataFrameSchema.ID] = self.id_mgr.gen_rel_id(length = 10)
+
 
         # init all meta_data attributes
         for attrib in ForecastMetaDataFrameSchema:
@@ -712,10 +741,8 @@ class ForecastMetaDataFrame():
 
         # if no ID was provided, generate one
         if(not hasattr(self, ForecastMetaDataFrameSchema.ID)):
-             self.meta_data[ForecastMetaDataFrameSchema.ID] = f"ForecastMetaDataFrame_{nanoid.generate(size=5)}"
+             self.meta_data[ForecastMetaDataFrameSchema.ID] = f"{id_prefix}_{nanoid.generate(size=5)}"
 
-        # create an id_mgr
-        self.id_mgr = ForecastMetaDataSeriesIdGenerator(self)
 
 
 
@@ -938,31 +965,90 @@ class ForecastMetaDataFrame():
         return(frame)
     
 
+    # get_id(self) -> str:
+    def get_id(self) -> str:
+        return(self.meta_data[ForecastMetaDataFrameSchema.ID])        
 
 
+    # get_last_series
+    # Get the last column (series) of the model
+    def get_last_series(self, value_series_only = False) -> ForecastMetaDataSeries:
+        list_of_action_ids = list(self.model.keys())
+
+        if(value_series_only):
+            for i in range(len(list_of_action_ids)-1, 0, -1):
+                curr_series = self.model[list_of_action_ids[i]]
+
+                if curr_series.is_value_action():
+                    return(curr_series)
+        else:
+            return(self.model[list_of_action_ids[-1]])
+        
+        raise ValueError(f"\n*  get_last_series:  error, no value series found {list_of_action_ids}.")
+    
+
+    # BUNCH OF HELPER FUNCTIONS TO QUICKLY GET DATA FROM THE LAST ACTION / SERIES IN THE FRAME
 
     # get_last_id
     # Get the id of the last column
-    def get_last_id(self) -> str:
-        last_key_id = list(self.model.keys())[-1]
-        return(last_key_id)
+    def get_last_id(self, value_series_only = False) -> str:
+        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.ID])
+        # last_key_id = list(self.model.keys())[-1]
+        # return(last_key_id)
     
-    # get_last_series
-    # Get the last column (series) of the model
-    def get_last_series(self) -> ForecastMetaDataSeries:
-        return(self.model[self.get_last_id()])
+    
     
     # get_last_data_type
-    def get_last_data_type(self) -> ForecastDataSeriesMetaDataDataType:
-        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
+    def get_last_data_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
+        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
+        #return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
 
     # get_last_display_type
-    def get_last_display_type(self) -> ForecastDataSeriesMetaDataDataType:
-        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+    def get_last_display_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
+        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+#        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
     
     # get_last_step_type(self) 
-    def get_last_step_type(self) -> ForecastDataSeriesMetaDataStepTypes:
-        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE])
+    def get_last_step_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataStepTypes:
+        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+#        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE])
+    
+    # get_last_values(self) 
+    def get_last_values(self, value_series_only = False) -> list:
+        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
+#        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
+    
+
+
+    # class ForecastMetaDataFrameSchema(str, Enum):
+    # ID = "id"
+    # INPUT_TYPE = "input_type"
+    # TIMESCALE = "timescale"
+    # START_YEAR = "start_year"
+    # START_MONTH = "start_month"
+    # NUM_PERIODS = "num_periods"
+
+
+    # get first date in the forecast
+    def get_first_date(self) -> datetime:
+        start_year = self.meta_data[ForecastMetaDataFrameSchema.START_YEAR]
+        start_month = self.meta_data[ForecastMetaDataFrameSchema.START_MONTH]
+        timescale = self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]
+        return(gen_dates(start_year=start_year, start_month = start_month, num_years=1, time_scale = timescale)[0])
+
+
+    # get last date in the forecast
+    def get_last_date(self) -> datetime:
+        start_year = self.meta_data[ForecastMetaDataFrameSchema.START_YEAR]
+        start_month = self.meta_data[ForecastMetaDataFrameSchema.START_MONTH]
+        num_periods = self.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS]
+        timescale = self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]
+
+
+        if(self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] == ForecastModelTimescale.MONTH):
+            num_periods = num_periods / 12
+        
+        return(gen_dates(start_year=start_year, start_month = start_month, num_years=num_periods, time_scale = timescale)[-1])
 
 
 
@@ -1086,7 +1172,10 @@ class ForecastMetaDataFrame():
             if(attrib != ForecastMetaDataFrameSchema.MODEL):    # this is done because MODEL is not a meta_data schema but on object attribute
                 dest_frame.meta_data[attrib] = src_frame.meta_data[attrib]
             else:
-                dest_frame.model = copy(src_frame.model).deepcopy()
+                if(dest_frame.model is not None):
+                    dest_frame.model = copy.deepcopy(src_frame.model)
+                else:
+                    dest_frame.model = {}
 
         return dest_frame
     
@@ -1107,6 +1196,9 @@ class ForecastMetaDataFrame():
 
     @staticmethod
     def _append_cols(src_frame: Type['ForecastMetaDataFrame'], dest_frame: Type['ForecastMetaDataFrame'], verify_integrity: bool = False, drop_dups: bool = False) -> Type['ForecastMetaDataFrame']:
+        if src_frame.model is None:
+            return dest_frame
+        
         for col_key in src_frame.model.keys():
             dest_frame = ForecastMetaDataFrame._append_col(src_series = src_frame.model[col_key], dest_frame = dest_frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
 
@@ -1161,8 +1253,9 @@ class ForecastMetaDataFrame():
                 results += f"\n{attrib} = {self.meta_data[attrib]}"
 
         # iterate on all columns and print their meta-data
-        for col_key in self.model.keys():
-            results += f"\n\nCol '{col_key}':\n{self.model[col_key]}"
+        if(self.model is not None):
+            for col_key in self.model.keys():
+                results += f"\n\nCol '{col_key}':\n{self.model[col_key]}"
 
         return results
 

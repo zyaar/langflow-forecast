@@ -49,6 +49,7 @@ class ForecastModelInputTypes(str, Enum):
     TIME_BASED = "Time Based Input"
     SINGLE_INPUT = "Single Input"
     TREATMENT_DETAILS = "Treatment Details"
+    PRE_FORECAST_PATIENT_FLOW = "Pre-forecast patient flow"
 
 
 class ForecastModelTimescale(str, Enum):

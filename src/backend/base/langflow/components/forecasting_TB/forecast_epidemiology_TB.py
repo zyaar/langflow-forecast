@@ -226,6 +226,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
 
         # generate the dataframe
         updated_model = DataFrame(self.patient_count).rename(columns={"patient_counts": input_col_id})
+        updated_model = ForecastDataModel.astype_first_all_cols(updated_model)
 
         # NOTE:  Since EPI is the origination of a forecast, we need to add a lot of meta-data here, specifically:
         # create the meta-dataframe, create the dates line, and the epi line
