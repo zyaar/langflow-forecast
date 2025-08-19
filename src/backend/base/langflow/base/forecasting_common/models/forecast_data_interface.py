@@ -229,7 +229,6 @@ class ForecastPredIterator():
         self.curr_range_index = -1
         self.curr_range_expires = -1
         self.pred_calcs = {}
-        # self.load_next_range()
         return self
 
 
@@ -254,7 +253,8 @@ class ForecastPredIterator():
         if(self.curr_element > self.curr_range_expires):
             self.load_next_range()
 
-        next_addresses = self.get_next_addresses(self.curr_element_in_range)
+#        next_addresses = self.get_next_addresses(self.curr_element_in_range)
+        next_addresses = self.get_next_addresses(self.curr_element)
 
         # increment the curr_element
         self.curr_element_in_range += 1
