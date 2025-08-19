@@ -326,6 +326,14 @@ class ForecastMetaDataSeriesIdGenerator():
         return self.container.meta_data[ForecastMetaDataFrameSchema.ID]
         
 
+    # static_gen_rel_id
+    @staticmethod
+    def static_gen_rel_id(prefix: str = None, length: int = 5) -> str:
+        if(prefix is None):
+            return nanoid.generate(size=length)
+        else:
+            return f"{prefix}{ForecastMetaDataSeriesIdGenerator.PREFIX_SEP_CHAR}{nanoid.generate(size=length)}"
+
     # generate a relative ID
     def gen_rel_id(self, prefix: str = None, length: int = 5) -> str:
         if(prefix is None):
@@ -360,14 +368,6 @@ class ForecastMetaDataSeriesIdGenerator():
             return full_id.removeprefix(full_id_prefix)
         else:
             raise ValueError(f"\n*  full_to_rel_id:  Invalid full ID provided '{full_id}'.")
-        
-
-        
-
-
-
-        
-
 
 
 
@@ -631,11 +631,19 @@ class ForecastMetaDataSeries():
     # 
     # OUTPUTS:
     #   Str with printable version of instance data
-
     def to_json(self, indent: int = 4) -> str:
         import json
         return json.dumps(self, default=ForecastMetaDataJsonSerializer, indent=indent)
     
+
+    # get_id
+    # get the id of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   the id of this Series
+    def get_id(self) -> str:
+        return(self.meta_data[ForecastMetaDataSeriesSchema.ID])        
 
 
     # has_ranges
@@ -646,7 +654,6 @@ class ForecastMetaDataSeries():
     # 
     # OUTPUTS:
     #   True or False
-
     def has_ranges(self) -> bool:
         if(ForecastMetaDataSeriesSchema.RANGES not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.RANGES] is None):
             return False
@@ -654,21 +661,19 @@ class ForecastMetaDataSeries():
             return True
         
 
-    # has_pred
-    # Return true if this Series has pred (i.e. one or more entries in the ranges meta_data), False otherwise
-    #  
+    # get_ranges
+    # get the ranges (a list of ForecastMetaDataRange) for this Series
     # INPUTS:
     #   NA
-    # 
     # OUTPUTS:
-    #   True or False
-
-    def has_preds(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.PRED not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.PRED] is None):
-            return False
+    #   list of ForecastMetaDataRange, or None if there are none
+    def get_ranges(self) -> list[ForecastMetaDataRange]:
+        if(ForecastMetaDataSeriesSchema.RANGES not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.RANGES] is None):
+            return None
         else:
-            return True
+            return self.meta_data[ForecastMetaDataSeriesSchema.RANGES]
         
+
     # is_value_action
     # Return true if this Series generates/has values (i.e. not a pure meta_data / command action like STEP_INIT)
     #  
@@ -685,6 +690,95 @@ class ForecastMetaDataSeries():
             return(True)
         
 
+    # has_arg
+    # Return true if this Series has args (i.e. one or more entries in the args meta_data), False otherwise
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   True or False
+    def has_arg(self) -> bool:
+        if(ForecastMetaDataSeriesSchema.ARGS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.ARGS] is None):
+            return False
+        else:
+            return True
+        
+        
+    # get_arg
+    # get a specific arg by name    
+    def get_arg(self, arg_name: str):
+        if(ForecastMetaDataSeriesSchema.ARGS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.ARGS] is None):
+            return None
+        else:
+            if arg_name in self.meta_data[ForecastMetaDataSeriesSchema.ARGS].keys():
+                return self.meta_data[ForecastMetaDataSeriesSchema.ARGS][arg_name]
+            else:
+                return None
+            
+    
+    # has_obj
+    # Return true if this Series has objs (i.e. one or more entries in the objs meta_data), False otherwise
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   True or False
+    def has_obj(self) -> bool:
+        if(ForecastMetaDataSeriesSchema.OBJS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.OBJS] is None):
+            return False
+        else:
+            return True
+        
+
+    # get_obj
+    # get a specific obj by name
+    #
+    # INPUTS:
+    #   obj_name - the name of the object to get
+    #
+    # OUTPUTS:
+    #   the object, or None if it doesn't exist
+    def get_obj(self, obj_name: str):
+        if(ForecastMetaDataSeriesSchema.OBJS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.OBJS] is None):
+            return None
+        else:
+            if obj_name in self.meta_data[ForecastMetaDataSeriesSchema.OBJS].keys():
+                return self.meta_data[ForecastMetaDataSeriesSchema.OBJS][obj_name]
+            else:
+                return None
+
+    # has_pred
+    # Return true if this Series has pred (i.e. one or more entries in the ranges meta_data), False otherwise
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   True or False
+    def has_preds(self) -> bool:
+        if(ForecastMetaDataSeriesSchema.PRED not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.PRED] is None):
+            return False
+        else:
+            return True
+
+
+    # get pred
+    # get the preds (a list of column ids) for this Series
+    # INPUTS:
+    #   NA
+    #
+    # OUTPUTS:
+    #   list of column ids, or None if there are none
+    def get_pred(self):
+        if(ForecastMetaDataSeriesSchema.PRED not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.PRED] is None):
+            return None
+        else:
+            return self.meta_data[ForecastMetaDataSeriesSchema.PRED]
+
+
+        
 
 
 

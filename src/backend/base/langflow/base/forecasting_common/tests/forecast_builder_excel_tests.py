@@ -11,7 +11,7 @@ from langflow.base.forecasting_common.models.forecast_data_packet import Forecas
 
 def main():
     working_dir = "./output/"
-    data_packet_file = working_dir + "output.pickle"
+    data_packet_file = working_dir + "output_product_1.pickle"
     json_output_file = working_dir + "meta_data.json"
     template_file = working_dir + "excel_player_template.xlsx"
     output_file = working_dir + "test_excel_player.xlsx"

@@ -125,6 +125,71 @@ class ForecastExcelBaseHelpers:
 
 
 
+    # gen_excel_tab_name
+    @staticmethod
+    def gen_excel_tab_name(name: str, existing_tab_names: list[str]) -> str:
+        MAX_TAB_ID_NUM = 1000
+        num_tries = 0
+
+        # generate a candidate tab name
+        tab_name = ForecastExcelBaseHelpers._gen_excel_tab_name_candidate(name = name)
+
+        # if candiate name already exists and a counter to the name (i.e."name1", "name2", ...) and keep iterating till we find
+        # one that works (or we have tried 999 names)
+        while(tab_name in existing_tab_names):
+            num_tries += 1
+
+            if(num_tries >= MAX_TAB_ID_NUM):
+                raise ValueError(f"\n*  gen_excel_tab_name:  unable to generate unique tab name for {name}, no unique name up to '999'")
+
+            tab_name = ForecastExcelBaseHelpers._gen_excel_tab_name_candidate(name = name, id = num_tries)
+        
+        return tab_name
+            
+
+
+
+    # gen_excel_tab_name_candidate
+    # takes any variable and generates a name suitable which will fit in an excel tab as a name
+    # this is not guaranteed to be unique, but if given a last_id for the name, will increment the last id
+    # by one
+    @staticmethod
+    def _gen_excel_tab_name_candidate(name: str, id: int = None) -> str:
+        chars_to_remove = 0
+
+        # if we have an id, figure out how many character it will need in the tab name
+        # (tabs in EXCEL are limited to 31 chars, so any id characters must decrement from that 31)
+        if(id is not None):
+            chars_to_remove = len(str(id))
+
+        # Replace invalid characters
+        invalid_chars = r'\/?:*[]'
+        for char in invalid_chars:
+            name = name.replace(char, '_')  # Replace with underscore or other suitable character
+
+        # Remove leading/trailing apostrophes if present
+        if name.startswith("'"):
+            name = name[1:]
+        if name.endswith("'"):
+            name = name[:-1]
+
+        # Truncate if longer than 31 characters
+        if len(name) > 31:
+            if id is None:
+                name = name[:31]
+            else:
+                name = name[:(31-chars_to_remove)]    # remove enough characters to be able to add the id
+
+        # Ensure the name is not empty after cleaning
+        if not name:
+            name = "Sheet"  # Default name if cleaning results in an empty string
+
+        if id is not None:
+            name = f"{name}{id}"
+
+        return name
+    
+
     # CELL
 
     # cell_to_formula_ref
@@ -237,76 +302,18 @@ class ForecastExcelBaseHelpers:
         return(f"({formula})")
     
 
-    # gen_excel_tab_name
-    @staticmethod
-    def gen_excel_tab_name(name: str, existing_tab_names: list[str]) -> str:
-        MAX_TAB_ID_NUM = 1000
-        num_tries = 0
 
-        # generate a candidate tab name
-        tab_name = ForecastExcelBaseHelpers._gen_excel_tab_name_candidate(name = name)
-
-        # if candiate name already exists and a counter to the name (i.e."name1", "name2", ...) and keep iterating till we find
-        # one that works (or we have tried 999 names)
-        while(tab_name in existing_tab_names):
-            num_tries += 1
-
-            if(num_tries >= MAX_TAB_ID_NUM):
-                raise ValueError(f"\n*  gen_excel_tab_name:  unable to generate unique tab name for {name}, no unique name up to '999'")
-
-            tab_name = ForecastExcelBaseHelpers._gen_excel_tab_name_candidate(name = name, id = num_tries)
-        
-        return tab_name
-            
-
-
-
-    # gen_excel_tab_name_candidate
-    # takes any variable and generates a name suitable which will fit in an excel tab as a name
-    # this is not guaranteed to be unique, but if given a last_id for the name, will increment the last id
-    # by one
-    @staticmethod
-    def _gen_excel_tab_name_candidate(name: str, id: int = None) -> str:
-        chars_to_remove = 0
-
-        # if we have an id, figure out how many character it will need in the tab name
-        # (tabs in EXCEL are limited to 31 chars, so any id characters must decrement from that 31)
-        if(id is not None):
-            chars_to_remove = len(str(id))
-
-        # Replace invalid characters
-        invalid_chars = r'\/?:*[]'
-        for char in invalid_chars:
-            name = name.replace(char, '_')  # Replace with underscore or other suitable character
-
-        # Remove leading/trailing apostrophes if present
-        if name.startswith("'"):
-            name = name[1:]
-        if name.endswith("'"):
-            name = name[:-1]
-
-        # Truncate if longer than 31 characters
-        if len(name) > 31:
-            if id is None:
-                name = name[:31]
-            else:
-                name = name[:(31-chars_to_remove)]    # remove enough characters to be able to add the id
-
-        # Ensure the name is not empty after cleaning
-        if not name:
-            name = "Sheet"  # Default name if cleaning results in an empty string
-
-        if id is not None:
-            name = f"{name}{id}"
-
-        return name
-    
+    # META-DATA
 
     # quick_static_date_series
     # generates a date ForecastMetaDataSeries with the minimum of inputs, used by the builder to quickly generate inputs for "action_DATES" calls
     @staticmethod
-    def quick_static_date_series(id, step, label, values):
-        from langflow.base.forecasting_common.models.forecast_meta_data import ForecastMetaDataSeries, ForecastDataSeriesMetaDataAction, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataValidationSchema, ForecastDataSeriesMetaDataValidateInputRestrictions
+    def quick_static_date_series(step, label, values, id: str = None, key_length: int = 5):
+        from langflow.base.forecasting_common.models.forecast_meta_data import ForecastMetaDataSeriesIdGenerator, ForecastMetaDataSeries, ForecastDataSeriesMetaDataAction, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataValidationSchema, ForecastDataSeriesMetaDataValidateInputRestrictions
+        
+        if(id is None):
+            id = ForecastMetaDataSeriesIdGenerator.static_gen_rel_id(prefix = f"quick_static_date_series_{ForecastMetaDataSeries}", length = key_length)
+
         return(
             ForecastMetaDataSeries(id = id,
                                    step_type = step,
@@ -320,8 +327,12 @@ class ForecastExcelBaseHelpers:
     
 
     @staticmethod
-    def quick_static_input_series(id, step, label, values):
-        from langflow.base.forecasting_common.models.forecast_meta_data import ForecastMetaDataSeries, ForecastDataSeriesMetaDataAction, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataValidationSchema, ForecastDataSeriesMetaDataValidateInputRestrictions
+    def quick_static_input_series(step, label, values, id: str = None, key_length: int = 5):
+        from langflow.base.forecasting_common.models.forecast_meta_data import ForecastMetaDataSeriesIdGenerator, ForecastMetaDataSeries, ForecastDataSeriesMetaDataAction, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataValidationSchema, ForecastDataSeriesMetaDataValidateInputRestrictions
+
+        if(id is None):
+            id = ForecastMetaDataSeriesIdGenerator.static_gen_rel_id(prefix = f"quick_static_input_series_{ForecastMetaDataSeries}", length = key_length)
+
         return(
             ForecastMetaDataSeries(id = id,
                                    step_type = step,

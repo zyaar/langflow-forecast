@@ -528,6 +528,7 @@ class ForecastDataModel(DataFrame):
                                                     data_values = data_model[new_id].to_list(),
                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                     pred = [last_id],
+                                                    args = {"dates": new_dates},
                                                     verify_integrity=True,
                                                     drop_dups = False)
             
