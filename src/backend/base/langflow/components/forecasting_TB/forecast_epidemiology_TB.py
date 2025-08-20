@@ -82,20 +82,6 @@ class ForecastEpidemiologyTB(ForecastComponent):
         inputs_list = [
             *super()._gen_inputs(),
 
-            # # Pre-Forecast Patients
-            # # Variable which controls the number of rows in the table
-            # IntInput(
-            #     name = "row_set_var",
-            #     display_name = self.ROW_SET_DISPLAY_NAME,
-            #     info = self.ROW_SET_INFO,
-            #     value = self.ROW_SET_DEFAULT,
-            #     dynamic = True,
-            #     real_time_refresh = True,
-            #     show = True,
-            #     required = True,
-            #     range_spec = RangeSpec(min = self.ROW_SET_MIN, max = self.ROW_SET_MAX, step = self.ROW_SET_STEP),
-            # ),
-
             # patient_count
             TableInput(
                 name="patient_count",
@@ -265,7 +251,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
                                                       action = ForecastDataSeriesMetaDataAction.INPUT,
                                                       data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                       display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                      display_name = self.display_name,
+                                                      display_name = f"# of {self.display_name}",
                                                       data_values = updated_model[input_col_id].to_list(),
                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],)
         
