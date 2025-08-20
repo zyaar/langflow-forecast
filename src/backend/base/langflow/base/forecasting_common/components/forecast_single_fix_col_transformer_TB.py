@@ -315,7 +315,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                                                                     updated_meta_data,
                                                                                     id = self.var_col_input_id,
                                                                                     display_name = f"{self.VAR_TABLE_COL_DISPLAY_NAME}",
-                                                                                    data_values = col_var_values,   # this is a DataFrame, so don't need to convert to
+                                                                                    data_values = col_var_values.to_list(),   # this is a DataFrame, so don't need to convert to
                                                                                     step_type = self.VAR_STEP_TYPE,
                                                                                     action = ForecastDataSeriesMetaDataAction.INPUT,
                                                                                     data_type = self.VAR_IN_TYPE,
@@ -459,21 +459,21 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
         # calculate the var action values (which is the product of total_in and var percent values)
         col_var_action_values = col_total_in_values * col_var_values
 
-        (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                     updated_meta_data,
-                                                                     id = self.var_col_calc_id,
-                                                                     display_name = f"{self.display_name}",
-                                                                     data_values = col_var_action_values,
-                                                                     step_type = self.VAR_STEP_TYPE,
-                                                                     action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                     data_type = self.VAR_OUT_TYPE,
-                                                                     display_type = self.VAR_OUT_DISPLAY_TYPE,
-                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                     pred = [col_total_in_id, self.var_col_input_id],
-                                                                     args = None,
-                                                                     objs = None)
+        (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
+                                                                                  updated_meta_data,
+                                                                                  id = self.var_col_calc_id,
+                                                                                  display_name = f"{self.display_name}",
+                                                                                  data_values = col_var_action_values.to_list(),
+                                                                                  step_type = self.VAR_STEP_TYPE,
+                                                                                  action = ForecastDataSeriesMetaDataAction.PROD,
+                                                                                  data_type = self.VAR_OUT_TYPE,
+                                                                                  display_type = self.VAR_OUT_DISPLAY_TYPE,
+                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                  pred = [col_total_in_id, self.var_col_input_id],
+                                                                                  args = None,
+                                                                                  objs = None)
         
-        return(updated_model, updated_meta_data, col_total_in_id)
+        return(updated_model, updated_meta_data, self.var_col_calc_id)
     
 
 
@@ -496,21 +496,21 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
         # calculate the var action values (which is the product of total_in and var percent values)
         col_var_action_values = col_total_in_values * col_var_remainder_values
 
-        (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                     updated_meta_data,
-                                                                     id = self.var_col_remainder_calc_id,
-                                                                     display_name = f"{self.display_name}",
-                                                                     data_values = col_var_action_values,
-                                                                     step_type = self.VAR_STEP_TYPE,
-                                                                     action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                     data_type = self.VAR_OUT_TYPE,
-                                                                     display_type = self.VAR_OUT_DISPLAY_TYPE,
-                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                     pred = [col_total_in_id, self.var_col_remainder_pct_id],
-                                                                     args = None,
-                                                                     objs = None)
+        (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
+                                                                                  updated_meta_data,
+                                                                                  id = self.var_col_remainder_calc_id,
+                                                                                  display_name = f"{self.display_name}",
+                                                                                  data_values = col_var_action_values.to_list(),
+                                                                                  step_type = self.VAR_STEP_TYPE,
+                                                                                  action = ForecastDataSeriesMetaDataAction.PROD,
+                                                                                  data_type = self.VAR_OUT_TYPE,
+                                                                                  display_type = self.VAR_OUT_DISPLAY_TYPE,
+                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                  pred = [col_total_in_id, self.var_col_remainder_pct_id],
+                                                                                  args = None,
+                                                                                  objs = None)
         
-        return(updated_model, updated_meta_data, col_total_in_id)
+        return(updated_model, updated_meta_data, self.var_col_remainder_calc_id)
     
 
 

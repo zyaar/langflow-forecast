@@ -1625,7 +1625,7 @@ class ForecastBuilderExcelTB():
         return(list_of_refs)
     
 
-    # _id_to_formula_refs
+    # _id_to_formula_ref
     # given a value which is either constants (int or float) or ForecastMetaData IDs (strings)
     # and a column in the spreadsheet, generates a string reference suitable for inclusion in a formula (i.e. 'Summary'!A1)
     # this is useful when you need to generate all the formula values in the same column, but different rows for a forumla
@@ -1640,37 +1640,31 @@ class ForecastBuilderExcelTB():
     #   
     #
     # OUTPUTS:
-    #   cell_formula_reference - (str) either a constant (string version of float or int) or a cell reference suitable for an excel formula
-
-    # def _id_to_formula_ref(self, id_or_const: int | str | float, col_num: int, with_ws_name: bool = True) -> str:
-    #         # determine if this is an ID or a constant
-    #         # if constant, return a string version of the constant
-    #         if isinstance(id_or_const, int | float):
-    #             const = id_or_const
-    #             return(str(const))
-
-    #         # if ID, get the 
-    #         else:
-    #             id = id_or_const
-    #             (tab_name, cell_ref, num_elements) = self.id_cellref_maps.get(id)  # get the tab_name and the cell reference
-    #             col_offset = col_num - ForecastBuilderExcelTB.ExcelField.START # figure out how many cells over we need to shift the reference to get our values
-    #             cell_ref = cell_ref.offset(row = 0, column = col_offset)
-    #             return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_ref, with_ws_name=with_ws_name))
-            
+    #   cell_formula_reference - (str) either a constant (string version of float or int) or a cell reference suitable for an excel formula            
 
     def _id_to_formula_ref(self, id: list, with_ws_name: bool = True) -> str:
-            cell_or_const = id[1]   
+            tab_name = None
+            cell_or_const = None
+            
+            # if this is a list or tuple, then the id includes the tab name as well as the cell reference, so split them out
+            # ZIV
+            if(isinstance(id, list | tuple)):
+               tab_name = id[0]
+               cell_or_const = id[1]
+            else:
+                cell_or_const = id
 
             # determine if this is an ID or a constant
             # if constant, return a string version of the constant
             if isinstance(cell_or_const, int | float):
-                const = cell_or_const
-                return(str(const))
+                return(str(cell_or_const))
             
             # get the addess for this cell
-            else:
-                return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_or_const, with_ws_name=with_ws_name))            
+            elif isinstance(cell_or_const, Cell):
+                return(ForecastExcelBaseHelpers.cell_to_formula_ref(cell_or_const, with_ws_name=with_ws_name))           
 
+            else:
+                raise ValueError(f"\n * _id_to_formula_ref:  Error id '{cell_or_const}' has invalid type '{type(cell_or_const)}'.")
 
     # CELL
 

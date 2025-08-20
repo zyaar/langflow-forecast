@@ -417,7 +417,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         updated_data= results["pat_on_treatment"]["pat_by_treatment_month_data"]
         updated_meta_data = results["pat_on_treatment"]["pat_by_treatment_month_meta_data"]
 
-        updated_model = results["pat_on_treatment"]["updated_data"]
+        #updated_model = results["pat_on_treatment"]["updated_data"]
+        updated_data = results["pat_on_treatment"]["updated_data"]
 
         # calculate the number of Rx for this product, total and by treatment month
         product_id = f"{ForecastTreatmentTB.COL_PREFIX}_{seg_num}"
@@ -441,7 +442,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         if(self.timescale == ForecastModelTimescale.YEAR):
             (updated_data, updated_meta_data, last_col_id) = ForecastDataModel.convert_timescale(updated_data, updated_meta_data, target = ForecastModelTimescale.YEAR)
 
-        return self._forecast_model_common_output(updated_model, updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
+        return self._forecast_model_common_output(data = updated_data, meta_data = updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
 
 
 
@@ -458,15 +459,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     # (treatment_details_model, treatment_details_meta_data, pat_on_treatment_data, pat_on_treatment_meta_data, updated_model) 
     def _forecast_model_common_input(self, keep_granular: bool = True) -> dict[str, list]:
         (updated_model, updated_meta_data, col_total_in_id) = super()._forecast_model_common_input()
-
-        # # this function can only work with monthly data, so model is set to yearly, convert here to monthly
-        # if(updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] != ForecastModelTimescale.MONTH):
-        #     (updated_model, updated_meta_data, col_total_in_id) = ForecastDataModel.convert_timescale(data_model = updated_model,
-        #                                                                                               meta_data = updated_meta_data, 
-        #                                                                                               target = ForecastModelTimescale.MONTH, 
-        #                                                                                               step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
-        # # get in totals_in values (in case we need to use it)
-        # col_total_in_values = updated_model[col_total_in_id]
 
         # setup pre_forecast_patient_flow (currently disabled), TODO:  implement an input to allow the setting of initial state
         #pre_forecast_patient_flow = [ForecastDataModel.EDITABLE_VALUES_TOKEN] * (self.treatment_duration-1)
@@ -522,7 +514,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                             ForecastTreatmentStepInitArgs.PRE_FORECAST_PATIENT_FLOW_DATA.value: pre_forecast_patient_flow_model,
                                                                             ForecastTreatmentStepInitArgs.PRE_FORECAST_PATIENT_FLOW_META_DATA.value: pre_forecast_patient_flow_meta_data})
         
-        # ZIV ADDED
         # this function can only work with monthly data, so model is set to yearly, convert here to monthly
         if(updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] != ForecastModelTimescale.MONTH):
             (updated_model, updated_meta_data, col_total_in_id) = ForecastDataModel.convert_timescale(data_model = updated_model,

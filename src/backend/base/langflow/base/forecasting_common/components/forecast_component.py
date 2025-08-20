@@ -176,7 +176,6 @@ class ForecastComponent(Component):
 
     def _forecast_model_common_input(self):
         self.validate_inputs()
-        pass
 
 
     def _forecast_model_common_output(self, data: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, check_ids: bool = True) -> Data:

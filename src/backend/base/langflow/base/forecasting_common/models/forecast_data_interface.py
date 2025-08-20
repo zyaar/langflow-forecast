@@ -189,7 +189,7 @@ class ForecastPredIterator():
     # # Enum holding the schema of the meta-data model
     # # The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
 
-    def __init__(self, col: ForecastMetaDataSeries, address_maps:  IdElementToHandleMaps, default_card: str, total_elements:int = None):
+    def __init__(self, col: ForecastMetaDataSeries, address_maps: IdElementToHandleMaps, default_card: str, total_elements:int = None):
         self.default_card = default_card
         self.col_meta_data = col
         self.address_mapper = address_maps
@@ -253,7 +253,6 @@ class ForecastPredIterator():
         if(self.curr_element > self.curr_range_expires):
             self.load_next_range()
 
-#        next_addresses = self.get_next_addresses(self.curr_element_in_range)
         next_addresses = self.get_next_addresses(self.curr_element)
 
         # increment the curr_element
