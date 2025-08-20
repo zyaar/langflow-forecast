@@ -491,6 +491,9 @@ class ForecastBuilderExcelTB():
                 case ForecastDataSeriesMetaDataAction.SUM:
                     self.action_SUM(id, default_card, curr_col, ref_map_id = def_ref_map_id)
 
+                case ForecastDataSeriesMetaDataAction.TOTAL:
+                    self.action_TOTAL(id, default_card, curr_col, ref_map_id = def_ref_map_id)
+
                 case ForecastDataSeriesMetaDataAction.PROD:
                     self.action_PROD(id, default_card, curr_col, ref_map_id = def_ref_map_id)
 
@@ -621,6 +624,31 @@ class ForecastBuilderExcelTB():
                             row_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME],
                             add_blank_row_before = add_blank_row_before,
                             add_blank_row_after = add_blank_row_after)
+
+
+
+
+    # action_TOTAL
+    # BUILD INTERFACE:  same formula's as total, by may be handled differently given it's a (SUB)TOTAL
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_TOTAL(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries, ref_map_id: str, add_blank_row_before: bool = False, add_blank_row_after: bool = None):
+        # if left unspecified, add a blank row after the total line
+        if(add_blank_row_after is None):
+            add_blank_row_after = True
+
+        self.action_SUM(id = id,
+                        card_name = card_name, 
+                        curr_meta_col = curr_meta_col, 
+                        ref_map_id = ref_map_id, 
+                        add_blank_row_before = add_blank_row_before, 
+                        add_blank_row_after = add_blank_row_after)
 
 
 

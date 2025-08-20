@@ -506,7 +506,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = f"{treatment_group_id}_Init",
                                                                     display_name = self.display_name,
-#                                                                    data_values = col_total_in_values,
                                                                     data_values = updated_model[updated_meta_data.get_last_id()].to_list(),
                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                     action = ForecastDataSeriesMetaDataAction.STEP_INIT,

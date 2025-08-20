@@ -103,6 +103,7 @@ class ForecastDataSeriesMetaDataAction(str, Enum):
     INPUT = "input" # set-up an input row for data entry
     COPY = "copy" # copy the values from another row
     SUM = "sum" # sum up a series of col ids (in preds) or constants
+    TOTAL = "total" # same as sum, but may be treated different visually
     PROD = "prod" # multiply a series of col ids (preds) or constants
     SUB = "sub"  # subtract a series of col ids (preds) or constants
     STEP_INIT = "step_init" # perform any initialization required for this step type
@@ -938,6 +939,7 @@ class ForecastMetaDataFrame():
                        display_name: str,
                        new_summation_id: str = None,
                        new_total_line_id: str = None,
+                       is_total: bool = False,
                        new_total_values: pd.Series = None,
                        verify_integrity: bool = False,
                        drop_dups: bool = False, 
@@ -967,9 +969,15 @@ class ForecastMetaDataFrame():
                                                                 pred = list_of_pred_ids)
             
             # generate the instructions for the totals row
+
+            action_type = ForecastDataSeriesMetaDataAction.SUM
+
+            if(is_total):
+                action_type = ForecastDataSeriesMetaDataAction.TOTAL
+
             meta_data_sum_series = ForecastMetaDataSeries(id = new_total_line_id,
                                                           step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
-                                                          action = ForecastDataSeriesMetaDataAction.SUM,
+                                                          action = action_type,
                                                           data_type = data_type,
                                                           display_type = display_type,
                                                           display_name = display_name,

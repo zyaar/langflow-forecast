@@ -133,10 +133,11 @@ class ForecaseSumInputTB(ForecastComponent):
 
         # combine meta_datas and add a total instruction if multiple frames are being added
         updated_meta_data = ForecastMetaDataFrame.concat_and_sum(datas = updated_meta_datas,
-                                                                 display_name = f"Total ({", ".join(totals_ids)})",
+                                                                 display_name = f"Total ({", ".join(totals_ids)})", # TODO get display names, not id's
                                                                  new_summation_id = new_summation_id,
                                                                  new_total_line_id = new_total_line_id,
                                                                  new_total_values = totals_values,
+                                                                 is_total = True,
                                                                  verify_integrity = False, 
                                                                  drop_dups = True)
         return(updated_model, updated_meta_data, totals_id)
