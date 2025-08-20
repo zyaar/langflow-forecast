@@ -460,6 +460,14 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     def _forecast_model_common_input(self, keep_granular: bool = True) -> dict[str, list]:
         (updated_model, updated_meta_data, col_total_in_id) = super()._forecast_model_common_input()
 
+
+        # if the current forcast is YEARLY, convert to MONTHLY to get the ealiest date, otherwise, just grab the first date
+        if(updated_meta_data.get_timescale != ForecastModelTimescale.MONTH):
+            converted_dates = ForecastDataModel.conv_forecast_dates_yearly_to_monthly(data = updated_model[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].to_list())
+            earliest_date = converted_dates[0]
+        else:
+            earliest_date = updated_meta_data.get_first_date()
+
         # setup pre_forecast_patient_flow (currently disabled), TODO:  implement an input to allow the setting of initial state
         #pre_forecast_patient_flow = [ForecastDataModel.EDITABLE_VALUES_TOKEN] * (self.treatment_duration-1)
         pre_forecast_patient_flow = list(range(100,(self.treatment_duration)*100, 100)) # testing set for pc initial state
@@ -482,7 +490,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         pre_forecast_table_group_id = f"{treatment_group_id}_pre_forecast_inputs"
         (pre_forecast_inputs_model, pre_forecast_inputs_meta_data, pf_col_id, last_date) = self.create_pre_forecast_inputs_object(id = pre_forecast_table_group_id,
                                                                                                                                   pre_forecast_patient_flow = pre_forecast_patient_flow,
-                                                                                                                                  first_forecast_date = updated_meta_data.get_first_date())
+                                                                                                                                  first_forecast_date = earliest_date)
 
         # create prior month patient flow
         pre_forecast_patient_flow_group_id = f"{treatment_group_id}_prior_month_patient_flow"
@@ -643,8 +651,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                   data_values = col_treat_col_values,
                                                                                   step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                                   action = ForecastDataSeriesMetaDataAction.INPUT,
-                                                                                  data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                                  display_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                                  data_type = ForecastDataSeriesMetaDataDataType.PCT,
+                                                                                  display_type = ForecastDataSeriesMetaDataDataType.PCT,
                                                                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK},
                                                                                                 {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataComparisonType.LE}],
                                                                                   args = {ForecastDataSeriesMetaDataComparisonType.LE: 1}) # add argument with the value for LESS_EQUAL_THAN validation
@@ -688,11 +696,15 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     #   MetaDataFrame with the meta-data for the same thing
     #   id of the row that holds the progression curve
 
+    # ZIV
     def create_pre_forecast_inputs_object(self, id: str, pre_forecast_patient_flow: list[int], first_forecast_date: datetime) -> tuple[(DataFrame, ForecastMetaDataFrame, str, str, datetime)]:
         num_elements = self.treatment_duration-1
 
 
-        # PRE_FORECASE DATES
+        # PRE_FORECAST DATES
+
+
+
         pre_forecast_dates = ForecastDataModel.gen_pre_dates(first_forecast_date = first_forecast_date, num_periods = num_elements, time_scale = ForecastModelTimescale.MONTH)
         last_date = pre_forecast_dates[-1]
         first_date = pre_forecast_dates[0]

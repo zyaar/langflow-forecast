@@ -1059,10 +1059,24 @@ class ForecastMetaDataFrame():
         return(frame)
     
 
-    # get_id(self) -> str:
+    # BUNCH OF HELPER FUNCTIONS TO QUICKLY GET THE OVERALL META-DATA FROM THE FRAME (the stuff that isn't going to change)
+
+    # get_id
+    # get the ID for the Frame
     def get_id(self) -> str:
         return(self.meta_data[ForecastMetaDataFrameSchema.ID])        
 
+
+    # get_timescale
+    # get the TIMESCALE of the frame
+    def get_timescale(self) -> ForecastModelTimescale:
+        return(self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE])
+
+
+    
+    
+
+    # BUNCH OF HELPER FUNCTIONS TO QUICKLY GET DATA FROM THE LAST ACTION / SERIES IN THE FRAME
 
     # get_last_series
     # Get the last column (series) of the model
@@ -1079,9 +1093,7 @@ class ForecastMetaDataFrame():
             return(self.model[list_of_action_ids[-1]])
         
         raise ValueError(f"\n*  get_last_series:  error, no value series found {list_of_action_ids}.")
-    
 
-    # BUNCH OF HELPER FUNCTIONS TO QUICKLY GET DATA FROM THE LAST ACTION / SERIES IN THE FRAME
 
     # get_last_id
     # Get the id of the last column
@@ -1089,9 +1101,8 @@ class ForecastMetaDataFrame():
         return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.ID])
         # last_key_id = list(self.model.keys())[-1]
         # return(last_key_id)
-    
-    
-    
+
+
     # get_last_data_type
     def get_last_data_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
         return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
@@ -1100,27 +1111,16 @@ class ForecastMetaDataFrame():
     # get_last_display_type
     def get_last_display_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
         return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
-#        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
-    
+
+
     # get_last_step_type(self) 
     def get_last_step_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataStepTypes:
         return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
-#        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE])
-    
+
+
     # get_last_values(self) 
     def get_last_values(self, value_series_only = False) -> list:
         return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
-#        return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
-    
-
-
-    # class ForecastMetaDataFrameSchema(str, Enum):
-    # ID = "id"
-    # INPUT_TYPE = "input_type"
-    # TIMESCALE = "timescale"
-    # START_YEAR = "start_year"
-    # START_MONTH = "start_month"
-    # NUM_PERIODS = "num_periods"
 
 
     # get first date in the forecast

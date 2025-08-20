@@ -341,6 +341,8 @@ class ForecastDataModel(DataFrame):
       # DATE MANIPULATION
       # =================
       
+      
+
       # gen_forecast_dates
       # Creates a series of dates which or compatible with the Forecast Data Model given all the standard inputs.  Added this function
       # to centralize date creation in this static class
@@ -361,9 +363,41 @@ class ForecastDataModel(DataFrame):
             start_month: int=1, 
             timescale: ForecastModelTimescale = ForecastModelTimescale.YEAR,
       ) -> List[datetime.datetime]:
-#      ) -> List[pd.Timestamp]:
             return(gen_dates(start_year = start_year, num_years = num_years, start_month = start_month, time_scale = timescale))
       
+
+
+      # conv_dates_monthly_to_yearly
+      #
+      # PASS THROUGH FROM DATE_UTILS:  Given a forecast series of end-of-month dates, return the equivalent end-of-year dates 
+      #
+      # INPUTS:
+      #   start_year = start year of the forecast
+      #   num_years: number of years out to set the list
+      #   start_month (optional): set the start month, used to supported fiscal years which do not start on a calendar year, default is: January
+      #   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
+      # OUTPUTS:
+      #   List of pd.Timestamps with the year end of month end dates in the forecast
+
+      @staticmethod
+      def conv_forecast_dates_monthly_to_yearly(data: List[datetime.datetime] | pd.DatetimeIndex)-> List[pd.Timestamp]:
+            return conv_dates_monthly_to_yearly(data = data)
+
+      # conv_dates_yearly_to_monthly
+      #
+      # Given a forecast series of end-of-year dates, return the equivalent end_of_month dates 
+      #
+      # INPUTS:
+      #   start_year = start year of the forecast
+      #   num_years: number of years out to set the list
+      #   start_month (optional): set the start month, used to supported fiscal years which do not start on a calendar year, default is: January
+      #   timescale (optional): set the granularity of the time series (monthly, yearly), default is: Yearly
+      # OUTPUTS:
+      #   List of pd.Timestamps with the year end of month end dates in the forecast
+
+      @staticmethod
+      def conv_forecast_dates_yearly_to_monthly(data: List[datetime.datetime] | pd.DatetimeIndex)-> List[datetime.datetime]:
+            return conv_dates_yearly_to_monthly(data = data)
 
 
       # gen_pre_dates
