@@ -41,7 +41,8 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions,
                                                                         ForecastDataSeriesMetaDataComparisonType,
                                                                         ForecastMetaDataRange,
-                                                                        ForecastMetaDataRangeSchema)
+                                                                        ForecastMetaDataRangeSchema,
+                                                                        ForecastDataSeriesMetaDataArgsTreatmentStepInit)
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -460,6 +461,11 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     def _forecast_model_common_input(self, keep_granular: bool = True) -> dict[str, list]:
         (updated_model, updated_meta_data, col_total_in_id) = super()._forecast_model_common_input()
 
+        # if the treatment duration is only 1 month, we don't need to calculate any pre-forecast data
+        if(self.treatment_duration > 1):
+            need_pre_forecast_data = True
+        else:
+            need_pre_forecast_data = False
 
         # if the current forcast is YEARLY, convert to MONTHLY to get the ealiest date, otherwise, just grab the first date
         if(updated_meta_data.get_timescale != ForecastModelTimescale.MONTH):
@@ -469,6 +475,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
             earliest_date = updated_meta_data.get_first_date()
 
         # setup pre_forecast_patient_flow (currently disabled), TODO:  implement an input to allow the setting of initial state
+        # ZIV
         #pre_forecast_patient_flow = [ForecastDataModel.EDITABLE_VALUES_TOKEN] * (self.treatment_duration-1)
         pre_forecast_patient_flow = list(range(100,(self.treatment_duration)*100, 100)) # testing set for pc initial state
 
@@ -486,22 +493,34 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         (treatment_details_model, treatment_details_meta_data, pc_col_id) = self.create_treatment_data_object(id = treatment_details_table_group_id,
                                                                                                               table_name = "treatment_details", 
                                                                                                               treatment_details = treatment_details)
-        # create pre-forecast inputs meta_data
-        pre_forecast_table_group_id = f"{treatment_group_id}_pre_forecast_inputs"
-        (pre_forecast_inputs_model, pre_forecast_inputs_meta_data, pf_col_id, last_date) = self.create_pre_forecast_inputs_object(id = pre_forecast_table_group_id,
-                                                                                                                                  pre_forecast_patient_flow = pre_forecast_patient_flow,
-                                                                                                                                  first_forecast_date = earliest_date)
+        
+        if(need_pre_forecast_data):
+            # create pre-forecast inputs meta_data
+            pre_forecast_table_group_id = f"{treatment_group_id}_pre_forecast_inputs"
+            (pre_forecast_inputs_model, pre_forecast_inputs_meta_data, pf_col_id, last_date) = self.create_pre_forecast_inputs_object(id = pre_forecast_table_group_id,
+                                                                                                                                    pre_forecast_patient_flow = pre_forecast_patient_flow,
+                                                                                                                                    first_forecast_date = earliest_date)
 
-        # create prior month patient flow
-        pre_forecast_patient_flow_group_id = f"{treatment_group_id}_prior_month_patient_flow"
-        (pre_forecast_patient_flow_model, pre_forecast_patient_flow_meta_data, pmpf_col_prefix) = self.create_prior_month_patient_flow_object(id = pre_forecast_patient_flow_group_id,
-                                                                                                                                              target_date = last_date,
-                                                                                                                                              treatment_details_model = treatment_details_model,
-                                                                                                                                              treatment_details_meta_data = treatment_details_meta_data,
-                                                                                                                                              pc_col_id = pc_col_id,
-                                                                                                                                              pre_forecast_inputs_model = pre_forecast_inputs_model,
-                                                                                                                                              pre_forecast_inputs_meta_data = pre_forecast_inputs_meta_data,
-                                                                                                                                              pf_col_id = pf_col_id)
+            # create prior month patient flow
+            pre_forecast_patient_flow_group_id = f"{treatment_group_id}_prior_month_patient_flow"
+            (pre_forecast_patient_flow_model, pre_forecast_patient_flow_meta_data, pmpf_col_prefix) = self.create_prior_month_patient_flow_object(id = pre_forecast_patient_flow_group_id,
+                                                                                                                                                target_date = last_date,
+                                                                                                                                                treatment_details_model = treatment_details_model,
+                                                                                                                                                treatment_details_meta_data = treatment_details_meta_data,
+                                                                                                                                                pc_col_id = pc_col_id,
+                                                                                                                                                pre_forecast_inputs_model = pre_forecast_inputs_model,
+                                                                                                                                                pre_forecast_inputs_meta_data = pre_forecast_inputs_meta_data,
+                                                                                                                                                pf_col_id = pf_col_id)
+        else:
+            pre_forecast_inputs_model = None
+            pre_forecast_inputs_meta_data = None
+            pre_forecast_patient_flow_model = None
+            pre_forecast_patient_flow_meta_data = None
+            pf_col_id = None
+            pmpf_col_prefix = None
+
+        
+
         # TREATMENT STEP_INIT
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = f"{treatment_group_id}_Init",
@@ -512,7 +531,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    args = {ForecastDataSeriesMetaDataAction.STEP_INIT: ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH},
+                                                                    #args = {ForecastDataSeriesMetaDataAction.STEP_INIT: ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH},
+                                                                    args = {ForecastDataSeriesMetaDataArgsTreatmentStepInit.NEED_PRE_FORECAST_DATA: need_pre_forecast_data},
                                                                     pred = [col_total_in_id],
                                                                     objs = {ForecastTreatmentStepInitArgs.TREATMENT_TABLE_DATA.value: treatment_details_model, 
                                                                             ForecastTreatmentStepInitArgs.TREATMENT_TABLE_META_DATA.value: treatment_details_meta_data,
@@ -701,9 +721,6 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
 
 
         # PRE_FORECAST DATES
-
-
-
         pre_forecast_dates = ForecastDataModel.gen_pre_dates(first_forecast_date = first_forecast_date, num_periods = num_elements, time_scale = ForecastModelTimescale.MONTH)
         last_date = pre_forecast_dates[-1]
         first_date = pre_forecast_dates[0]

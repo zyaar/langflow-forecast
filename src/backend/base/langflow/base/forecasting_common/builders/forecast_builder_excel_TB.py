@@ -31,7 +31,8 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataDataType, 
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions,
-                                                                        ForecastDataSeriesMetaDataComparisonType)
+                                                                        ForecastDataSeriesMetaDataComparisonType,
+                                                                        ForecastDataSeriesMetaDataArgsTreatmentStepInit)
 
 from langflow.base.forecasting_common.models.forecast_data_interface import IdElementToHandleMap, IdElementToHandleMaps, ForecastPredRef, ForecastPredIterator
 
@@ -1398,14 +1399,18 @@ class ForecastBuilderExcelTB():
                                  add_blank_row_after: bool = False):
 
         # SETUP
+        # ZIV
         # get all the input OBJs
         dict_of_objects = curr_row_meta_data.meta_data[ForecastMetaDataSeriesSchema.OBJS]
         treatment_details_model = dict_of_objects.get(ForecastTreatmentStepInitArgs.TREATMENT_TABLE_DATA.value, None)
         treatment_details_meta_data = dict_of_objects.get(ForecastTreatmentStepInitArgs.TREATMENT_TABLE_META_DATA.value, None)
-        pre_forecast_inputs_model = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_INPUTS_DATA.value, None)
-        pre_forecast_inputs_meta_data = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_INPUTS_META_DATA.value, None)
-        pre_forecast_patient_flow_model = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_PATIENT_FLOW_DATA.value, None)
-        pre_forecast_patient_flow_meta_data = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_PATIENT_FLOW_META_DATA.value, None)
+        
+        # grab the pre-forecast data if we need it
+        if bool(curr_row_meta_data.get_arg(ForecastDataSeriesMetaDataArgsTreatmentStepInit.NEED_PRE_FORECAST_DATA)):
+            pre_forecast_inputs_model = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_INPUTS_DATA.value, None)
+            pre_forecast_inputs_meta_data = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_INPUTS_META_DATA.value, None)
+            pre_forecast_patient_flow_model = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_PATIENT_FLOW_DATA.value, None)
+            pre_forecast_patient_flow_meta_data = dict_of_objects.get(ForecastTreatmentStepInitArgs.PRE_FORECAST_PATIENT_FLOW_META_DATA.value, None)
 
         treatment_tab_name = ""
 
@@ -1423,15 +1428,16 @@ class ForecastBuilderExcelTB():
         self._build_metadataframe_model(meta_data = treatment_details_meta_data, default_card = treatment_tab_name)
         self._add_blank_row(tab_name = treatment_tab_name)
 
-        # PRE-FORECAST INPUTS SECTION
-        self._add_header_row(tab_name = treatment_tab_name, display_name = "Pre-Forecast Input")
-        self._build_metadataframe_model(meta_data = pre_forecast_inputs_meta_data, default_card = treatment_tab_name)
-        self._add_blank_row(tab_name = treatment_tab_name)
+        if bool(curr_row_meta_data.get_arg(ForecastDataSeriesMetaDataArgsTreatmentStepInit.NEED_PRE_FORECAST_DATA)):
+            # PRE-FORECAST INPUTS SECTION
+            self._add_header_row(tab_name = treatment_tab_name, display_name = "Pre-Forecast Input")
+            self._build_metadataframe_model(meta_data = pre_forecast_inputs_meta_data, default_card = treatment_tab_name)
+            self._add_blank_row(tab_name = treatment_tab_name)
 
-        # PRE-FORECAST PATIENT FLOW SECTION
-        self._add_header_row(tab_name = treatment_tab_name, display_name = "Pre-Forecast # of Patients")
-        self._build_metadataframe_model(meta_data = pre_forecast_patient_flow_meta_data, default_card = treatment_tab_name)
-        self._add_blank_row(tab_name = treatment_tab_name)
+            # PRE-FORECAST PATIENT FLOW SECTION
+            self._add_header_row(tab_name = treatment_tab_name, display_name = "Pre-Forecast # of Patients")
+            self._build_metadataframe_model(meta_data = pre_forecast_patient_flow_meta_data, default_card = treatment_tab_name)
+            self._add_blank_row(tab_name = treatment_tab_name)
 
         # if we are adding a blank row after, then add it now
         if(add_blank_row_after):

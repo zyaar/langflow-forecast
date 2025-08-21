@@ -139,14 +139,17 @@ class ForecastDataSeriesMetaDataValidateInputRestrictions(str, Enum):
 # Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
 # Within in forecast step, what different actions are taken
 class ForecastDataSeriesMetaDataComparisonType(str, Enum):
-        LT = "LT"
-        LE = "LE"
-        GE = "GE"
-        GT = "GT"
-        EQ = "EQ"
-        NE = "NE"
-        BETWEEN = "BETWEEN"
-        NOT_BETWEEN = "NOT_BETWEEN"
+    LT = "LT"
+    LE = "LE"
+    GE = "GE"
+    GT = "GT"
+    EQ = "EQ"
+    NE = "NE"
+    BETWEEN = "BETWEEN"
+    NOT_BETWEEN = "NOT_BETWEEN"
+
+class ForecastDataSeriesMetaDataArgsTreatmentStepInit(str, Enum):
+    NEED_PRE_FORECAST_DATA = "need_pre_forecast_data"
 
 
 # Enum holding the schema of the meta-data model
