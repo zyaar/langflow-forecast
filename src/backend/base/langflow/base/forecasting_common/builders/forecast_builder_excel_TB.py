@@ -74,9 +74,9 @@ class ForecastBuilderExcelArithmeticFunctions(str, Enum):
 
 # Enum of EXCEL Required Tabs
 class ForecastBuilderExcelRequiredTabs(str, Enum):
-    INPUTS = "Inputs"
+    #INPUTS = "Inputs"
     SUMMARY = "Summary"
-    TIME_CONVERT = "Time Convert"
+    #TIME_CONVERT = "Time Convert"
 
 
 
@@ -330,8 +330,7 @@ class ForecastBuilderExcelTB():
 
 
     # PLAYER REQUIRED TABS
-    #EXCEL_REQUIRED_WORKBOOK_TABS = ["Inputs", "Summary", "Time Convert"]    # the names of the tabs which are required for every player build
-    NEW_TAB_INSERT_INDEX_FROM_END = 2   # the place (from the end of all the tabs to insert a new tab, this allows us to put new tabs AHEAD of any config tabs we may have)
+    NEW_TAB_INSERT_INDEX_FROM_END = 1   # the place (from the end of all the tabs to insert a new tab, this allows us to put new tabs AHEAD of any config tabs we may have)
     DEFAULT_CARD = ForecastBuilderExcelRequiredTabs.SUMMARY
 
     # PLAYER ROW LAYOUT  NOTE:  row numbers are 1-index like excel, not 0-index like python (per openpyxl)
