@@ -65,41 +65,43 @@ class ForecastDataPacket():
 
     
     @staticmethod
-    def unpack_data_packets(data_packets: list[Data]) -> tuple[list[DataFrame], list[ForecastMetaDataFrame], list[str]]:
+    def unpack_data_packets(data_packets: list[Data]) -> tuple[list[DataFrame], list[ForecastMetaDataFrame], list[str], list[str]]:
         dataframes = []
         meta_datas = []
-        last_id_dataframes = []
+        last_ids_dataframes = []
+        last_display_names = []
 
         # iterate over the entire list of data_packets and break into two lists, one for the dataframes,
         # one for the ForecastMetaDataFrames
         for data_packet in data_packets:
-            (dataframe, meta_data, last_id_dataframe) = ForecastDataPacket.unpack_data_packet(data_packet)
+            (dataframe, meta_data, last_id_dataframe, last_display_name) = ForecastDataPacket.unpack_data_packet(data_packet)
             dataframes.append(dataframe)
             meta_datas.append(meta_data)
 
-            last_id_dataframes.append(last_id_dataframe)
+            last_ids_dataframes.append(last_id_dataframe)
+            last_display_names.append(last_display_name)
 
-        return(dataframes, meta_datas, last_id_dataframes)
+        return(dataframes, meta_datas, last_ids_dataframes, last_display_names)
 
 
     
     @staticmethod
-    def unpack_data_packet(data_packet: Data) -> tuple[DataFrame, ForecastMetaDataFrame, str]:
-        dataframe = data_packet.data["data"]
-        meta_data = data_packet.data["meta_data"]
-        text_key = data_packet.text_key
+    def unpack_data_packet(data_packet: Data) -> tuple[DataFrame, ForecastMetaDataFrame, str, str]:
+        dataframe: DataFrame = data_packet.data["data"]
+        meta_data: ForecastMetaDataFrame = data_packet.data["meta_data"]
+        text_key: str = data_packet.text_key
 
         # make sure the last text_key, the last column id of the dataframe, and the last column id of the meta-data all match
         # otherwise raise an error as something has gone wrong
         last_id_dataframe = dataframe.columns[-1]
-        #last_id_meta_data = list(meta_data.model.keys())[-1]
         last_id_meta_data = meta_data.get_last_id()
+        last_display_name = meta_data.get_last_display_name()
         last_id_dataframe = data_packet.text_key
 
         if (last_id_dataframe != last_id_meta_data) or (last_id_dataframe != text_key):
             raise ValueError(f"* unpack_data_packet: error, final cols of dataframe and meta-data do not have the same IDs:  dataframe = '{last_id_dataframe}', meta-data = '{last_id_meta_data}', text_key = '{text_key}'.")
 
-        return(dataframe, meta_data, last_id_dataframe)
+        return(dataframe, meta_data, last_id_dataframe, last_display_name)
     
 
 

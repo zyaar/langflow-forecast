@@ -121,7 +121,7 @@ class ForecaseSumInputTB(ForecastComponent):
             raise ValueError(f"\n*  _forecast_model_common_input:  input '{self.get_input_display_name("forecasts_in")}' is not connected")
 
         # unpack the data packet into lists of data, meta_data, and ids
-        (updated_models, updated_meta_datas, totals_ids) = self._unpack_data_packets(self.forecasts_in)
+        (updated_models, updated_meta_datas, totals_ids, display_names) = self._unpack_data_packets(self.forecasts_in)
 
         # combine data frames and add a totals line if multiple are being added
         (new_summation_created, updated_model, new_summation_id, new_total_line_id) = ForecastDataModel.concat_and_sum(datas = updated_models,
@@ -133,7 +133,7 @@ class ForecaseSumInputTB(ForecastComponent):
 
         # combine meta_datas and add a total instruction if multiple frames are being added
         updated_meta_data = ForecastMetaDataFrame.concat_and_sum(datas = updated_meta_datas,
-                                                                 display_name = f"Total ({", ".join(totals_ids)})", # TODO get display names, not id's
+                                                                 display_name = f"Total ({", ".join(display_names)})", # TODO get display names, not id's
                                                                  new_summation_id = new_summation_id,
                                                                  new_total_line_id = new_total_line_id,
                                                                  new_total_values = totals_values,

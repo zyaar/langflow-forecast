@@ -126,7 +126,7 @@ class ForecastBuildModelExcel(ForecastComponent):
         super()._forecast_model_common_input()
 
         # unpack the data packet into lists of data, meta_data, and ids
-        (updated_models, updated_meta_datas, totals_ids) = self._unpack_data_packets(self.forecasts_in)
+        (updated_models, updated_meta_datas, totals_ids, display_names) = self._unpack_data_packets(self.forecasts_in)
 
         if len(updated_models) != 1:
             raise ValueError(f"\n*  save_to_file:  required 1 and only 1 updated_models in input, {len(updated_models)} were provided")
@@ -138,12 +138,12 @@ class ForecastBuildModelExcel(ForecastComponent):
             raise ValueError(f"\n*  save_to_file:  required 1 and only 1 totals_ids in input, {len(totals_ids)} were provided")
 
 
-        return(updated_models[0], updated_meta_datas[0], totals_ids[0])
+        return(updated_models[0], updated_meta_datas[0], totals_ids[0], display_names[0])
     
 
     # gen_excel_model
     def gen_excel_model(self) -> Data:
-        (updated_model, updated_meta_data, total_id)  = self._forecast_model_common_input()
+        (updated_model, updated_meta_data, total_id, display_name)  = self._forecast_model_common_input()
 
         file_path = Path(self.file_path).expanduser()
         file_path_xlsx = Path(self.file_path + ".xlsx").expanduser()
@@ -171,7 +171,7 @@ class ForecastBuildModelExcel(ForecastComponent):
     # OUTPUTS:
     #   Message with confirmation of save
     def save_to_file(self) -> str:
-        (updated_model, updated_meta_data, total_id)  = self._forecast_model_common_input()
+        (updated_model, updated_meta_data, total_id, display_name)  = self._forecast_model_common_input()
 
         file_path = Path(self.file_path).expanduser()
         file_path_json = Path(self.file_path + ".json").expanduser()

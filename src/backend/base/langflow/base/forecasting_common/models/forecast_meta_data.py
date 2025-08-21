@@ -1107,14 +1107,17 @@ class ForecastMetaDataFrame():
     # Get the id of the last column
     def get_last_id(self, value_series_only = False) -> str:
         return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.ID])
-        # last_key_id = list(self.model.keys())[-1]
-        # return(last_key_id)
+
+
+    # get_last_data_type
+    def get_last_display_name(self, value_series_only = False) -> str:
+        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
 
 
     # get_last_data_type
     def get_last_data_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
         return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
-        #return(self.model[self.get_last_id()].meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
+
 
     # get_last_display_type
     def get_last_display_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
