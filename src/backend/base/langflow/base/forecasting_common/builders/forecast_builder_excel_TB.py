@@ -769,6 +769,15 @@ class ForecastBuilderExcelTB():
                                                             display_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME],
                                                             add_blank_row_before = add_blank_row_before,
                                                             add_blank_row_after = add_blank_row_after)
+                
+            case ForecastDataSeriesMetaDataStepTypes.SUMMATION:
+                target_card = self._add_step_init_summation(ref_map_id = ref_map_id,
+                                                            id = id,
+                                                            tab_name = card_name,
+                                                            curr_row_meta_data = curr_meta_col, 
+                                                            display_name = curr_meta_col.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME],
+                                                            add_blank_row_before = add_blank_row_before,
+                                                            add_blank_row_after = add_blank_row_after)
 
             case _:
                 target_card = self._add_step_init_default(ref_map_id = ref_map_id,
@@ -1314,6 +1323,54 @@ class ForecastBuilderExcelTB():
         # if we are adding a blank row after, then add it now
         if(add_blank_row_after):
             self._add_blank_row(tab_name = tab_name)
+            
+        return(self.DEFAULT_CARD)
+
+
+
+
+    #  _add_step_init_summation
+    # Handler for STEP_INIT SUMMATION function, does not add an extra blank line and does not do the row header (looks better in the spreadsheet without it)
+    #  
+    # INPUTS:
+    #
+    #   id - the id the column
+    #   tab_name - the target tab_name to place the step information
+    #   curr_row_meta_data - the FormatMetaDataSeries information
+    #   display_name - the display name to show
+    # 
+    # OUTPUTS:
+    #   worksheet
+
+    def _add_step_init_summation(self,
+                               ref_map_id: str,
+                               id: str,
+                               tab_name: str,
+                               curr_row_meta_data: ForecastMetaDataSeries, 
+                               display_name : str, 
+                               add_blank_row_before: bool = False, 
+                               add_blank_row_after: bool = False) -> str:
+        
+        # # if we are adding a blank row before, then add it now
+        # if(add_blank_row_before):
+        #     self._add_blank_row(tab_name = tab_name)
+
+        # # make sure it's a legit tab to go to start writing
+        # if(tab_name not in self.row_trackers.keys()):
+        #     raise ValueError(f"* add_input_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
+
+        # add a blank row
+        self._add_blank_row(tab_name)
+
+        # # boilerplate set-up of the row
+        # curr_cell  = self._add_row_label_setup(ref_map_id, id, tab_name, curr_row_meta_data)
+
+        # curr_cell.value = display_name
+        # ForecastExcelCellStyleBuilder.generate_init_step_header(curr_cell)
+
+        # # if we are adding a blank row after, then add it now
+        # if(add_blank_row_after):
+        #     self._add_blank_row(tab_name = tab_name)
             
         return(self.DEFAULT_CARD)
 
