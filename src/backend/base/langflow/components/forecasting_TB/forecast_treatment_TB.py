@@ -585,10 +585,10 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                                                                                                                          meta_data = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_meta_data"],
                                                                                                                                                                                          target = ForecastModelTimescale.YEAR,
                                                                                                                                                                                          step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT)
+            
+            results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_data"] = updated_pat_leaving_by_treatment_month_data
+            results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_meta_data"] = updated_pat_leaving_by_treatment_month_meta_data
 
-
-            results["pat_leaving_treatment"]["updated_pat_leaving_by_treatment_month_data"] = updated_pat_leaving_by_treatment_month_data
-            results["pat_leaving_treatment"]["updated_pat_leaving_by_treatment_month_meta_data"] = updated_pat_leaving_by_treatment_month_meta_data
             return results
 
 
