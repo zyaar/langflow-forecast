@@ -1419,14 +1419,17 @@ class ForecastBuilderExcelTB():
             self._add_blank_row(tab_name = treatment_tab_name)
             
         # TREATMENT DETAILS SECTION
+        self._add_header_row(tab_name = treatment_tab_name, display_name = "Treatment Details")
         self._build_metadataframe_model(meta_data = treatment_details_meta_data, default_card = treatment_tab_name)
         self._add_blank_row(tab_name = treatment_tab_name)
 
         # PRE-FORECAST INPUTS SECTION
+        self._add_header_row(tab_name = treatment_tab_name, display_name = "Pre-Forecast Input")
         self._build_metadataframe_model(meta_data = pre_forecast_inputs_meta_data, default_card = treatment_tab_name)
         self._add_blank_row(tab_name = treatment_tab_name)
 
         # PRE-FORECAST PATIENT FLOW SECTION
+        self._add_header_row(tab_name = treatment_tab_name, display_name = "Pre-Forecast # of Patients")
         self._build_metadataframe_model(meta_data = pre_forecast_patient_flow_meta_data, default_card = treatment_tab_name)
         self._add_blank_row(tab_name = treatment_tab_name)
 
@@ -1651,6 +1654,27 @@ class ForecastBuilderExcelTB():
     # NA
     def _add_blank_row(self, tab_name: str):
         self.row_trackers[tab_name] += 1
+
+    # _add_header_row
+    # Add a header row without any ids
+    #
+    # INPUT
+    #   tab_name - Tab to add the row to
+    #   display_name - The name for the header
+    #
+    # OUTPUT:
+    # NA
+    # ZIV
+    def _add_header_row(self, tab_name: str, display_name: str, column = ExcelField.START):
+        ws = self.player_model[tab_name]
+        curr_row = self.row_trackers[tab_name]
+        curr_cell = ws.cell(row = curr_row, column = column)
+
+        curr_cell.value = display_name
+        ForecastExcelCellStyleBuilder.generate_init_step_header(curr_cell)
+        
+        self.row_trackers[tab_name] += 1
+
 
 
 
