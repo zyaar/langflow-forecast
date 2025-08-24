@@ -199,10 +199,6 @@ class ForecastComponent(Component):
 
         # validation of meta_data
         if(meta_data is not None):
-            if meta_data.model is None:
-                raise ValueError(f"\n*  _forecast_model_common_output:  meta_data is missing .model attribute")
-            
-            #last_id_meta_data = meta_data.model[list(meta_data.model.keys())[-1]].meta_data[ForecastMetaDataSeriesSchema.ID]
             last_id_meta_data = meta_data.get_last_id()
             last_id = last_id_meta_data
 
@@ -422,8 +418,6 @@ class ForecastComponent(Component):
 
     # given a dataframe and meta_data, returns a DataPacket with both in it
     def _gen_data_packet(self, dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, last_id: str, check_ids: bool = True) -> Data:
-        # gen_data_packet(dataframe: DataFrame | pd.DataFrame, meta_data: ForecastMetaDataFrame, last_id: str = None, default_value: str = "data missing") -> Data:
-
          data_packet = ForecastDataPacket.gen_data_packet(dataframe = dataframe, meta_data = meta_data, last_id = last_id, default_value = last_id)
          return(data_packet)
     
@@ -469,6 +463,7 @@ class ForecastComponent(Component):
                            pred: List[str | int | float] = None,
                            args: Dict = None,
                            objs: List = None,
+                           update_last_id = False,                           
                            verify_integrity: bool = True,
                            drop_dups: bool = False) -> tuple[DataFrame, ForecastMetaDataFrame]:
           
@@ -500,6 +495,11 @@ class ForecastComponent(Component):
           updated_meta_data = ForecastMetaDataFrame.concat([meta_data, new_meta_col], verify_integrity = verify_integrity, drop_dups = drop_dups)
           
           # add col to data
-          updated_dataframe = ForecastDataModel.add_col_to_model(dataframe, data_values, new_col_name=id)
+          updated_dataframe = ForecastDataModel.add_col_to_model(dataframe, data_values, new_col_name = id)
+
+          # update last id
+          if update_last_id:
+              updated_meta_data.set_last_id(id = id)
+
 
           return(updated_dataframe, updated_meta_data)

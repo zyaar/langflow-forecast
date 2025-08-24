@@ -310,7 +310,8 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [curr_total_values_id])
+                                                                    pred = [curr_total_values_id],
+                                                                    update_last_id=True)
 
         # get the segment table data
         segment_table = ForecastDataModel.astype_first_all_cols(self.segment_table)
@@ -343,7 +344,8 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
                                                                         action = ForecastDataSeriesMetaDataAction.INPUT,
                                                                         data_type = ForecastDataSeriesMetaDataDataType.PCT,
                                                                         display_type = ForecastDataSeriesMetaDataDataType.PCT,
-                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}])
+                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],
+                                                                        update_last_id = True,)
             pct_col_pred.append(col_seg_pct_id)
             
         # add total percent covered by all segments to data/model and meta-data
@@ -362,6 +364,7 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}, 
                                                                                   {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataComparisonType.LE}],
                                                                     pred = pct_col_pred, # this is already a list
+                                                                    update_last_id = True,
                                                                     args = {ForecastDataSeriesMetaDataComparisonType.LE: 1}) # add argument with the value for LESS_EQUAL_THAN validation
 
 
@@ -378,7 +381,8 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.PCT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.PCT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [1, col_seg_total_pct_id])
+                                                                    pred = [1, col_seg_total_pct_id],
+                                                                    update_last_id = True)
         
         # finally, get the current segments name (so we don't have to pass the segment table around)
         if(seg_num is None):
@@ -423,7 +427,8 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [curr_total_values_id, curr_seg_pct_id])
+                                                                    pred = [curr_total_values_id, curr_seg_pct_id],
+                                                                    update_last_id = True)
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, curr_seg_total_id)
@@ -451,16 +456,17 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
         remainder_total_id = f"{self._id}_Remainder_Total"
 
         (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                    updated_meta_data,
-                                                                    id = remainder_total_id,
-                                                                    display_name = f"Total patients not covered by {self._id}",
-                                                                    data_values = remainder_total_values,
-                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
-                                                                    action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [curr_total_values_id, remainder_pct_id])
+                                                                     updated_meta_data,
+                                                                     id = remainder_total_id,
+                                                                     display_name = f"Total patients not covered by {self._id}",
+                                                                     data_values = remainder_total_values,
+                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
+                                                                     action = ForecastDataSeriesMetaDataAction.PROD,
+                                                                     data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                     pred = [curr_total_values_id, remainder_pct_id],
+                                                                     update_last_id = True)
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, remainder_total_id)

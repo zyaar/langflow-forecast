@@ -8,13 +8,7 @@
 
 from typing import Type, Tuple
 import nanoid
-#from langflow.schema.dataframe import DataFrame, Data
 from langflow.schema.data import Data
-from langflow.base.data.utils import TEXT_FILE_TYPES, parallel_load_data, parse_text_file_to_data
-#from langflow.base.forecasting_common.models.forecast_data_interface import ForecastMetaDataRange
-
-#from langflow.base.forecasting_common.constants import FORECAST_INT_TO_SHORT_MONTH_NAME, ForecastModelInputTypes, ForecastModelTimescale
-#from langflow.base.forecasting_common.models.date_utils import gen_dates, conv_dates_monthly_to_yearly, conv_dates_yearly_to_monthly
 
 
 # FORECAST SPECIFIC IMPORTS
@@ -31,7 +25,7 @@ import pandas as pd
 import copy
 
 from langflow.base.forecasting_common.models.date_utils import gen_dates, gen_pre_dates
-from langflow.base.forecasting_common.constants import ForecastModelTimescale
+from langflow.base.forecasting_common.constants import ForecastModelTimescale, ForecastModelInputTypes
 
 
 # CONSTANTS
@@ -39,13 +33,16 @@ from langflow.base.forecasting_common.constants import ForecastModelTimescale
 
 
 
-# CLASSES
-# =======
+# ===========
+# ENUMERATION
+# ===========
 
-# ForecastDataSeriesMetaDataSchema, ForecastDataSeriesMetaDataStepTypes, ForecastDataSeriesMetaDataAction, ForecastDataSeriesMetaDataDataType, ForecastDataSeriesMetaDataValidationSchema, ForecastDataSeriesMetaDataValidateInputRestrictions
 
-# Enum holding the schema of the meta-data model
-# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
+# Enums of FORECAST_META_DATA_FRAME
+# =================================
+
+# Enum of ForecastMetaDataFrame
+# The data storage attributes of this object / structure
 class ForecastMetaDataFrameSchema(str, Enum):
     ID = "id"
     INPUT_TYPE = "input_type"
@@ -53,11 +50,18 @@ class ForecastMetaDataFrameSchema(str, Enum):
     START_YEAR = "start_year"
     START_MONTH = "start_month"
     NUM_PERIODS = "num_periods"
-    MODEL = "model" # this attribute name cannot be changed (I explicilty use the attribute .model elsehwere in the code for simplicity)
+    LAST_ID = "last_id" # the if of the last ForecastMetaDataSeries in the Frame (value or non-value)
+    LAST_VALUE_ID = "last_value_id" # the if of the last ForecastMetaDataSeries in the Frame (value only)
+    MODEL = "model" # a dict of the Series in this object.  NOTE:  This attribute name cannot be changed (I explicilty use the attribute .model elsehwere in the code for simplicity)
 
 
-# Enum holding the schema of the meta-data model
-# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
+
+
+# Enums of FORECAST_META_DATA_SERIES
+# ==================================
+
+# Enum of ForecastMetaDataSeries
+# The data storage attributes of this object / structure
 class ForecastMetaDataSeriesSchema(str, Enum):
     ID = "id"
     STEP_TYPE = "step_type" # this maps to the different component types in forecasting
@@ -71,28 +75,6 @@ class ForecastMetaDataSeriesSchema(str, Enum):
     PRED = "pred" # predecessors, a set of column ids necessary for the action
     ARGS = "args" # any additional values necessary for actions, or validations
     OBJS = "objs" # any additional objects which are required for this step
-
-
-# Enum holding the schema of the meta-data model
-# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
-class ForecastMetaDataActionSchema(str, Enum):
-    ACTION = "action"
-    COUNT = "count" # the number of cells to apply this, if None, assume all remaining cells
-    PRED = "pred" # predecessors, a set of column ids necessary for the action
-    ARGS = "args" # any additional values necessary for actions, or validations
-    OBJS = "objs" # any additional objects which are required for this step
-
-
-# Enum of STEP_TYPE
-# What are the different steps in the forecast process
-class ForecastDataSeriesMetaDataStepTypes(str, Enum):
-    EPIDEMIOLOGY = "epidemiology"
-    POPULATION_CUT = "population_cut"
-    PRICING = "pricing"
-    SEGMENT = "segment"
-    SUMMATION = "summation"
-    TREATMENT = "treatment"
-    DELAY = "delay"
 
 
 # Enum of ACTION
@@ -112,8 +94,20 @@ class ForecastDataSeriesMetaDataAction(str, Enum):
     SHIFT = "shift" # shift a series by a number of months (positive or negative)
 
 
-# Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
-# Within in forecast step, what different actions are taken
+# Enum of STEP_TYPE
+# What are the different steps in the forecast process
+class ForecastDataSeriesMetaDataStepTypes(str, Enum):
+    EPIDEMIOLOGY = "epidemiology"
+    POPULATION_CUT = "population_cut"
+    PRICING = "pricing"
+    SEGMENT = "segment"
+    SUMMATION = "summation"
+    TREATMENT = "treatment"
+    DELAY = "delay"
+
+
+# Enum of DATA_TYPE / DISPLAY_TYPE
+# What are the different acceptable data types
 class ForecastDataSeriesMetaDataDataType(str, Enum):
     DATE = "date"
     INT = "int"
@@ -122,35 +116,28 @@ class ForecastDataSeriesMetaDataDataType(str, Enum):
     CURRENCY = "currency"
 
 
-# Enum of VALIDATION Schema
-# The different types of data validations allowed
-class ForecastDataSeriesMetaDataValidationSchema(str, Enum):
-    INPUT_RESTRICTION = "input_restriction"
-    VALUE_CHECK = "value_check"
 
 
-# Enum of INPUT_RESTRICTION
-class ForecastDataSeriesMetaDataValidateInputRestrictions(str, Enum):
-    READ_WRITE = "read_write"
-    READ_ONLY = "read_only"
-    TOKEN_CHECK = "token_check"
+# Enums of ARGS
+# -------------
 
+# Enums of STEP_INIT args
 
-# Enum of data types (used by:  DATA_TYPE and DISPLAY_TYPE)
-# Within in forecast step, what different actions are taken
-class ForecastDataSeriesMetaDataComparisonType(str, Enum):
-    LT = "LT"
-    LE = "LE"
-    GE = "GE"
-    GT = "GT"
-    EQ = "EQ"
-    NE = "NE"
-    BETWEEN = "BETWEEN"
-    NOT_BETWEEN = "NOT_BETWEEN"
-
+# Enum of arguments for StepInit Treatment action
 class ForecastDataSeriesMetaDataArgsTreatmentStepInit(str, Enum):
     NEED_PRE_FORECAST_DATA = "need_pre_forecast_data"
 
+
+# Enum of YEAR_TO_MONTH, MONTH_TO_YEAR args
+# Enum of arguments for YTM and MTY actions
+class ForecastDataSeriesMetaDataArgsMTYYTM(str, Enum):
+    DATES = "dates"
+
+
+
+
+# Enums of RANGES
+# ---------------
 
 # Enum holding the schema of the meta-data model
 # The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
@@ -161,7 +148,57 @@ class ForecastMetaDataRangeSchema(str, Enum):
     OBJS = "objs" # any additional objects which are required for this step
 
 
+# Enum holding the schema of the meta-data model
+# The different meta-data attributes stores for each pandas data series (i.e. each column) in the forecast model
+class ForecastMetaDataActionSchema(str, Enum):
+    ACTION = "action"
+    COUNT = "count" # the number of cells to apply this, if None, assume all remaining cells
+    PRED = "pred" # predecessors, a set of column ids necessary for the action
+    ARGS = "args" # any additional values necessary for actions, or validations
+    OBJS = "objs" # any additional objects which are required for this step
 
+
+
+
+# Forecast VALIDATION Enumations
+# ------------------------------
+
+# Enum of VALIDATION Schema
+# The different types of data validations allowed
+class ForecastDataSeriesMetaDataValidationSchema(str, Enum):
+    INPUT_RESTRICTION = "input_restriction"
+    VALUE_CHECK = "value_check"
+
+
+# Enum of INPUT_RESTRICTION types
+class ForecastDataSeriesMetaDataValidateInputRestrictions(str, Enum):
+    READ_WRITE = "read_write"
+    READ_ONLY = "read_only"
+    TOKEN_CHECK = "token_check"
+
+# Enum of VALUE_CHECK types
+class ForecastDataSeriesMetaDataComparisonType(str, Enum):
+    LT = "LT"
+    LE = "LE"
+    GE = "GE"
+    GT = "GT"
+    EQ = "EQ"
+    NE = "NE"
+    BETWEEN = "BETWEEN"
+    NOT_BETWEEN = "NOT_BETWEEN"
+
+
+
+
+
+
+# =======
+# CLASSES
+# =======
+
+# ForecastMetaDataSeriesIdGenerator
+# This class encapsulates ID generation and ID parsing for all IDs generated in ForecastMetaData and DataFrame as part of
+# the data-model
 class ForecastMetaDataSeriesIdGenerator():
     # SAMPLE ID FORMAT:  (FULL_ID.)REL_ID():SINGLE_VALUE)(NUM_TO_SHIFT)     () = optional
     # EXAMPLE:  ABC.XYZ:2[1]        full_id = ABC, rel_id = XYZ, element = 2, shift address by left 1 time
@@ -327,7 +364,7 @@ class ForecastMetaDataSeriesIdGenerator():
 
     # get the parent container id
     def get_id(self) -> str:
-        return self.container.meta_data[ForecastMetaDataFrameSchema.ID]
+        return self.container.get_id()
         
 
     # static_gen_rel_id
@@ -377,6 +414,7 @@ class ForecastMetaDataSeriesIdGenerator():
 
 
 
+
 # ForecastMetaDataRange
 # Holds a set a specific range for the Series' action with specific parameters (reqs, args, objs).  This allows us to change the parameters (and therefore the calculations)
 # over the course of an action processing a column of data (which is important for Treatment)
@@ -388,7 +426,7 @@ class ForecastMetaDataRange():
 
     # INSTANCE VARIABLES
     # ------------------
-    # meta_data - stores all the meta-data for this instance
+    _meta_data = None
 
 
     # __init__
@@ -401,14 +439,14 @@ class ForecastMetaDataRange():
     #   NA
 
     def __init__(self, *args, **kwargs):
-        self.meta_data = {}
+        self._meta_data = {}
 
         # init all meta_data attributes
         for attrib in ForecastMetaDataRangeSchema:
             if attrib in kwargs:
-                self.meta_data[attrib] = kwargs.get(attrib)
+                self._meta_data[attrib] = kwargs.get(attrib)
             else:
-                self.meta_data[attrib] = None
+                self._meta_data[attrib] = None
 
 
     # set_forecast_meta_data
@@ -424,7 +462,7 @@ class ForecastMetaDataRange():
     def set_forecast_meta_data(self, *args, **kwargs):
         for arg_name in kwargs:
             if arg_name in ForecastMetaDataRangeSchema:
-                self.meta_data[arg_name] = kwargs.get(arg_name)
+                self._meta_data[arg_name] = kwargs.get(arg_name)
             else:
                 raise ValueError(f"*  set_forecast_meta_data:  invalid arg_name '{arg_name}'")
         
@@ -443,7 +481,7 @@ class ForecastMetaDataRange():
     def set_forecast_meta_data_bulk(self, meta_data_attribs: dict):
         for key in meta_data_attribs.keys():
             if key in ForecastMetaDataRangeSchema:
-                self.meta_data[key] = meta_data_attribs[key]
+                self._meta_data[key] = meta_data_attribs[key]
             else:
                 raise ValueError(f"*  set_forecast_meta_data_bulk:  invalid key '{key}'")
         
@@ -464,10 +502,82 @@ class ForecastMetaDataRange():
         meta_data_attribs = {}
 
         for attrib in ForecastMetaDataRangeSchema:
-            meta_data_attribs[attrib] = self.meta_data[attrib]
+            meta_data_attribs[attrib] = self._meta_data[attrib]
 
         return meta_data_attribs
     
+
+    # COUNT = "count" # the number of elements in the column to apply this, if None, assume all remaining cells
+    # PRED = "pred" # predecessors, a set of column ids necessary for the action
+    # ARGS = "args" # any additional values necessary for actions, or validations
+    # OBJS = "objs" # any additional objects which are required for this step
+
+    def has_count(self):
+        if (ForecastMetaDataRangeSchema.COUNT in self._meta_data.keys()) and (self._meta_data[ForecastMetaDataRangeSchema.COUNT] is not None):
+            return True
+        else:
+            return False
+
+
+    def get_count(self):
+        if(self.has_count()):
+            return self._meta_data[ForecastMetaDataRangeSchema.COUNT]
+
+
+    
+    def get_pred(self):
+        return self._meta_data[ForecastMetaDataRangeSchema.PRED]
+
+    
+
+    
+    def has_args(self):
+        if (ForecastMetaDataRangeSchema.ARGS in self._meta_data.keys()) and (self._meta_data[ForecastMetaDataRangeSchema.ARGS] is not None) and (len(self._meta_data[ForecastMetaDataRangeSchema.ARGS]) > 0):
+            return True
+        else:
+            return False
+    
+
+    def get_args(self):
+        if(self.has_args()):
+            return self._meta_data[ForecastMetaDataRangeSchema.ARGS]
+
+
+    def get_arg(self, name: str):
+        if(self.has_args()):
+            if(name in self._meta_data[ForecastMetaDataRangeSchema.ARGS].keys()):
+                return(self._meta_data[ForecastMetaDataRangeSchema.ARGS][name])
+            else:
+                return None
+        else:
+            return None
+
+
+    
+    
+    def has_objs(self):
+        if (ForecastMetaDataRangeSchema.OBJS in self._meta_data.keys()) and (self._meta_data[ForecastMetaDataRangeSchema.OBJS] is not None) and (len(self._meta_data[ForecastMetaDataRangeSchema.OBJS]) > 0):
+            return True
+        else:
+            return False
+
+
+    def get_objs(self):
+        if(self.has_objs()):
+            return self._meta_data[ForecastMetaDataRangeSchema.OBJS]
+
+
+    def get_obj(self, name: str):
+        if(self.has_objs()):
+            if(name in self._meta_data[ForecastMetaDataRangeSchema.OBJS].keys()):
+                return(self._meta_data[ForecastMetaDataRangeSchema.OBJS][name])
+            else:
+                return None
+        else:
+            return None
+
+
+
 
 
     # __str__
@@ -483,7 +593,7 @@ class ForecastMetaDataRange():
         results = super().__str__()
 
         for attrib in ForecastMetaDataRangeSchema:
-            results += f"\n{attrib} = {self.meta_data[attrib]}"
+            results += f"\n{attrib} = {self._meta_data[attrib]}"
 
         return results
     
@@ -505,16 +615,6 @@ class ForecastMetaDataRange():
 
 
 
-
-
-
-
-
-
-
-
-
-
 # ForecastMetaDataSeries
 # Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
 class ForecastMetaDataSeries():
@@ -525,7 +625,7 @@ class ForecastMetaDataSeries():
 
     # INSTANCE VARIABLES
     # ------------------
-    # meta_data - stores all the meta-data for this instance
+    _meta_data: dict = None
 
 
     # __init__
@@ -538,14 +638,14 @@ class ForecastMetaDataSeries():
     #   NA
 
     def __init__(self, *args, **kwargs):
-        self.meta_data = {}
+        self._meta_data: dict = {}
 
         # init all meta_data attributes
         for attrib in ForecastMetaDataSeriesSchema:
             if attrib in kwargs:
-                self.meta_data[attrib] = kwargs.get(attrib)
+                self._meta_data[attrib] = kwargs.get(attrib)
             else:
-                self.meta_data[attrib] = None
+                self._meta_data[attrib] = None
 
 
 
@@ -562,49 +662,49 @@ class ForecastMetaDataSeries():
     def set_forecast_meta_data(self, *args, **kwargs):
         for arg_name in kwargs:
             if arg_name in ForecastMetaDataSeriesSchema:
-                self.meta_data[arg_name] = kwargs.get(arg_name)
+                self._meta_data[arg_name] = kwargs.get(arg_name)
             else:
-                raise ValueError(f"*  set_forecast_meta_data:  invalid arg_name '{arg_name}'")
+                raise ValueError(f"\n*  set_forecast_meta_data:  invalid arg_name '{arg_name}'")
         
 
-    # set_forecast_meta_data_bulk
-    # Takes all the meta_data forecast as a set of arguments and stuffs them in the attributes of the object
-    # but in a bulk format (dict), might be easier to do when constantly copying from only pandas data series to new ones
-    # (after a concat operations, for example, which wipes out all the meta-data)
-    #  
-    # INPUTS:
-    #   Dict with name_value pairs for all the meta-data
-    # 
-    # OUTPUTS:
-    #   NA
+    # # set_forecast_meta_data_bulk
+    # # Takes all the meta_data forecast as a set of arguments and stuffs them in the attributes of the object
+    # # but in a bulk format (dict), might be easier to do when constantly copying from only pandas data series to new ones
+    # # (after a concat operations, for example, which wipes out all the meta-data)
+    # #  
+    # # INPUTS:
+    # #   Dict with name_value pairs for all the meta-data
+    # # 
+    # # OUTPUTS:
+    # #   NA
 
-    def set_forecast_meta_data_bulk(self, meta_data_attribs: dict):
-        for key in meta_data_attribs.keys():
-            if key in ForecastMetaDataSeriesSchema:
-                self.meta_data[key] = meta_data_attribs[key]
-            else:
-                raise ValueError(f"*  set_forecast_meta_data_bulk:  invalid key '{key}'")
+    # def set_forecast_meta_data_bulk(self, meta_data_attribs: dict):
+    #     for key in meta_data_attribs.keys():
+    #         if key in ForecastMetaDataSeriesSchema:
+    #             self.meta_data[key] = meta_data_attribs[key]
+    #         else:
+    #             raise ValueError(f"*  set_forecast_meta_data_bulk:  invalid key '{key}'")
         
 
 
-    # get_forecast_meta_data_bulk
-    # Returns a dump of all the meta-data_attributes from the pandas data series, but in a bulnk format (dict)
-    # might be easier to do when constantly copying from only pandas data series to new ones
-    # (after a concat operations, for example, which wipes out all the meta-data)
-    #  
-    # INPUTS:
-    #   NA
-    # 
-    # OUTPUTS:
-    #   Dict with name_value pairs for all the meta-data
+    # # get_forecast_meta_data_bulk
+    # # Returns a dump of all the meta-data_attributes from the pandas data series, but in a bulnk format (dict)
+    # # might be easier to do when constantly copying from only pandas data series to new ones
+    # # (after a concat operations, for example, which wipes out all the meta-data)
+    # #  
+    # # INPUTS:
+    # #   NA
+    # # 
+    # # OUTPUTS:
+    # #   Dict with name_value pairs for all the meta-data
 
-    def get_forecast_meta_data_bulk(self) -> dict:
-        meta_data_attribs = {}
+    # def get_forecast_meta_data_bulk(self) -> dict:
+    #     meta_data_attribs = {}
 
-        for attrib in ForecastMetaDataSeriesSchema:
-            meta_data_attribs[attrib] = self.meta_data[attrib]
+    #     for attrib in ForecastMetaDataSeriesSchema:
+    #         meta_data_attribs[attrib] = self.meta_data[attrib]
 
-        return meta_data_attribs
+    #     return meta_data_attribs
     
 
 
@@ -621,7 +721,7 @@ class ForecastMetaDataSeries():
         results = super().__str__()
 
         for attrib in ForecastMetaDataSeriesSchema:
-            results += f"\n{attrib} = {self.meta_data[attrib]}"
+            results += f"\n{attrib} = {self._meta_data[attrib]}"
 
         return results
     
@@ -647,7 +747,89 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   the id of this Series
     def get_id(self) -> str:
-        return(self.meta_data[ForecastMetaDataSeriesSchema.ID])        
+        return(self._meta_data[ForecastMetaDataSeriesSchema.ID])        
+
+
+    # get_action
+    # get the action of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   the action of this Series
+    def get_action(self) -> ForecastDataSeriesMetaDataAction:
+        return(self._meta_data[ForecastMetaDataSeriesSchema.ACTION])
+
+
+    # get_step_type
+    # get the step_type of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   Step_type
+    def get_step_type(self) -> ForecastDataSeriesMetaDataStepTypes:
+        return(self._meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE])
+    
+    # get_data_type
+    # get the data_type of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   data_type
+    def get_data_type(self) -> ForecastDataSeriesMetaDataDataType:
+        return(self._meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
+
+
+    # get_display_type
+    # get the display_type of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   display_type
+    def get_display_type(self) -> ForecastDataSeriesMetaDataDataType:
+        return(self._meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+    
+
+    # display_name
+    # get the display_name of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   the display_name of this Series
+    def get_display_name(self) -> str:
+        return(self._meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+    
+
+    # has_data_values
+    # Checks if there are data_values for the Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   True or False
+    def has_data_values(self) -> bool:
+        if (ForecastMetaDataSeriesSchema.DATA_VALUES in self._meta_data) and (self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES] is not None) and (len(self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES]) > 0):
+            return True
+        else:
+            return False
+        
+
+    # get_data_values
+    # get the data_values of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   the data_values of this Series
+    def get_data_values(self) -> list:
+        return(self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
+
+
+    # get_validation
+    # get the validation of this Series
+    # INPUTS:
+    #   NA
+    # OUTPUTS:
+    #   the validation of this Series
+    def get_validation(self) -> dict[ForecastDataSeriesMetaDataValidationSchema]:
+        return(self._meta_data[ForecastMetaDataSeriesSchema.VALIDATION])
 
 
     # has_ranges
@@ -659,7 +841,7 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   True or False
     def has_ranges(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.RANGES not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.RANGES] is None):
+        if(ForecastMetaDataSeriesSchema.RANGES not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.RANGES] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.RANGES]) < 1):
             return False
         else:
             return True
@@ -672,10 +854,10 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   list of ForecastMetaDataRange, or None if there are none
     def get_ranges(self) -> list[ForecastMetaDataRange]:
-        if(ForecastMetaDataSeriesSchema.RANGES not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.RANGES] is None):
-            return None
+        if self.has_ranges():
+            return self._meta_data[ForecastMetaDataSeriesSchema.RANGES]
         else:
-            return self.meta_data[ForecastMetaDataSeriesSchema.RANGES]
+            return None
         
 
     # is_value_action
@@ -688,7 +870,7 @@ class ForecastMetaDataSeries():
     #   True or False
 
     def is_value_action(self) -> bool:
-        if self.meta_data[ForecastMetaDataSeriesSchema.ACTION] in self.NON_VALUE_ACTIONS:
+        if self._meta_data[ForecastMetaDataSeriesSchema.ACTION] in self.NON_VALUE_ACTIONS:
             return(False)
         else:
             return(True)
@@ -703,22 +885,31 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   True or False
     def has_arg(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.ARGS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.ARGS] is None):
+        if(ForecastMetaDataSeriesSchema.ARGS not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.ARGS] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.ARGS]) < 1):
             return False
         else:
             return True
         
         
+    # get_args
+    # return all args as a dict   
+    def get_args(self):
+        if self.has_arg():
+            return self._meta_data[ForecastMetaDataSeriesSchema.ARGS]
+        else:
+            return None
+            
+    
     # get_arg
     # get a specific arg by name    
     def get_arg(self, arg_name: str):
-        if(ForecastMetaDataSeriesSchema.ARGS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.ARGS] is None):
-            return None
-        else:
-            if arg_name in self.meta_data[ForecastMetaDataSeriesSchema.ARGS].keys():
-                return self.meta_data[ForecastMetaDataSeriesSchema.ARGS][arg_name]
+        if self.has_arg():
+            if arg_name in self._meta_data[ForecastMetaDataSeriesSchema.ARGS].keys():
+                return self._meta_data[ForecastMetaDataSeriesSchema.ARGS][arg_name]
             else:
                 return None
+        else:
+            return None
             
     
     # has_obj
@@ -730,11 +921,25 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   True or False
     def has_obj(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.OBJS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.OBJS] is None):
+        if(ForecastMetaDataSeriesSchema.OBJS not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.OBJS] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.OBJS]) < 1):
             return False
         else:
             return True
         
+
+    # get_objs
+    # return all objs as a dict
+    #
+    # INPUTS:
+    #   NA
+    #
+    # OUTPUTS:
+    #  dict of all objects {name of obj: obj}
+    def get_objs(self):
+        if(self.has_obj()):
+            return self._meta_data[ForecastMetaDataSeriesSchema.OBJS]
+        else:
+            return None
 
     # get_obj
     # get a specific obj by name
@@ -745,13 +950,14 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   the object, or None if it doesn't exist
     def get_obj(self, obj_name: str):
-        if(ForecastMetaDataSeriesSchema.OBJS not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.OBJS] is None):
-            return None
-        else:
-            if obj_name in self.meta_data[ForecastMetaDataSeriesSchema.OBJS].keys():
-                return self.meta_data[ForecastMetaDataSeriesSchema.OBJS][obj_name]
+        if(self.has_obj()):
+            if obj_name in self._meta_data[ForecastMetaDataSeriesSchema.OBJS].keys():
+                return self._meta_data[ForecastMetaDataSeriesSchema.OBJS][obj_name]
             else:
                 return None
+        else:
+            return None
+
 
     # has_pred
     # Return true if this Series has pred (i.e. one or more entries in the ranges meta_data), False otherwise
@@ -762,7 +968,7 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   True or False
     def has_preds(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.PRED not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.PRED] is None):
+        if(ForecastMetaDataSeriesSchema.PRED not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.PRED] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.PRED]) < 1):
             return False
         else:
             return True
@@ -776,10 +982,10 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   list of column ids, or None if there are none
     def get_pred(self):
-        if(ForecastMetaDataSeriesSchema.PRED not in self.meta_data.keys()) or (self.meta_data[ForecastMetaDataSeriesSchema.PRED] is None):
-            return None
+        if(self.has_preds()):
+            return self._meta_data[ForecastMetaDataSeriesSchema.PRED]
         else:
-            return self.meta_data[ForecastMetaDataSeriesSchema.PRED]
+            return None
 
 
         
@@ -800,6 +1006,9 @@ class ForecastMetaDataFrame():
     # model - (dict of ForecastMetaDataSeries) stores all meta data for the specific columsn of the model (ForecastMetaDataSeries)
     # id_mgr - (ForecastMetaDataSeriesIdGenerator) can handle all id tasks (generation, conversion, information methods) 
 
+    _meta_data: dict = None
+    _model: dict[ForecastMetaDataSeries] = None
+
 
     # __init__
     # Initializing all meta-data attributes to None or to values passed in.  Initialize the model data structure
@@ -811,115 +1020,146 @@ class ForecastMetaDataFrame():
     #   NA
 
     def __init__(self, id_prefix: str = "ForecastMetaDataFrame", *args, **kwargs):
-        self.id_prefix = id_prefix
-        self.meta_data = {}
-        self.model = {}
+        self.id_prefix: str = id_prefix
+        self._meta_data: dict = {}
+        self._model: dict[ForecastMetaDataSeries] = {}
 
         # create an id_mgr and put pointer to this object as it's container
-        self.id_mgr = ForecastMetaDataSeriesIdGenerator(container = self)
+        self.id_mgr:ForecastMetaDataSeriesIdGenerator = ForecastMetaDataSeriesIdGenerator(container = self)
 
+        # Generate a unique ID
         if(id_prefix is not None):
-            self.meta_data[ForecastMetaDataFrameSchema.ID] = self.id_mgr.gen_rel_id(prefix = id_prefix)
+            self._meta_data[ForecastMetaDataFrameSchema.ID] = self.id_mgr.gen_rel_id(prefix = id_prefix)
         else:
-            self.meta_data[ForecastMetaDataFrameSchema.ID] = self.id_mgr.gen_rel_id(length = 10)
+            self._meta_data[ForecastMetaDataFrameSchema.ID] = self.id_mgr.gen_rel_id(length = 10)
 
 
         # init all meta_data attributes
         for attrib in ForecastMetaDataFrameSchema:
             if attrib in kwargs:
                 if(attrib != ForecastMetaDataFrameSchema.MODEL):    # this is done because MODEL is not a meta_data schema but on object attribute
-                    self.meta_data[attrib] = kwargs.get(attrib)
+                    self._meta_data[attrib] = kwargs.get(attrib)
                 else:
-                    self.model = kwargs.get(attrib)
+                    self._model: dict[ForecastMetaDataSeries] = kwargs.get(attrib)
             else:
                 if(attrib != ForecastMetaDataFrameSchema.MODEL):    # this is done because MODEL is not a meta_data schema but on object attribute
-                    self.meta_data[attrib] = None
-                else:
-                    self.model = None
-
-        # if no ID was provided, generate one
-        if(not hasattr(self, ForecastMetaDataFrameSchema.ID)):
-             self.meta_data[ForecastMetaDataFrameSchema.ID] = f"{id_prefix}_{nanoid.generate(size=5)}"
+                    # if there is already a value there, leave it alone, if not, create and explicitly set to null
+                    if not attrib in self._meta_data.keys():
+                        self._meta_data[attrib] = None
 
 
+        # if no last_id was provided, calculate the last_id
+        if not self.has_last_id():
+            self.set_last_id(id = self._get_last_id(value_series_only = False))
+
+        # calculate the last_value_id, last_value_id is the last_id which is of type value (not a Step_Init).  Usually that means that same
+        # thing, but sometimes it can be different
+        if self.has_last_id():
+            if not self.has_last_value_id():
+                self._meta_data[ForecastMetaDataFrameSchema.LAST_VALUE_ID] = self._get_last_id(value_series_only = True)
+        else:
+            self._meta_data[ForecastMetaDataFrameSchema.LAST_VALUE_ID] = None
 
 
 
-    # set_col_meta_data
-    # Updates all the meta-data of a specific column (ForecastMetaDataSeries) in the model
-    #  
-    # INPUTS:
-    #   col:  Name of column (str) or position of column (0 based index)
-    #   meta_data_attribs:  A dict of all the meta-data attributes to set
-    # 
-    # OUTPUTS:
-    #   NA
-
-    def set_col_meta_data(self, col: int | str, meta_data_attribs: dict):
-        if(isinstance(col, int)):
-            col = list(self.model.keys())[col]
-
-        self.model[col].set_forecast_meta_data_bulk(meta_data_attribs)
 
 
-    # get_col_meta_data
-    # Get all the meta-data of a specific column (ForecastDataSeries) in the data frame
-    #  
-    # INPUTS:
-    #   col:  Name of column (str) or position of column (0 based index)
-    # 
-    # OUTPUTS:
-    #   meta_data_attribs:  A dict of all the meta-data attributes to set
+    # iterator interface(s)
+    # ---------------------
+    def __iter__(self):
+        return self._model.__iter__()
 
-    def get_col_meta_data(self, col: int | str) -> dict:
-        if(isinstance(col, int)):
-            col = list(self.model.keys())[col]
 
-        return self[col].get_forecast_meta_data_bulk()
+    def __next__(self) -> ForecastMetaDataSeries:
+        return self._model.__next__()
+
+    def keys(self):
+        return(self._model.keys())
+    
+    def values(self):
+        return(self._model.values())
+    
+    def items(self):
+        return(self._model.items())
     
 
-    # set_all_col_meta_data
-    # Updates all the meta-data for all columns (ForecastDataSeries) in the Dataframe
-    #  
-    # INPUTS:
-    #   all_meta_data_attribs:  A list of dicts, one dict (in order) for each column in the DataFrame
-    # 
-    # OUTPUTS:
-    #   NA
 
-    def set_all_col_meta_data(self, all_meta_data_attribs: list[dict]):
-        num_columns = len(self.model.keys())
 
-        # make sure we have meta-data to update for each column in the data frame.  I believe this strict validation will lower errors in the long term (losing or missing meta-data due to bugs in code)
-        if(num_columns != len(all_meta_data_attribs)):
-            raise ValueError(f"* set_all_col_meta_data: number of columns ({len(self.model.keys())}) does not match number of meta_data_attributes provided ({len(all_meta_data_attribs)}).")
+    # # set_col_meta_data
+    # # Updates all the meta-data of a specific column (ForecastMetaDataSeries) in the model
+    # #  
+    # # INPUTS:
+    # #   col:  Name of column (str) or position of column (0 based index)
+    # #   meta_data_attribs:  A dict of all the meta-data attributes to set
+    # # 
+    # # OUTPUTS:
+    # #   NA
 
-        # update each column with the new meta_data
-        for i in range(len(all_meta_data_attribs)):
-            self.set_col_meta_data(i, all_meta_data_attribs[i])
+    # def set_col_meta_data(self, col: int | str, meta_data_attribs: dict):
+    #     if(isinstance(col, int)):
+    #         col = list(self.model.keys())[col]
+
+    #     self.model[col].set_forecast_meta_data_bulk(meta_data_attribs)
+
+
+    # # get_col_meta_data
+    # # Get all the meta-data of a specific column (ForecastDataSeries) in the data frame
+    # #  
+    # # INPUTS:
+    # #   col:  Name of column (str) or position of column (0 based index)
+    # # 
+    # # OUTPUTS:
+    # #   meta_data_attribs:  A dict of all the meta-data attributes to set
+
+    # def get_col_meta_data(self, col: int | str) -> dict:
+    #     if(isinstance(col, int)):
+    #         col = list(self.model.keys())[col]
+
+    #     return self[col].get_forecast_meta_data_bulk()
+    
+
+    # # set_all_col_meta_data
+    # # Updates all the meta-data for all columns (ForecastDataSeries) in the Dataframe
+    # #  
+    # # INPUTS:
+    # #   all_meta_data_attribs:  A list of dicts, one dict (in order) for each column in the DataFrame
+    # # 
+    # # OUTPUTS:
+    # #   NA
+
+    # def set_all_col_meta_data(self, all_meta_data_attribs: list[dict]):
+    #     num_columns = len(self.model.keys())
+
+    #     # make sure we have meta-data to update for each column in the data frame.  I believe this strict validation will lower errors in the long term (losing or missing meta-data due to bugs in code)
+    #     if(num_columns != len(all_meta_data_attribs)):
+    #         raise ValueError(f"* set_all_col_meta_data: number of columns ({len(self.model.keys())}) does not match number of meta_data_attributes provided ({len(all_meta_data_attribs)}).")
+
+    #     # update each column with the new meta_data
+    #     for i in range(len(all_meta_data_attribs)):
+    #         self.set_col_meta_data(i, all_meta_data_attribs[i])
 
     
-    # get_all_col_meta_data
-    # Gets all the meta-data from all columns (ForecastDataSeries) in the Dataframe
-    #  
-    # INPUTS:
-    #   NA
-    # 
-    # OUTPUTS:
-    #   all_meta_data_attribs:  A list of dicts, one dict (in order) for each column in the DataFrame
+    # # get_all_col_meta_data
+    # # Gets all the meta-data from all columns (ForecastDataSeries) in the Dataframe
+    # #  
+    # # INPUTS:
+    # #   NA
+    # # 
+    # # OUTPUTS:
+    # #   all_meta_data_attribs:  A list of dicts, one dict (in order) for each column in the DataFrame
 
-    def get_all_col_meta_data(self) -> list[dict]:
-        num_columns = len(self.model.keys())
-        all_meta_data_attribs = []
+    # def get_all_col_meta_data(self) -> list[dict]:
+    #     num_columns = len(self.model.keys())
+    #     all_meta_data_attribs = []
 
-        # if there are no columns, raise an error
-        if(num_columns < 1):
-            raise ValueError(f"* get_all_col_meta_data:  no columns to update.")
+    #     # if there are no columns, raise an error
+    #     if(num_columns < 1):
+    #         raise ValueError(f"* get_all_col_meta_data:  no columns to update.")
 
-        for i in range(num_columns):
-            all_meta_data_attribs.append(self.get_col_meta_data(i))
+    #     for i in range(num_columns):
+    #         all_meta_data_attribs.append(self.get_col_meta_data(i))
 
-        return(all_meta_data_attribs)
+    #     return(all_meta_data_attribs)
 
 
 
@@ -940,12 +1180,12 @@ class ForecastMetaDataFrame():
     @staticmethod
     def concat_and_sum(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], 
                        display_name: str,
+                       new_total_line_id: str,
                        new_summation_id: str = None,
-                       new_total_line_id: str = None,
                        is_total: bool = False,
                        new_total_values: pd.Series = None,
                        verify_integrity: bool = False,
-                       drop_dups: bool = False, 
+                       drop_dups: bool = False,
                        **kwargs) -> Type['ForecastMetaDataFrame']:
         
         if(datas is None or len(datas) < 1):
@@ -972,7 +1212,6 @@ class ForecastMetaDataFrame():
                                                                 pred = list_of_pred_ids)
             
             # generate the instructions for the totals row
-
             action_type = ForecastDataSeriesMetaDataAction.SUM
 
             if(is_total):
@@ -990,11 +1229,12 @@ class ForecastMetaDataFrame():
             
             # concat the list of data_objects provided (unpacked using '*') and the new totals line Series into one ForecastMetaDataFrame
             meta_data = ForecastMetaDataFrame.concat(objs = [*datas, meta_data_step_init_series, meta_data_sum_series], verify_integrity = verify_integrity, drop_dups = drop_dups)
+            meta_data.set_last_id(new_total_line_id)
 
         return(meta_data)
 
 
-
+    # ZIV
     # concat
     # Combine the meta_data from two or more ForecastMetaDataSeries or ForecastMetaDataFrames, designed to look similar to Pandas Concat
     #  
@@ -1007,7 +1247,11 @@ class ForecastMetaDataFrame():
     #   ForecastMetaDataFrame will all the elements combined
 
     @staticmethod
-    def concat(objs: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], verify_integrity = False, drop_dups = False, **kwargs) -> Type['ForecastMetaDataFrame']:
+    def concat(objs: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], 
+               verify_integrity = False, 
+               drop_dups = False, 
+               last_id: str = None, 
+               **kwargs) -> Type['ForecastMetaDataFrame']:
         results_frame = ForecastMetaDataFrame()
         read_df = False
 
@@ -1020,36 +1264,42 @@ class ForecastMetaDataFrame():
             # handle the case that the next object is a ForecastMetaDataFrame
             if isinstance(obj, ForecastMetaDataFrame):
 
+                # if this is our first ForecastMetaDataFrame to concat, we can copy all the non_model meta_data over before merging the columns
+                if (not read_df):
+                    results_frame = copy.deepcopy(obj)
+                    read_df = True
+                
                 # if we have already read a ForecastMetaDataFrame previously in the list, then we need 
                 # to confirm that all meta_data in this ForecastMetaDataFrame (other than MODEL) matches
                 # since we can't combine forecasts of different types
-                if (read_df):
+                else:
                     # make sure that all the forecast meta_data agrees, otherwise we can't merge it
                     if (not verify_integrity) or (ForecastMetaDataFrame._check_meta_data(frame1 = obj, frame2 = results_frame)):
-                        results_frame = ForecastMetaDataFrame._append_cols(src_frame = obj, dest_frame = results_frame)
+                        #results_frame = ForecastMetaDataFrame._append_cols(src_frame = obj, dest_frame = results_frame)
+                        results_frame = ForecastMetaDataFrame._append_cols(src_frame = obj, dest_frame = results_frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
                     else:
                         raise ValueError("*  concat:  error ForecastMetaDataFrames do not have the same meta-data")
                     
-                # if this is our first ForecastMetaDataFrame to concat, we can copy all the none_model meta_data over before merging the columns
-                else:
-                    results_frame = ForecastMetaDataFrame._copy_frame_meta_data(src_frame = obj, dest_frame = results_frame)
-                    results_frame = ForecastMetaDataFrame._append_cols(src_frame = obj, dest_frame = results_frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
-                    read_df = True
-
-            # handle the case that the next object is a ForecastMetaDataSeries
+            # handle the case that the this object is a ForecastMetaDataSeries
             else:
                 results_frame = ForecastMetaDataFrame._append_col(src_series = obj, dest_frame = results_frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
+
+        if(last_id is not None):
+            results_frame.set_last_id(last_id)
+
+        # ZIV:  for the moment, don't let last_id be implicitly set, get everyone to explicitly set the value
+        # else:
+        #     results_frame._meta_data[ForecastMetaDataFrameSchema.LAST_ID] = results_frame._get_last_id()
 
         return(results_frame)
     
     
-
     # add_col_data_meta
     # Generate and add a ForecastMetaDataSeries to an ForecastMetaDataFrame
 
     @staticmethod
     def add_col_meta_data(frame: Type['ForecastMetaDataFrame'],
-                        #   id: str,
+                          id: str,
                         #   display_name: str,
                         #   data_values: pd.Series,
                         #   step_type: ForecastDataSeriesMetaDataStepTypes,
@@ -1060,100 +1310,294 @@ class ForecastMetaDataFrame():
                         #   pred: List[str | int | float] = None,
                         #   args: Dict = None,
                         #   objs: List = None,
+                          update_last_id = False,
                           verify_integrity: bool = True,
                           drop_dups: bool = False, 
                           **kwargs) -> Type['ForecastMetaDataFrame']:
         
-        new_series = ForecastMetaDataSeries(**kwargs)
+        new_series = ForecastMetaDataSeries(id = id, **kwargs)
         frame._append_col(new_series, frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
+
+        if(update_last_id):
+            frame.set_last_id(id = id)
 
         return(frame)
     
 
     # BUNCH OF HELPER FUNCTIONS TO QUICKLY GET THE OVERALL META-DATA FROM THE FRAME (the stuff that isn't going to change)
 
+    # META_DATA
+
     # get_id
     # get the ID for the Frame
     def get_id(self) -> str:
-        return(self.meta_data[ForecastMetaDataFrameSchema.ID])        
+        return(self._meta_data[ForecastMetaDataFrameSchema.ID])        
 
 
     # get_timescale
     # get the TIMESCALE of the frame
     def get_timescale(self) -> ForecastModelTimescale:
-        return(self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE])
+        return(self._meta_data[ForecastMetaDataFrameSchema.TIMESCALE])
+        
+    def set_timescale(self, value: ForecastMetaDataFrameSchema):
+        self._meta_data[ForecastMetaDataFrameSchema.TIMESCALE] = value
+
+
+
+    def get_start_year(self) -> int:
+        return(self._meta_data[ForecastMetaDataFrameSchema.START_YEAR])
+    
+    def set_start_year(self, value: int):
+        self._meta_data[ForecastMetaDataFrameSchema.START_YEAR] = value
+
+
+
+
+    def get_start_month(self) -> int:
+        return(self._meta_data[ForecastMetaDataFrameSchema.START_MONTH])
+    
+    def set_start_month(self, value: int):
+        self._meta_data[ForecastMetaDataFrameSchema.START_MONTH] = value
+
+
+
+
+    def get_num_periods(self) -> int:
+        return(self._meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS])
+    
+    def set_num_periods(self, value: int):
+        self._meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS] = value
 
 
     
+    def get_input_type(self) -> ForecastModelInputTypes:
+        return(self._meta_data[ForecastMetaDataFrameSchema.INPUT_TYPE])
+    
+    def set_input_type(self, value: ForecastModelInputTypes):
+        self._meta_data[ForecastMetaDataFrameSchema.INPUT_TYPE] = value
+
+
+
+
+    # _MODEL
+
+    # has_series
+    # Returns true if the _model has 1 or more series in it
+    def has_series(self) -> bool:
+        if hasattr(self, "_model") and (self._model is not None) and (len(self._model) > 0):
+            return True
+        else:
+            return False
+        
+
+    # get_series_ids()
+    def get_series_ids(self) -> list[str]:
+        if self.has_series():
+            return list(self._model.keys())
+        else:
+            return None
+        
+
+    # get_num_series
+    def get_num_series(self) -> int:
+        series = self.get_series_ids()
+
+        if series is None:
+            return 0
+        else:
+            return len(series)
+        
+
+    # get_series
+    # given a key or an index into the list of actions, return the corresponding Series object
+    def get_series(self, id: int | str) -> ForecastMetaDataSeries:
+        # if an int is provided, it's an index, if a string, it's a key
+        # convert index to key
+        if isinstance(id, int):
+            #id = list(self._model.keys())[id]
+            id = self.get_series_ids()[id]
+        
+        return self._model[id]
     
 
-    # BUNCH OF HELPER FUNCTIONS TO QUICKLY GET DATA FROM THE LAST ACTION / SERIES IN THE FRAME
+    # has_series_id
+    # given a series id, return true if it's among the ForecastMetaDataSeries in model, false otherwise
+    def has_series_id(self, id: str) -> bool:
+        if(not self.has_series()):
+            return False
+        else:
+            if(id in self.get_series_ids()):
+                return True
+            else:
+                return False
+
+
+
+
+
+
+    # _MODEL: LAST SERIES
 
     # get_last_series
-    # Get the last column (series) of the model
+    # Return the series which is pointed to by LAST_ID in _meta_data
     def get_last_series(self, value_series_only = False) -> ForecastMetaDataSeries:
-        list_of_action_ids = list(self.model.keys())
-
-        if(value_series_only):
-            for i in range(len(list_of_action_ids)-1, 0, -1):
-                curr_series = self.model[list_of_action_ids[i]]
-
-                if curr_series.is_value_action():
-                    return(curr_series)
-        else:
-            return(self.model[list_of_action_ids[-1]])
-        
-        raise ValueError(f"\n*  get_last_series:  error, no value series found {list_of_action_ids}.")
+        return self._model[self.get_last_id(value_series_only = value_series_only)]
 
 
     # get_last_id
     # Get the id of the last column
-    def get_last_id(self, value_series_only = False) -> str:
-        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.ID])
+    def get_last_id(self, value_series_only: bool = False) -> str:
+
+        # find LAST_ID
+        if not value_series_only:
+            if not self.has_last_id():
+                raise ValueError(f"\n* get_last_id:  No last_id.")
+            
+            last_id: str = self._meta_data[ForecastMetaDataFrameSchema.LAST_ID]
+
+            # check to make sure this last_id still exists in the model
+            if not self.has_series_id(last_id):
+                raise ValueError(f"\n* get_last_id: invalid last_id '{last_id}' not found in model keys {self.get_series_ids()}")
+            
+            # if everything checks out, return it
+            return(last_id)
+        
+        # find LAST_VALUE_ID
+        else:
+            if not self.has_last_value_id():
+                raise ValueError(f"\n* get_last_id:  value_series_only = True, but no last_value_id.")
+            
+            last_value_id: str = self._meta_data[ForecastMetaDataFrameSchema.LAST_VALUE_ID]
+
+            # check to make sure this last_value_id still exists in the model
+            if not self.has_series_id(last_value_id):
+                raise ValueError(f"\n* get_last_id: value_series_only - True, invalid last_value_id '{last_value_id}' not found in model keys {self.get_series_ids()}")
+            
+            # if everything checks out, return it
+            return(last_value_id)
+    
+
+    # convenience wrapper around get_last_id
+    def get_last_value_id(self) -> str:
+        self.get_last_id(value_series_only = True)
+
+
+    def has_last_id(self) -> bool:
+        if (ForecastMetaDataFrameSchema.LAST_ID in self._meta_data.keys()) and (self._meta_data[ForecastMetaDataFrameSchema.LAST_ID] is not None):
+            return True
+        else:
+            return False
+        
+    def has_last_value_id(self) -> bool:
+        if (ForecastMetaDataFrameSchema.LAST_VALUE_ID in self._meta_data.keys()) and (self._meta_data[ForecastMetaDataFrameSchema.LAST_VALUE_ID] is not None):
+            return True
+        else:
+            return False
+
+        
+    # _get_last_id
+    # NOTE:  This is a special function that doesn't depend on the value of ForecastMetaDataSeriesSchema.LAST_ID or LAST_VALUE_ID,
+    # it grabs all the series ids, and takes the last ID in the order (or if value_series_only is true, starts at the end and exists at the).
+    # first series which is a value_action.
+    #   
+    # This function should only be used during the __init__ function of ForecastMetaDataFrame to set its last_id / last_value_id, if it's not explicitly set 
+    # and should not be otherwise used (use get_last_id and get_last_value_id respectively)
+    def _get_last_id(self, value_series_only = False) -> str:
+        last_id = None
+
+        if self.has_series():
+           last_id = list(self._model.keys())[-1]
+        else:
+            return None
+
+        if not value_series_only:
+            return(last_id)
+        else:
+            curr_series: ForecastMetaDataSeries = self.get_series(last_id)
+        
+            if curr_series.is_value_action():
+                return(last_id)
+
+            # algorithm for value_series_only check        
+            #start_index = list(self._model.keys()).index(last_id) - 1
+            start_index = self.get_series_ids().index(last_id) - 1
+
+            if(start_index > 0): 
+                for i in range(start_index-1, 1, -1):
+                    curr_id: str = self.get_series_ids()[i]
+                    curr_series: ForecastMetaDataSeries = self.get_series(curr_id)
+
+                    if(curr_series.is_value_action()):
+                        return(curr_id)
+                    
+            # raise ValueError(f"\n*  get_last_series:  error, no value series found from '{last_id}' backwards {self.get_series_ids()}.")
+            return None
+
+
+
+
+    # set_last_id
+    # NOTE:  there is NO set_last_value_id function because value ID should never be set separately from last_id.
+    #        last_value_id is simply the last_id that is a value_action (series), so whenever we set a last_id, we simply
+    #        check if it's a value_id and set it there, if not, we leave as is
+    def set_last_id(self, id: str):
+
+        if (id is None):
+            self._meta_data[ForecastMetaDataFrameSchema.LAST_ID] = None
+            self._meta_data[ForecastMetaDataFrameSchema.LAST_VALUE_ID] = None
+            return
+
+        if (self.has_series_id(id)):
+            self._meta_data[ForecastMetaDataFrameSchema.LAST_ID] = id
+
+            if(self.get_series(id).is_value_action()):
+                self._meta_data[ForecastMetaDataFrameSchema.LAST_VALUE_ID] = id
+        else:
+            raise ValueError(f"\n* set_last_id:  error, id value '{id}' does not exist in {self.get_id()}: {self.get_series_ids}")
 
 
     # get_last_data_type
     def get_last_display_name(self, value_series_only = False) -> str:
-        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+        return(self.get_last_series(value_series_only = value_series_only).get_display_name())
 
 
     # get_last_data_type
     def get_last_data_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
-        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
+        return(self.get_last_series(value_series_only = value_series_only).get_data_type())
 
 
     # get_last_display_type
     def get_last_display_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataDataType:
-        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+        return(self.get_last_series(value_series_only = value_series_only).get_display_type())
 
 
     # get_last_step_type(self) 
     def get_last_step_type(self, value_series_only = False) -> ForecastDataSeriesMetaDataStepTypes:
-        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+        return(self.get_last_series(value_series_only = value_series_only).get_step_type())
 
 
     # get_last_values(self) 
     def get_last_values(self, value_series_only = False) -> list:
-        return(self.get_last_series(value_series_only = value_series_only).meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
+        return(self.get_last_series(value_series_only = value_series_only).get_data_values())
 
 
     # get first date in the forecast
     def get_first_date(self) -> datetime:
-        start_year = self.meta_data[ForecastMetaDataFrameSchema.START_YEAR]
-        start_month = self.meta_data[ForecastMetaDataFrameSchema.START_MONTH]
-        timescale = self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]
+        start_year = self.get_start_year()
+        start_month = self.get_start_month()
+        timescale = self.get_timescale()
         return(gen_dates(start_year=start_year, start_month = start_month, num_years=1, time_scale = timescale)[0])
 
 
     # get last date in the forecast
     def get_last_date(self) -> datetime:
-        start_year = self.meta_data[ForecastMetaDataFrameSchema.START_YEAR]
-        start_month = self.meta_data[ForecastMetaDataFrameSchema.START_MONTH]
-        num_periods = self.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS]
-        timescale = self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE]
+        start_year = self.get_start_year()
+        start_month = self.get_start_month()
+        num_periods = self.get_num_periods()
+        timescale = self.get_timescale()
 
 
-        if(self.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] == ForecastModelTimescale.MONTH):
+        if(self.get_timescale() == ForecastModelTimescale.MONTH):
             num_periods = num_periods / 12
         
         return(gen_dates(start_year=start_year, start_month = start_month, num_years=num_periods, time_scale = timescale)[-1])
@@ -1194,14 +1638,14 @@ class ForecastMetaDataFrame():
             # handle the case that the data_obj is a ForecastMetaDataFrame
             if isinstance(data_obj, ForecastMetaDataFrame):
                 # get the id of the last key in the model (the last column of ForecastMetaDataSeries to be added)
-                last_id = list(data_obj.model.keys())[-1]
-                list_of_forecast_series.append(data_obj.model[last_id])
+                last_id = data_obj.get_last_id()
+                list_of_forecast_series.append(data_obj.get_last_series())
                 list_of_ids.append(last_id)
 
-            # handle the cast that the data_obj is ForecastMetaDataSeries
+            # handle the case that the data_obj is ForecastMetaDataSeries
             else:
                 list_of_forecast_series.append(data_obj)
-                list_of_ids.append(data_obj.meta_data[ForecastMetaDataSeriesSchema.ID])
+                list_of_ids.append(data_obj.get_id())
 
         return(list_of_ids, list_of_forecast_series)
     
@@ -1222,17 +1666,17 @@ class ForecastMetaDataFrame():
         last_data_type = None
 
         for series in list_of_forecast_series:
-            if series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE] is not None:
+            if series.get_display_type() is not None:
                 if last_display_type is None:
-                    last_display_type = series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]
-                elif last_display_type != series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]:
-                    raise ValueError(f"*  _get_display_data_type:  inconsistent display_types found in list_of_forecast_series, '{last_display_type}' != '{series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]}'")
+                    last_display_type = series.get_display_type()
+                elif last_display_type != series.get_display_type():
+                    raise ValueError(f"*  _get_display_data_type:  inconsistent display_types found in list_of_forecast_series, '{last_display_type}' != '{series.get_display_type()}'")
             
-            if series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE] is not None:
+            if series.get_data_type() is not None:
                 if last_data_type is None:
-                    last_data_type = series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]
-                elif last_data_type != series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]:
-                    raise ValueError(f"*  _get_display_data_type:  inconsistent data_types found in list_of_forecast_series, '{last_data_type}' != '{series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]}'")
+                    last_data_type = series.get_data_type()
+                elif last_data_type != series.get_data_type():
+                    raise ValueError(f"*  _get_display_data_type:  inconsistent data_types found in list_of_forecast_series, '{last_data_type}' != '{series.get_data_type()}'")
 
         # if we never found a display_type or data_type, default to FLOAT
         if last_display_type is None:
@@ -1255,17 +1699,25 @@ class ForecastMetaDataFrame():
 
     @staticmethod
     def _check_meta_data(frame1: Type['ForecastMetaDataFrame'], frame2: Type['ForecastMetaDataFrame']) -> bool:
+
+        # check the meta-data
         for attrib in ForecastMetaDataFrameSchema:
-            if(attrib != ForecastMetaDataFrameSchema.MODEL):  # TODO:  add the ability to do this for .model as well, currently cannot be done since MODEL is an attribute not a dict
-                if(frame1.meta_data[attrib] != frame2.meta_data[attrib]):
+
+            # check that all the forecast attributes match, otherwise, can't merge the two forecasts
+            # ignore LAST_ID since that is not expected to match, ignore MODEL because it's not an attribute
+            # TODO:  add the ability to do this for .model as well, currently cannot be done since MODEL is an attribute not a dict
+            if(attrib != ForecastMetaDataFrameSchema.MODEL and 
+               attrib != ForecastMetaDataFrameSchema.LAST_ID and
+               attrib != ForecastMetaDataFrameSchema.LAST_VALUE_ID):
+                if(frame1._meta_data[attrib] != frame2._meta_data[attrib]):
                     return False
-            
+                
         return True
     
     
 
     # _copy_frame_meta_data
-    # Copy all the NONE-model meta-data from one frame to another
+    # Copy all the non-model meta-data from one frame to another
     #  
     # INPUTS:
     #   src_frame - source of meta-data
@@ -1273,17 +1725,30 @@ class ForecastMetaDataFrame():
     # 
     # OUTPUTS:
     #   ForecastMetaDataFrame dest_frame with src_frame's meta-data added
-
+    #
+    # NOTE:  This function is only called ONCE as part of this object concat() function.  It's just is just to copy for _meta_data
+    #        portion of the ForecastMetaDataFrame object from the src to the dest.  It does not handle the _model portion.  That
+    #        part is handled by a different fuction: _append_cols
     @staticmethod
     def _copy_frame_meta_data(src_frame: Type['ForecastMetaDataFrame'], dest_frame: Type['ForecastMetaDataFrame']) -> Type['ForecastMetaDataFrame']:
+
         for attrib in ForecastMetaDataFrameSchema:
-            if(attrib != ForecastMetaDataFrameSchema.MODEL):    # this is done because MODEL is not a meta_data schema but on object attribute
-                dest_frame.meta_data[attrib] = src_frame.meta_data[attrib]
-            else:
-                if(dest_frame.model is not None):
-                    dest_frame.model = copy.deepcopy(src_frame.model)
-                else:
-                    dest_frame.model = {}
+
+            # copy all the common attributes over except MODEL (which isn't an attrbute), LAST_ID and LAST_VALUE_ID
+            if(attrib != ForecastMetaDataFrameSchema.MODEL and 
+               attrib != ForecastMetaDataFrameSchema.LAST_ID and
+               attrib != ForecastMetaDataFrameSchema.LAST_VALUE_ID):
+                dest_frame._meta_data[attrib] = src_frame._meta_data[attrib]
+            
+            # DON'T NEED THIS
+            # # ZIV:  potential BUG here... we don't have a use case where we APPEND the _model from the src to the destination we simply OVERWRITE
+            # # is that the desired behavior, need to figure out what this function is used for
+            # # handle MODEL differently because it's not a meta_data entry, it's a property of the object
+            # elif(attrib == ForecastMetaDataFrameSchema.MODEL):
+            #     if(dest_frame._model is not None):
+            #         dest_frame._model = copy.deepcopy(src_frame._model)
+            #     else:
+            #         dest_frame._model = {}
 
         return dest_frame
     
@@ -1303,12 +1768,23 @@ class ForecastMetaDataFrame():
     #   ForecastMetaDataFrame dest_frame with src_frame's columns added
 
     @staticmethod
-    def _append_cols(src_frame: Type['ForecastMetaDataFrame'], dest_frame: Type['ForecastMetaDataFrame'], verify_integrity: bool = False, drop_dups: bool = False) -> Type['ForecastMetaDataFrame']:
-        if src_frame.model is None:
+    def _append_cols(src_frame: Type['ForecastMetaDataFrame'], 
+                     dest_frame: Type['ForecastMetaDataSeries'],
+                     update_last_id = False,
+                     verify_integrity: bool = False, 
+                     drop_dups: bool = False) -> Type['ForecastMetaDataFrame']:
+        
+        # check if the src_frame has _model
+        if(not src_frame.has_series()):
             return dest_frame
         
-        for col_key in src_frame.model.keys():
-            dest_frame = ForecastMetaDataFrame._append_col(src_series = src_frame.model[col_key], dest_frame = dest_frame, verify_integrity = verify_integrity, drop_dups = drop_dups)
+        # iterate over each column and add it
+        for col_key in src_frame.get_series_ids():
+            dest_frame = ForecastMetaDataFrame._append_col(src_series = src_frame.get_series(col_key), 
+                                                           dest_frame = dest_frame, 
+                                                           update_last_id = update_last_id, 
+                                                           verify_integrity = verify_integrity, 
+                                                           drop_dups = drop_dups)
 
         return dest_frame
 
@@ -1327,18 +1803,22 @@ class ForecastMetaDataFrame():
     #   ForecastMetaDataFrame dest_frame with src_frame's columns added
 
     @staticmethod
-    def _append_col(src_series: ForecastMetaDataSeries, dest_frame: Type['ForecastMetaDataFrame'], verify_integrity: bool = False, drop_dups: bool = False) -> Type['ForecastMetaDataFrame']:
-        key = src_series.meta_data[ForecastMetaDataSeriesSchema.ID]
+    def _append_col(src_series: ForecastMetaDataSeries, dest_frame: Type['ForecastMetaDataFrame'], update_last_id = False, verify_integrity: bool = False, drop_dups: bool = False) -> Type['ForecastMetaDataFrame']:
+        key = src_series.get_id()
         
         if(drop_dups or verify_integrity):
-            key_exists = key in dest_frame.model.keys()
+            key_exists  = dest_frame.has_series_id(key)
 
             if(drop_dups and key_exists):
                 return dest_frame
             elif(verify_integrity and key_exists):
                 raise ValueError(f"*  _append_col:  col '{key}' already exists in ForecastMetaDataFrame\n\n{dest_frame}\n\n{src_series}\n")
             
-        dest_frame.model[key] = src_series
+        dest_frame._model[key] = src_series
+        
+        if update_last_id:
+            dest_frame.set_last_id(key)
+
         return dest_frame
 
 
@@ -1358,12 +1838,12 @@ class ForecastMetaDataFrame():
         # print ForecastMetaDataFrame specific meta-data
         for attrib in ForecastMetaDataFrameSchema:
             if(attrib != ForecastMetaDataFrameSchema.MODEL):    # this is done because MODEL is not a meta_data schema but on object attribute
-                results += f"\n{attrib} = {self.meta_data[attrib]}"
+                results += f"\n{attrib} = {self._meta_data[attrib]}"
 
         # iterate on all columns and print their meta-data
-        if(self.model is not None):
-            for col_key in self.model.keys():
-                results += f"\n\nCol '{col_key}':\n{self.model[col_key]}"
+        if self.has_series():
+            for col_key in self.get_series_ids():
+                results += f"\n\nCol '{col_key}':\n{self.get_series(col_key)}"
 
         return results
 
@@ -1416,11 +1896,11 @@ def ForecastMetaDataJsonSerializer(obj):
     from langflow.schema.dataframe import DataFrame
 
     if isinstance(obj, ForecastMetaDataFrame):
-        return ({"meta_data": obj.meta_data, "model": obj.model})
+        return ({"meta_data": obj._meta_data, "model": obj._model})
     elif isinstance(obj, ForecastMetaDataSeries):
-        return obj.meta_data
+        return obj._meta_data
     elif isinstance(obj, ForecastMetaDataRange):
-        return obj.meta_data
+        return obj._meta_data
     elif isinstance(obj, DataFrame):
         return obj.to_dict()
     elif isinstance(obj, pd.Series):

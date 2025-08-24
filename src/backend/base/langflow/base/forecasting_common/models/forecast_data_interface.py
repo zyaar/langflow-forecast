@@ -195,29 +195,34 @@ class ForecastPredIterator():
         self.address_mapper = address_maps
 
         if(total_elements is None):
-            self.total_elements = len(col.meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
+            self.total_elements = len(col.get_data_values())
 
             if(self.total_elements < 1):
-                raise ValueError(f"\n*  ForecastMetaDataRangeSchema:  total_elements for '{col.meta_data[ForecastMetaDataSeriesSchema.ID]}' is either missing or zero.")
+                raise ValueError(f"\n*  ForecastMetaDataRangeSchema:  total_elements for '{col.get_id()}' is either missing or zero.")
         else:
             self.total_elements = total_elements
 
         # if no ranges are provided, create a single element list of range(s) by packaging up the ForecastMetaDataSeries schema
-        if (ForecastMetaDataSeriesSchema.RANGES not in col.meta_data.keys()) or (col.meta_data[ForecastMetaDataSeriesSchema.RANGES] is None):
-            range = ForecastMetaDataRange(count = None,                                             # setting to None makes it apply to all elements)
-                                          pred = col.meta_data[ForecastMetaDataSeriesSchema.PRED],
-                                          args = col.meta_data[ForecastMetaDataSeriesSchema.ARGS],
-                                          objs = col.meta_data[ForecastMetaDataSeriesSchema.OBJS])
+        #if (ForecastMetaDataSeriesSchema.RANGES not in col.meta_data.keys()) or (col.meta_data[ForecastMetaDataSeriesSchema.RANGES] is None):
+        if (not col.has_ranges()):
+            # range = ForecastMetaDataRange(count = None,                                             # setting to None makes it apply to all elements)
+            #                               pred = col.meta_data[ForecastMetaDataSeriesSchema.PRED],
+            #                               args = col.meta_data[ForecastMetaDataSeriesSchema.ARGS],
+            #                               objs = col.meta_data[ForecastMetaDataSeriesSchema.OBJS])
+            range = ForecastMetaDataRange(count = None,             # setting to None makes it apply to all elements)
+                                          pred = col.get_pred(),
+                                          args = col.get_args(),
+                                          objs = col.get_objs())
             self.ranges = [range]
 
         # otherwise copy over the current ranges list
         else:
-            self.ranges = col.meta_data[ForecastMetaDataSeriesSchema.RANGES]
+            self.ranges = col.get_ranges()
 
         self.total_ranges = len(self.ranges)
 
         # create a tracker to hold all the preds whose addresses we will be calculating
-        self.num_preds = len(self.ranges[0].meta_data[ForecastMetaDataSeriesSchema.PRED])
+        self.num_preds = len(self.ranges[0].get_pred())
 
 
 
@@ -289,14 +294,14 @@ class ForecastPredIterator():
         # get the duration for the next range
         curr_range = self.ranges[self.curr_range_index+1]
 
-        if(curr_range.meta_data[ForecastMetaDataRangeSchema.COUNT] is None):
+        if(curr_range.get_count() is None):
             self.curr_range_expires = self.total_elements
         else:
-            self.curr_range_expires = self.curr_element + curr_range.meta_data[ForecastMetaDataRangeSchema.COUNT] - 1   # since we are zero indexed, and the current element is included
+            self.curr_range_expires = self.curr_element + curr_range.get_count() - 1   # since we are zero indexed, and the current element is included
 
 
         # parse the preds into the pred_calc structure
-        self.parse_pred_ids(preds = curr_range.meta_data[ForecastMetaDataRangeSchema.PRED], default_card = self.default_card)
+        self.parse_pred_ids(preds = curr_range.get_pred(), default_card = self.default_card)
 
         # restart our location in the current range
         self.curr_element_in_range = 0
@@ -353,7 +358,7 @@ def ForecastDataInterfaceJsonSerializer(obj):
     from langflow.schema.dataframe import DataFrame
 
     if isinstance(obj, ForecastMetaDataFrame):
-        return ({"meta_data": obj.meta_data, "model": obj.model})
+        return ({"meta_data": obj._meta_data, "model": obj._model})
     elif isinstance(obj, ForecastMetaDataSeries):
         return obj.meta_data
     elif isinstance(obj, DataFrame):

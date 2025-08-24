@@ -509,7 +509,7 @@ class ForecastDataModel(DataFrame):
                             step_type: ForecastDataSeriesMetaDataStepTypes = None) -> tuple[pd.DataFrame, ForecastMetaDataFrame, str]:
             
             # if timescale is already same as target, throw an error
-            if meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] == target:
+            if meta_data.get_timescale() == target:
                   raise ValueError(f"\n*  convert_monthly_to_yearly:  error, current data_model is already {target}.")
 
             data_model = copy.deepcopy(data_model)
@@ -526,17 +526,16 @@ class ForecastDataModel(DataFrame):
 
 
             # setup
-            last_id = data_model.columns[-1]
-            last_display_name = meta_data.model[last_id].meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME]
+            last_id = meta_data.get_last_id(value_series_only = True)
+            last_display_name = meta_data.get_last_display_name(value_series_only = True)
 
 
             if step_type is None:
-                  step_type = meta_data.get_last_step_type()
+                  step_type = meta_data.get_last_step_type(value_series_only = True)
                         
             # remove the old date column names
             if(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME in data_model.columns):
                   data_model = data_model.drop(ForecastDataModel.RESERVED_COLUMN_INDEX_NAME, axis = 1)
-
 
             # do the conversion
             if(target == ForecastModelTimescale.MONTH):
@@ -563,6 +562,7 @@ class ForecastDataModel(DataFrame):
                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                     pred = [last_id],
                                                     args = {"dates": new_dates},
+                                                    update_last_id = True,
                                                     verify_integrity=True,
                                                     drop_dups = False)
             
@@ -570,9 +570,9 @@ class ForecastDataModel(DataFrame):
             data_model.insert(0, column = ForecastDataModel.RESERVED_COLUMN_INDEX_NAME, value = new_dates)
 
             # update the overall meta data since we now have a new timescale, the start year and date will be different, and the number of periods
-            meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] = target
-            meta_data.meta_data[ForecastMetaDataFrameSchema.START_YEAR] = new_dates[0].year
-            meta_data.meta_data[ForecastMetaDataFrameSchema.START_MONTH] = new_dates[0].month
-            meta_data.meta_data[ForecastMetaDataFrameSchema.NUM_PERIODS] = len(new_dates)
+            meta_data.set_timescale(target)
+            meta_data.set_start_year(new_dates[0].year)
+            meta_data.set_start_month(new_dates[0].month)
+            meta_data.set_num_periods(len(new_dates))
             
             return(data_model, meta_data, new_id)

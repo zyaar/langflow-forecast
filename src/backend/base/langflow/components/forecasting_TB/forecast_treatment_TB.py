@@ -468,7 +468,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
             need_pre_forecast_data = False
 
         # if the current forcast is YEARLY, convert to MONTHLY to get the ealiest date, otherwise, just grab the first date
-        if(updated_meta_data.get_timescale != ForecastModelTimescale.MONTH):
+        if(updated_meta_data.get_timescale() != ForecastModelTimescale.MONTH):
             converted_dates = ForecastDataModel.conv_forecast_dates_yearly_to_monthly(data = updated_model[ForecastDataModel.RESERVED_COLUMN_INDEX_NAME].to_list())
             earliest_date = converted_dates[0]
         else:
@@ -531,7 +531,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    #args = {ForecastDataSeriesMetaDataAction.STEP_INIT: ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH},
+                                                                    update_last_id = True,
                                                                     args = {ForecastDataSeriesMetaDataArgsTreatmentStepInit.NEED_PRE_FORECAST_DATA: need_pre_forecast_data},
                                                                     pred = [col_total_in_id],
                                                                     objs = {ForecastTreatmentStepInitArgs.TREATMENT_TABLE_DATA.value: treatment_details_model, 
@@ -542,7 +542,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                             ForecastTreatmentStepInitArgs.PRE_FORECAST_PATIENT_FLOW_META_DATA.value: pre_forecast_patient_flow_meta_data})
         
         # this function can only work with monthly data, so model is set to yearly, convert here to monthly
-        if(updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] != ForecastModelTimescale.MONTH):
+        if(updated_meta_data.get_timescale() != ForecastModelTimescale.MONTH):
             (updated_model, updated_meta_data, col_total_in_id) = ForecastDataModel.convert_timescale(data_model = updated_model,
                                                                                                       meta_data = updated_meta_data, 
                                                                                                       target = ForecastModelTimescale.MONTH, 
@@ -655,7 +655,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                   action = ForecastDataSeriesMetaDataAction.VALUES,
                                                                                   data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                                   display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)
+                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                  update_last_id = True)
 
         # Add Progression
         col_name = ForecastDataModel.PATIENT_PROGRESSION_COLUMN_NAME
@@ -674,7 +675,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                   display_type = ForecastDataSeriesMetaDataDataType.PCT,
                                                                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK},
                                                                                                 {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataComparisonType.LE}],
-                                                                                  args = {ForecastDataSeriesMetaDataComparisonType.LE: 1}) # add argument with the value for LESS_EQUAL_THAN validation
+                                                                                  args = {ForecastDataSeriesMetaDataComparisonType.LE: 1},  # add argument with the value for LESS_EQUAL_THAN validation
+                                                                                  update_last_id = True)
 
         # Add the variable number of products
         num_cols = len(treatment_details.columns) - self.NUM_STATIC_COLS
@@ -696,7 +698,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                         action = ForecastDataSeriesMetaDataAction.INPUT,
                                                                         data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                         display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}])
+                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],
+                                                                        update_last_id = True)
 
         # Updated model, Updated meta_data, id of the PC row
         return(updated_model, updated_meta_data, col_pc_col_id)
@@ -748,7 +751,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                                          action = ForecastDataSeriesMetaDataAction.DATES,
                                                                                                          data_type = ForecastDataSeriesMetaDataDataType.DATE,
                                                                                                          display_type = ForecastDataSeriesMetaDataDataType.DATE,
-                                                                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}])
+                                                                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                                         update_last_id = True)
 
 
         # PRE_FORECAST PATIENT_FLOW INPUT
@@ -762,7 +766,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                                          action = ForecastDataSeriesMetaDataAction.INPUT,
                                                                                                          data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                                                          display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}])
+                                                                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],
+                                                                                                         update_last_id = True)
 
         # Updated model, Updated meta_data, id of the PC row
         return(pre_forecast_inputs_data, pre_forecast_inputs_meta_data, pf_col_id, last_date)
@@ -824,7 +829,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                                                    action = ForecastDataSeriesMetaDataAction.DATES,
                                                                                                                    data_type = ForecastDataSeriesMetaDataDataType.DATE,
                                                                                                                    display_type = ForecastDataSeriesMetaDataDataType.DATE,
-                                                                                                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}])
+                                                                                                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                                                   update_last_id = True)
 
         # NUM PATIENTS BY TREATMENT MONTH
         for i in range(num_elements):
@@ -839,7 +845,8 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
                                                                                                                        data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
                                                                                                                        display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                                                                        pred = [f"{treatment_details_meta_data.get_id()}.{pc_col_id}:{i}", f"{pre_forecast_inputs_meta_data.get_id()}.{pf_col_id}:{num_elements-1-i}"],
-                                                                                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}])
+                                                                                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                                                       update_last_id = True)
 
         return(prior_month_patient_flow_data, prior_month_patient_flow_meta_data, pmpf_col_prefix)
 

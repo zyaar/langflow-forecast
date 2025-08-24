@@ -300,6 +300,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                                                     data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    update_last_id = True,
                                                                     pred = [col_total_in_id])
 
         # get the values of the totals_in column
@@ -321,6 +322,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                                                                     data_type = self.VAR_IN_TYPE,
                                                                                     display_type = self.VAR_IN_DISPLAY_TYPE,
                                                                                     validation = self.VAR_VALIDATION_FUNCTS,
+                                                                                    update_last_id = True,
                                                                                     pred = self.VAR_PRED,
                                                                                     args = self.VAR_ARGS,
                                                                                     objs = self.VAR_OBJS)
@@ -340,6 +342,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                                                                       display_type = self.VAR_IN_DISPLAY_TYPE,
                                                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                       pred = [1, self.var_col_input_id],
+                                                                                      update_last_id = True,
                                                                                       args = None,
                                                                                       objs = None)
             
@@ -470,6 +473,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                                                                   display_type = self.VAR_OUT_DISPLAY_TYPE,
                                                                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                   pred = [col_total_in_id, self.var_col_input_id],
+                                                                                  update_last_id = True,
                                                                                   args = None,
                                                                                   objs = None)
         
@@ -507,6 +511,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                                                                   display_type = self.VAR_OUT_DISPLAY_TYPE,
                                                                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                   pred = [col_total_in_id, self.var_col_remainder_pct_id],
+                                                                                  update_last_id = True,
                                                                                   args = None,
                                                                                   objs = None)
         

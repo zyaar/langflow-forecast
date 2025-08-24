@@ -257,6 +257,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
         
         # merge all the meta-data instructions together to form the meta_data frame we will forward
         meta_data = ForecastMetaDataFrame.concat([meta_data, meta_data_series_dates, meta_data_series_step_init, meta_data_series_epi], verify_integrity = True, drop_dups = False)
+        meta_data.set_last_id(input_col_id)
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, meta_data, input_col_id)

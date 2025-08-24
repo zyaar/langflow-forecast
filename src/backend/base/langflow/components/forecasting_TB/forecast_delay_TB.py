@@ -145,8 +145,8 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
         last_series = updated_meta_data.get_last_series()
         last_series_id = updated_meta_data.get_last_id()
         last_series_values = updated_model[last_series_id]
-        data_type = last_series.meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE]
-        display_type = last_series.meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE]
+        data_type = last_series.get_data_type()
+        display_type = last_series.get_display_type()
 
 
         # INIT
@@ -160,7 +160,8 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
                                                                     data_type = data_type,
                                                                     display_type = display_type,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [last_series_id])
+                                                                    pred = [last_series_id],
+                                                                    update_last_id = True)
         
         
         # YEAR_TO_MONTH
@@ -179,7 +180,8 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
                                                                         data_type = data_type,
                                                                         display_type = display_type,
                                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                        pred = [last_series_id])
+                                                                        pred = [last_series_id],
+                                                                        update_last_id=True)
             last_series_id = new_last_series_id
 
         # DELAY
@@ -203,6 +205,7 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
                                                                     display_type = display_type,
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                     pred = [last_series_id],
+                                                                    update_last_id = True,
                                                                     args = {ForecastDataSeriesMetaDataAction.SHIFT: num_months_to_roll},
                                                                     objs = {ForecastDataSeriesMetaDataAction.SHIFT: fill_values})
         
@@ -222,7 +225,8 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
                                                                         data_type = data_type,
                                                                         display_type = display_type,
                                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                        pred = [delayed_col_id])
+                                                                        pred = [delayed_col_id],
+                                                                        update_last_id=True)
             updated_model[new_last_series_id] = new_last_series_values
             last_col_id = new_last_series_id
         

@@ -74,7 +74,7 @@ class ForecastTreatmentTBController():
         updated_data = ForecastDataModel.to_pandas(updated_data)
 
         # Make sure the data is MONTHLY timescale, we assume this is done ahead of using this function
-        if(updated_meta_data.meta_data[ForecastMetaDataFrameSchema.TIMESCALE] != ForecastModelTimescale.MONTH):
+        if(updated_meta_data.get_timescale() != ForecastModelTimescale.MONTH):
             raise ValueError(f"\n*  calc_treatment_pat_forecast:  error, input patient flow is not set to MONTHLY timescale.")
 
 
@@ -333,17 +333,17 @@ class ForecastTreatmentTBController():
             preds_leaving = [pred_pm_col_id, pred_cm_col_id]
 
             pat_leaving_by_treatment_month_meta_data = pat_leaving_by_treatment_month_meta_data.add_col_meta_data(frame = pat_leaving_by_treatment_month_meta_data,
-                                                                     id = curr_leaving_treat_col_id,
-                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                                                     action = ForecastDataSeriesMetaDataAction.SUB,
-                                                                     data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                     display_name = f"# of patients leaving '{display_name}' in month {i+1}",
-                                                                     data_values = pat_leaving_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
-                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                     pred = preds_leaving,
-                                                                     verify_integrity=True,
-                                                                     drop_dups = False)
+                                                                                                                  id = curr_leaving_treat_col_id,
+                                                                                                                  step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                                                                  action = ForecastDataSeriesMetaDataAction.SUB,
+                                                                                                                  data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                                                                  display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                                                                  display_name = f"# of patients leaving '{display_name}' in month {i+1}",
+                                                                                                                  data_values = pat_leaving_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
+                                                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                                                  pred = preds_leaving,
+                                                                                                                  verify_integrity=True,
+                                                                                                                  drop_dups = False)
 
 
          # ==========================
@@ -400,17 +400,17 @@ class ForecastTreatmentTBController():
 
                # create the meta_data row with the ranges added instead of regular preds
                pat_leaving_by_treatment_month_meta_data = pat_leaving_by_treatment_month_meta_data.add_col_meta_data(frame = pat_leaving_by_treatment_month_meta_data,
-                                                                        id = curr_leaving_treat_col_id,
-                                                                        step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
-                                                                        action = ForecastDataSeriesMetaDataAction.SUB,
-                                                                        data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                        display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                        display_name = f"# of patients leaving '{display_name}' in month {i+1}",
-                                                                        data_values = pat_leaving_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
-                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                        ranges = list_of_ranges_leaving,
-                                                                        verify_integrity=True,
-                                                                        drop_dups = False)
+                                                                                                                     id = curr_leaving_treat_col_id,
+                                                                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                                                                     action = ForecastDataSeriesMetaDataAction.SUB,
+                                                                                                                     data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                                                                     display_name = f"# of patients leaving '{display_name}' in month {i+1}",
+                                                                                                                     data_values = pat_leaving_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
+                                                                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                                                                     ranges = list_of_ranges_leaving,
+                                                                                                                     verify_integrity=True,
+                                                                                                                     drop_dups = False)
 
 
          # save the current id as the previous id (this is needed to for calculating patients leaving as we subtract current row from previous row)
