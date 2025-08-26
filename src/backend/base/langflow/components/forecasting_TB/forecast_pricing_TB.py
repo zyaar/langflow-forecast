@@ -75,10 +75,10 @@ class ForecastPricingTB(ForecastSingleFixedColTransformerTB, Component):
     VAR_OUT_INFO = "SKU revenue"
     VAR_OUT_HIDDEN = False
 
-    VAR_REMAINDER_OUTPUT = False
-    VAR_OUT_REMAINDER_DISPLAY_NAME = None
-    VAR_OUT_REMAINDER_INFO = None
-    VAR_REMAINDER_OUT_HIDDEN = True
+    # VAR_REMAINDER_OUTPUT = False
+    # VAR_OUT_REMAINDER_DISPLAY_NAME = None
+    # VAR_OUT_REMAINDER_INFO = None
+    # VAR_REMAINDER_OUT_HIDDEN = True
 
     # INPUTTABLE INFO
     VAR_TABLE_DISPLAY_NAME = "Price per SKU"

@@ -316,14 +316,14 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         segment_table = ForecastDataModel.astype_first_all_cols(self.segment_table)
 
         (updated_model, updated_meta_data, total_values_id) = self.controller.calc_segment_values(seg_num = seg_num,
-                                                                                                                   id = self._id, 
-                                                                                                                   display_name = self.display_name, 
-                                                                                                                   segment_table = segment_table, 
-                                                                                                                   col_prefix = self.COL_PREFIX, 
-                                                                                                                   num_static_cols = self.NUM_STATIC_COLS,
-                                                                                                                   curr_total_values_id = curr_total_values_id, 
-                                                                                                                   updated_model = updated_model, 
-                                                                                                                   updated_meta_data = updated_meta_data)
+                                                                                                  id = self._id, 
+                                                                                                  display_name = self.display_name, 
+                                                                                                  segment_table = segment_table, 
+                                                                                                  col_prefix = self.COL_PREFIX, 
+                                                                                                  num_static_cols = self.NUM_STATIC_COLS,
+                                                                                                  curr_total_values_id = curr_total_values_id, 
+                                                                                                  updated_model = updated_model, 
+                                                                                                  updated_meta_data = updated_meta_data)
         
         return(updated_model, updated_meta_data, total_values_id)
 

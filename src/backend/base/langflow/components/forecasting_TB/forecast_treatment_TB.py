@@ -420,26 +420,26 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         updated_data= results["pat_on_treatment"]["pat_by_treatment_month_data"]
         updated_meta_data = results["pat_on_treatment"]["pat_by_treatment_month_meta_data"]
 
-        #updated_model = results["pat_on_treatment"]["updated_data"]
         updated_data = results["pat_on_treatment"]["updated_data"]
 
         # calculate the number of Rx for this product, total and by treatment month
         product_id = f"{ForecastTreatmentTB.COL_PREFIX}_{seg_num}"
         product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
-        (updated_data, updated_meta_data) = self.controller.calc_treatment_rx_forecast_for_product(# self variables passed in
-                                                                                                                      treatment_id = self._id,
-                                                                                                                      treatment_display_name = self.display_name,
-                                                                                                                      product_id = product_id,
-                                                                                                                      product_display_name = product_display_name,
-                                                                                                                      month_prefix = self.MONTH_PREFIX,
+        (updated_data, updated_meta_data) = self.controller.calc_treatment_rx_forecast_for_product(seg_num = seg_num,
+                                                                                                   # self variables passed in
+                                                                                                   treatment_id = self._id,
+                                                                                                   treatment_display_name = self.display_name,
+                                                                                                   product_id = product_id,
+                                                                                                   product_display_name = product_display_name,
+                                                                                                   month_prefix = self.MONTH_PREFIX,
 
-                                                                                                                      # current forecast
-                                                                                                                      updated_data = updated_data,
-                                                                                                                      updated_meta_data = updated_meta_data,
+                                                                                                   # current forecast
+                                                                                                   updated_data = updated_data,
+                                                                                                   updated_meta_data = updated_meta_data,
 
-                                                                                                                      # treatment details table
-                                                                                                                      treatment_table_data = treatment_details_model,
-                                                                                                                      treatment_table_meta_data = treatment_details_meta_data)
+                                                                                                   # treatment details table
+                                                                                                   treatment_table_data = treatment_details_model,
+                                                                                                   treatment_table_meta_data = treatment_details_meta_data)
 
         # if the current forecast timescale is yearly, we need to convert the updated data and meta-data to yearly as well
         if(self.timescale == ForecastModelTimescale.YEAR):

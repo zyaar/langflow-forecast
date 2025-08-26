@@ -288,6 +288,7 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                                               data_values = pat_by_treatment_month_data[pat_on_treatment_total_id],
                                                                                               validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                               pred = pat_on_treatment_list_of_col_ids,
+                                                                                              update_last_id = True,
                                                                                               verify_integrity=True,
                                                                                               drop_dups = False)
         
@@ -445,10 +446,10 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                                                               data_values = pat_leaving_by_treatment_month_data[pat_leaving_treat_total_id] ,
                                                                                                               validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                                               pred = pat_leaving_treatment_list_of_col_ids,
+                                                                                                              update_last_id = True,
                                                                                                               verify_integrity=True,
                                                                                                               drop_dups = False)
         
-
 
         # ==============
         # RETURN RESULTS
@@ -488,7 +489,8 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
     #   Tuple(DataFrame, ForecastMetaDataFrame):  A tuple containing the updated forecast data and updated forecast meta_data with the new columns/rows added for the Rx forecast for this product
 
     @staticmethod
-    def calc_treatment_rx_forecast_for_product(# self variables passed in
+    def calc_treatment_rx_forecast_for_product(seg_num: int,
+                                               # self variables passed in
                                                treatment_id: str,
                                                treatment_display_name: str,
                                                product_id: str,
@@ -579,6 +581,7 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                     data_values = updated_data[totals_col_id].to_list(),
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                     pred = list_of_by_treatment_month_rx,
+                                                                    update_last_id = True,
                                                                     verify_integrity=True,
                                                                     drop_dups = False)
 

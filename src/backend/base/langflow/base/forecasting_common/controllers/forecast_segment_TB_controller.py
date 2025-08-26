@@ -60,6 +60,9 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
 
         # placeholder for total_values_id (the id of the column with the total number of patients for the seg_num segment)
         total_values_id = None
+
+        updated_model = copy.deepcopy(updated_model)
+        updated_meta_data = copy.deepcopy(updated_meta_data)
         
         # Add a treatment set-up instructions for a treatment section to meta_data table
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,

@@ -12,7 +12,7 @@
 
 from langflow.custom import Component
 from langflow.io import StrInput, DataInput, IntInput, TableInput
-from langflow.schema import DataFrame
+from langflow.schema import DataFrame, Data
 from langflow.schema.table import EditMode
 from langflow.template import Output
 from langflow.field_typing.range_spec import RangeSpec
@@ -41,7 +41,8 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from typing import Any, List
-from langflow.base.forecasting_common.controllers.forecast_population_cut_TB_controller import ForecastPopulationCutTBController
+from langflow.base.forecasting_common.controllers.forecast_population_cut_TB_controller import ForecastPopulationCutTBController, ForecastPopulationCutTBOutputCalc
+import pandas as pd
 
 
 # CLASSES
@@ -59,6 +60,7 @@ class ForecastPopulationCutTB(ForecastSingleFixedColTransformerTB, Component):
 
     # VAR NAME
     VAR_NAME = "population_cut"
+    VAR_REMAINDER_NAME = "population_cut_remainder"
 
     # DATA TYPES
     VAR_IN_TYPE = ForecastDataSeriesMetaDataDataType.PCT
@@ -105,9 +107,123 @@ class ForecastPopulationCutTB(ForecastSingleFixedColTransformerTB, Component):
             self.controller = ForecastPopulationCutTBController()
 
         super().__init__(**kwargs)
+
+
+
+
+    # GENERATE INPUTS / OUTPUTS
+    # -========================
+
+    # def _gen_inputs(self) -> list:
+    #     inputs_list = [
+    #         *super()._gen_inputs(),
+    #     ]
+
+    #     return(inputs_list)
+
+
+    def _gen_outputs(self) -> list:
+        outputs_list = [
+            *super()._gen_outputs(),
+            Output(display_name=f"{self.VAR_OUT_REMAINDER_DISPLAY_NAME}", name=f"var_remainder_out", method=f"calc_var_remainder_out", hidden=f"{self.VAR_REMAINDER_OUT_HIDDEN}"),
+        ]
+        
+        return(outputs_list)
+
+
     
     
-    # INPUT VALIDATION
+    # INPUT/OUTPUT VALIDATIONS
+    # ========================
+    # def validate_inputs(self):
+    #     super().validate_inputs()
+
+    # def validate_outputs(self):
+    #     super().validate_outputs()
+
+
+
+
+    # OUTPUT FUNCTIONS
     # ================
-    def validate_inputs(self):
-        pass
+
+    # calc_var_out
+    # Calcuate the variable action out (i.e. total_in * variable)
+    #
+    # INPUTS:
+    #   NA
+    #
+    # OUTPUTS:
+    #   data_packet - Data with dataframe and meta-data
+
+    def calc_var_out(self) -> Data:
+        (updated_model, updated_meta_data, last_id) = self._forecast_model_common_input(output_type = ForecastPopulationCutTBOutputCalc.VAR)
+
+        # final common checks and output generation
+        return self._forecast_model_common_output(updated_model, updated_meta_data, last_id)
+
+
+    # calc_var_remainder_out
+    # Calcuate the variable remainder action out (i.e. total_in * (1 - variable))
+    #
+    # INPUTS:
+    #   NA
+    #
+    # OUTPUTS:
+    #   data_packet - Data with dataframe and meta-data
+
+    def calc_var_remainder_out(self) -> Data:
+        (updated_model, updated_meta_data, last_id) = self._forecast_model_common_input(output_type = ForecastPopulationCutTBOutputCalc.VAR_REMAINDER)
+
+        # final common checks and output generation
+        return self._forecast_model_common_output(updated_model, updated_meta_data, last_id)
+    
+
+
+
+
+    # _forecast_model_common_input
+    # common code for all 'both var and var_remainder output functions
+    #
+    # INPUTS:
+    #   NA
+    #
+    # OUTPUTS:
+    #   updated_model = the updated ForecastDataModel
+    #   updated_meta_data = the updated ForecastMetaDataFrame
+    #   col_total_in_id = the name of the totals_in columns
+    #   col_var_id = the name of the var input values columns
+    #   col_total_in_values = (pd.Series) the values in the totals in column
+    #   col_var_values = (pd.Series) the values in the var input values column
+
+    def _forecast_model_common_input(self, output_type: ForecastPopulationCutTBOutputCalc) -> tuple[DataFrame, ForecastMetaDataFrame, str, pd.Series, pd.Series, pd.Series]:
+        (updated_model, updated_meta_data, col_total_in_id, var_col_input_id) = super()._forecast_model_common_input()
+
+        (updated_model, updated_meta_data, var_col_remainder_pct_id) = self.controller.calc_remainder_common(var_col_input_id = var_col_input_id,
+                                                                                                             var_col_remainder_pct_id = self.var_col_remainder_pct_id,
+                                                                                                             var_out_remainder_display_name = self.VAR_OUT_DISPLAY_NAME,
+                                                                                                             var_step_type = self.VAR_STEP_TYPE,
+                                                                                                             var_in_type = self.VAR_IN_TYPE,
+                                                                                                             var_in_display_type = self.VAR_IN_DISPLAY_TYPE,
+                                                                                                             updated_model = updated_model,
+                                                                                                             updated_meta_data = updated_meta_data)
+        
+
+        (updated_model, updated_meta_data, last_id)  = self.controller.component_specific_calcs(output_type = output_type,
+                                                                                                var_col_calc_out_id = self.var_col_calc_id,
+                                                                                                var_remainder_col_calc_out_id = self.var_col_remainder_calc_id,
+                                                                                                var_out_display_name = self.VAR_OUT_DISPLAY_NAME,
+                                                                                                var_remainder_out_display_name = self.VAR_OUT_REMAINDER_DISPLAY_NAME,
+                                                                                                var_step_type = self.VAR_STEP_TYPE,
+                                                                                                var_out_type = self.VAR_OUT_TYPE,
+                                                                                                var_out_display_type = self.VAR_OUT_DISPLAY_TYPE,
+                                                                                                var_col_input_id = var_col_input_id,
+                                                                                                var_remainder_input_id = var_col_remainder_pct_id,
+                                                                                                updated_model = updated_model, 
+                                                                                                updated_meta_data = updated_meta_data, 
+                                                                                                col_total_in_id = col_total_in_id)
+
+        return(updated_model, updated_meta_data, last_id)
+    
+
+

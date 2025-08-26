@@ -99,7 +99,8 @@ class ForecastDataPacket():
         # make sure the last text_key, the last column id of the dataframe, and the last column id of the meta-data all match
         # otherwise raise an error as something has gone wrong
         last_id_dataframe = dataframe.columns[-1]
-        last_id_meta_data = meta_data.get_last_id()
+        last_id_meta_data = meta_data.get_last_value_id()
+        
         last_display_name = meta_data.get_last_display_name()
         last_id_dataframe = data_packet.text_key
 
