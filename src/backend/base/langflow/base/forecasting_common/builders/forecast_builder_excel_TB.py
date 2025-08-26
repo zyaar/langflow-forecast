@@ -1309,6 +1309,8 @@ class ForecastBuilderExcelTB():
                                add_blank_row_before: bool = False, 
                                add_blank_row_after: bool = False) -> str:
         
+        tab_name = self.DEFAULT_CARD
+
         # if we are adding a blank row before, then add it now
         if(add_blank_row_before):
             self._add_blank_row(tab_name = tab_name)
