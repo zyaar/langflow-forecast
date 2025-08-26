@@ -45,6 +45,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 from typing import List
 import pandas as pd
 import numpy as np
+from langflow.base.forecasting_common.controllers.forecast_delay_TB_controller import ForecastDelayTBController
 
 
 # CLASSES
@@ -80,6 +81,17 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
     TABLE_INFO = "Table of delay details."
     COL_1_CONFIG = {"display_name": "Month", "description": "Months after treatment start"}
     COL_2_CONFIG = {"display_name": "Number of patients", "description": "Number of patients in this month.", "type": "int", "edit_mode": EditMode.INLINE}
+
+
+
+    # INIT
+    # ====
+    def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastDelayTBController()
+
+        super().__init__(**kwargs)
 
 
 

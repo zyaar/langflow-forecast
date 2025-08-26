@@ -28,7 +28,7 @@ from langflow.base.forecasting_common.forms.forecast_form_updater import Forecas
 from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
 
-from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecaseSumInputTB
+from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecastSumInputTB
 
 from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
                                                                         ForecastMetaDataFrame, 
@@ -52,7 +52,7 @@ from typing import Any, List, Tuple
 from datetime import datetime
 import copy
 import pandas as pd
-from langflow.base.forecasting_common.controllers.forecast_treatment_TB_Controller import ForecastTreatmentTBController
+from langflow.base.forecasting_common.controllers.forecast_treatment_TB_controller import ForecastTreatmentTBController
 
 
 
@@ -70,7 +70,7 @@ class ForecastTreatmentStepInitArgs(str, Enum):
 
 # ForecastTreatmentTB
 # This class represents applying a treatment regiment of products to an incoming patient flow
-class ForecastTreatmentTB(ForecaseSumInputTB, Component):
+class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
 
     # CONFIG CONSTANTS
@@ -108,17 +108,19 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     # INSTANCE ATTRIBUTES
     # generated during the __init__
     # -----------------------------
-    # forecast_treatment_controller - (ForecastTreatmentTBController) has the business logic for component
+    # controller - (ForecastTreatmentTBController) has the business logic for component
 
 
-    # __init__
-    # --------
+
+    # INIT
+    # ====
     def __init__(self, **kwargs) -> None:
-        # call parent init
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastTreatmentTBController()
+
         super().__init__(**kwargs)
 
-        # create an instance of the Controller object (MVC framework... kind of)
-        self.forecast_treatment_controller = ForecastTreatmentTBController()
 
     
     # GENERATE INPUTS / OUTPUTS
@@ -424,7 +426,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         # calculate the number of Rx for this product, total and by treatment month
         product_id = f"{ForecastTreatmentTB.COL_PREFIX}_{seg_num}"
         product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
-        (updated_data, updated_meta_data) = self.forecast_treatment_controller.calc_treatment_rx_forecast_for_product(# self variables passed in
+        (updated_data, updated_meta_data) = self.controller.calc_treatment_rx_forecast_for_product(# self variables passed in
                                                                                                                       treatment_id = self._id,
                                                                                                                       treatment_display_name = self.display_name,
                                                                                                                       product_id = product_id,
@@ -459,7 +461,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
     #   DataFrame with the number of patients per timescale and treatment stage
     # (treatment_details_model, treatment_details_meta_data, pat_on_treatment_data, pat_on_treatment_meta_data, updated_model) 
     def _forecast_model_common_input(self, keep_granular: bool = True) -> dict[str, list]:
-        (updated_model, updated_meta_data, col_total_in_id) = super()._forecast_model_common_input()
+        (updated_model, updated_meta_data, col_total_in_id, curr_display_name) = super()._forecast_model_common_input()
 
         # if the treatment duration is only 1 month, we don't need to calculate any pre-forecast data
         if(self.treatment_duration > 1):
@@ -555,7 +557,7 @@ class ForecastTreatmentTB(ForecaseSumInputTB, Component):
         # return({"pat_on_treatment": (treatment_table_data, treatment_table_meta_data, pat_by_treatment_month_data, pat_by_treatment_month_meta_data, updated_data),
         #         "pat_leaving_treatment": (treatment_table_data, treatment_table_meta_data, pat_leaving_by_treatment_month_data, pat_leaving_by_treatment_month_meta_data, updated_data)})
     
-        results = self.forecast_treatment_controller.calc_treatment_pat_forecast(
+        results = self.controller.calc_treatment_pat_forecast(
             # self variables
             id = self._id,
             display_name = self.display_name,

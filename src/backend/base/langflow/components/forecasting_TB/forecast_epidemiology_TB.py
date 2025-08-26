@@ -35,6 +35,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions)
 
+from langflow.base.forecasting_common.controllers.forecast_epidemiology_TB_controller import ForecastEpidemiologyTBController
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -74,6 +75,18 @@ class ForecastEpidemiologyTB(ForecastComponent):
     ROW_SET_MIN = 0
     ROW_SET_MAX = 120
     ROW_SET_STEP = 1
+
+
+
+    # INIT
+    # ====
+    def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastEpidemiologyTBController()
+
+        super().__init__(**kwargs)
+
 
 
     # GENERATE INPUTS / OUTPUTS

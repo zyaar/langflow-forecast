@@ -7,7 +7,7 @@ from langflow.base.forecasting_common.models.forecast_data_model import Forecast
 # from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 # from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
 
-# from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecaseSumInputTB
+# from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecastSumInputTB
 
 from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
                                                                         ForecastMetaDataFrame, 

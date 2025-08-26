@@ -1163,75 +1163,75 @@ class ForecastMetaDataFrame():
 
 
 
-    # concat_and_sum
-    # Equivalent to forecast_data_model concat_and_sum, combines all the meta_datas using the concat function and,
-    # if there is more than one data_object, adds a totals instruction line as well
-    #  
-    # INPUTS:
-    #   datas:  List of ForecastMetaDataSeries or ForecastMetaDataFrames to combine
-    #   series_id:  If there ends up being a totals line, what is the unique ID to provide it
-    #   display_name:  If there ends up being a totals line, what is the display name to provide it
-    #   verify_integrity (optional: False) - Ensure that no columns have the same key (otherwise, it will write over the previous col value)
-    #   drop_dups (optional:  False) - Drops columns with the same key (if this is set, verify_integrity is ignored)
-    # 
-    # OUTPUTS:
-    #   ForecastMetaDataFrame will all the elements combined
+    # # concat_and_sum
+    # # Equivalent to forecast_data_model concat_and_sum, combines all the meta_datas using the concat function and,
+    # # if there is more than one data_object, adds a totals instruction line as well
+    # #  
+    # # INPUTS:
+    # #   datas:  List of ForecastMetaDataSeries or ForecastMetaDataFrames to combine
+    # #   series_id:  If there ends up being a totals line, what is the unique ID to provide it
+    # #   display_name:  If there ends up being a totals line, what is the display name to provide it
+    # #   verify_integrity (optional: False) - Ensure that no columns have the same key (otherwise, it will write over the previous col value)
+    # #   drop_dups (optional:  False) - Drops columns with the same key (if this is set, verify_integrity is ignored)
+    # # 
+    # # OUTPUTS:
+    # #   ForecastMetaDataFrame will all the elements combined
 
-    @staticmethod
-    def concat_and_sum(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], 
-                       display_name: str,
-                       new_total_line_id: str,
-                       new_summation_id: str = None,
-                       is_total: bool = False,
-                       new_total_values: pd.Series = None,
-                       verify_integrity: bool = False,
-                       drop_dups: bool = False,
-                       **kwargs) -> Type['ForecastMetaDataFrame']:
+    # @staticmethod
+    # def concat_and_sum(datas: list[ForecastMetaDataSeries | Type['ForecastMetaDataFrame']], 
+    #                    display_name: str,
+    #                    new_total_line_id: str,
+    #                    new_summation_id: str = None,
+    #                    is_total: bool = False,
+    #                    new_total_values: pd.Series = None,
+    #                    verify_integrity: bool = False,
+    #                    drop_dups: bool = False,
+    #                    **kwargs) -> Type['ForecastMetaDataFrame']:
         
-        if(datas is None or len(datas) < 1):
-            raise ValueError("*  concat_and_sum:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
+    #     if(datas is None or len(datas) < 1):
+    #         raise ValueError("*  concat_and_sum:  number of meta_data elements is zero or list is set to None, need at least 1 element.")
 
-        # if there is only 1 element provided, no need to calculate and add total, simply run the concat with deduping of rows
-        if len(datas) < 2:
-            # we run concat even though there is one elements, because if that elements is a Series, concat will convert to a Frame
-            meta_data = ForecastMetaDataFrame.concat(objs = datas, verify_integrity = verify_integrity, drop_dups = drop_dups)
+    #     # if there is only 1 element provided, no need to calculate and add total, simply run the concat with deduping of rows
+    #     if len(datas) < 2:
+    #         # we run concat even though there is one elements, because if that elements is a Series, concat will convert to a Frame
+    #         meta_data = ForecastMetaDataFrame.concat(objs = datas, verify_integrity = verify_integrity, drop_dups = drop_dups)
 
-        else:
-            # get the ids of the last rows of all the meta_data fields, they will before the predecessor input into the totals
-            (list_of_pred_ids, list_of_forecast_series) = ForecastMetaDataFrame._get_list_of_last_ids(datas = datas)
-            (display_type, data_type) = ForecastMetaDataFrame._get_display_data_type(list_of_forecast_series)
+    #     else:
+    #         # get the ids of the last rows of all the meta_data fields, they will before the predecessor input into the totals
+    #         (list_of_pred_ids, list_of_forecast_series) = ForecastMetaDataFrame._get_list_of_last_ids(datas = datas)
+    #         (display_type, data_type) = ForecastMetaDataFrame._get_display_data_type(list_of_forecast_series)
 
-            # generate a new step for summation
-            meta_data_step_init_series = ForecastMetaDataSeries(id = f"{new_summation_id}_Init",
-                                                                step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
-                                                                action = ForecastDataSeriesMetaDataAction.STEP_INIT,
-                                                                data_type = data_type,
-                                                                display_type = display_type,
-                                                                display_name = display_name,
-                                                                validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                pred = list_of_pred_ids)
+    #         # generate a new step for summation
+    #         meta_data_step_init_series = ForecastMetaDataSeries(id = f"{new_summation_id}_Init",
+    #                                                             step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
+    #                                                             action = ForecastDataSeriesMetaDataAction.STEP_INIT,
+    #                                                             data_type = data_type,
+    #                                                             display_type = display_type,
+    #                                                             display_name = display_name,
+    #                                                             validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+    #                                                             pred = list_of_pred_ids)
             
-            # generate the instructions for the totals row
-            action_type = ForecastDataSeriesMetaDataAction.SUM
+    #         # generate the instructions for the totals row
+    #         action_type = ForecastDataSeriesMetaDataAction.SUM
 
-            if(is_total):
-                action_type = ForecastDataSeriesMetaDataAction.TOTAL
+    #         if(is_total):
+    #             action_type = ForecastDataSeriesMetaDataAction.TOTAL
 
-            meta_data_sum_series = ForecastMetaDataSeries(id = new_total_line_id,
-                                                          step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
-                                                          action = action_type,
-                                                          data_type = data_type,
-                                                          display_type = display_type,
-                                                          display_name = display_name,
-                                                          data_values = new_total_values.to_list(),
-                                                          validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                          pred = list_of_pred_ids)
+    #         meta_data_sum_series = ForecastMetaDataSeries(id = new_total_line_id,
+    #                                                       step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION,
+    #                                                       action = action_type,
+    #                                                       data_type = data_type,
+    #                                                       display_type = display_type,
+    #                                                       display_name = display_name,
+    #                                                       data_values = new_total_values.to_list(),
+    #                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+    #                                                       pred = list_of_pred_ids)
             
-            # concat the list of data_objects provided (unpacked using '*') and the new totals line Series into one ForecastMetaDataFrame
-            meta_data = ForecastMetaDataFrame.concat(objs = [*datas, meta_data_step_init_series, meta_data_sum_series], verify_integrity = verify_integrity, drop_dups = drop_dups)
-            meta_data.set_last_id(new_total_line_id)
+    #         # concat the list of data_objects provided (unpacked using '*') and the new totals line Series into one ForecastMetaDataFrame
+    #         meta_data = ForecastMetaDataFrame.concat(objs = [*datas, meta_data_step_init_series, meta_data_sum_series], verify_integrity = verify_integrity, drop_dups = drop_dups)
+    #         meta_data.set_last_id(new_total_line_id)
 
-        return(meta_data)
+    #     return(meta_data)
 
 
     # ZIV
@@ -1479,7 +1479,8 @@ class ForecastMetaDataFrame():
 
     # convenience wrapper around get_last_id
     def get_last_value_id(self) -> str:
-        self.get_last_id(value_series_only = True)
+        last_value_id = self.get_last_id(value_series_only = True)
+        return(last_value_id)
 
 
     def has_last_id(self) -> bool:

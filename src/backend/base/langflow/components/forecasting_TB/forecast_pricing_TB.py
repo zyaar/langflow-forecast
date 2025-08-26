@@ -42,6 +42,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from typing import Any, List
+from langflow.base.forecasting_common.controllers.forecast_pricing_TB_controller import ForecastPricingTBController
 
 
 # CLASSES
@@ -97,6 +98,17 @@ class ForecastPricingTB(ForecastSingleFixedColTransformerTB, Component):
 
 
 
+    # INIT
+    # ====
+    def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastPricingTBController()
+
+        super().__init__(**kwargs)
+    
+    
+    
     # INPUT VALIDATION
     # ----------------
     def validate_inputs(self):

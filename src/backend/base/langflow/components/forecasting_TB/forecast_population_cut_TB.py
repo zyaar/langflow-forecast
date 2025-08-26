@@ -41,6 +41,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from typing import Any, List
+from langflow.base.forecasting_common.controllers.forecast_population_cut_TB_controller import ForecastPopulationCutTBController
 
 
 # CLASSES
@@ -96,7 +97,17 @@ class ForecastPopulationCutTB(ForecastSingleFixedColTransformerTB, Component):
     VAR_OBJS = None
 
 
+    # INIT
+    # ====
+    def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastPopulationCutTBController()
+
+        super().__init__(**kwargs)
+    
+    
     # INPUT VALIDATION
-    # ----------------
+    # ================
     def validate_inputs(self):
         pass

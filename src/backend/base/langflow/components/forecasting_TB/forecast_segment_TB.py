@@ -26,7 +26,7 @@ from langflow.base.forecasting_common.forms.forecast_form_updater import Forecas
 from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
 
-from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecaseSumInputTB
+from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecastSumInputTB
 
 from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
                                                                         ForecastMetaDataFrame, 
@@ -44,6 +44,8 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from typing import Any, List
+from langflow.base.forecasting_common.controllers.forecast_segment_TB_controller import ForecastSegmentTBController
+
 
 
 # CLASSES
@@ -52,7 +54,7 @@ from typing import Any, List
 # ForecastSegmentTB
 # This class represents dividing a stream of patients into a fixed number of segments, based on percentages of the total assigned at
 # each time period of the forecast
-class ForecastSegmentTB(ForecaseSumInputTB, Component):
+class ForecastSegmentTB(ForecastSumInputTB, Component):
 
     # CONFIG CONSTANTS
     # ================
@@ -71,7 +73,17 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     NUM_STATIC_COLS = 1 # one static columns in 'segment_table' ('Date' is static, rest is segment specific)
 
 
+    # INIT
+    # ====
+    def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastSegmentTBController()
 
+        # call parent init
+        super().__init__(**kwargs)
+
+    
     # GENERATE INPUTS / OUTPUTS
     # =========================
     def _gen_inputs(self) -> list:
@@ -295,103 +307,26 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     #   updated_model = the updated ForecastDataModel
     #   updated_meta_data = the updated ForecastMetaDataFrame
     #   curr_seg_name = the name of the current segment (or "remainder")
-    #   curr_total_values_id = the id of the column with the calculated total patients coming IN TO the component
+    #   total_values_id = the id for the total number of patients for THIS segment, to be set to last_id outside of this component
     #   seg_group_id = the unique id for this component
     def _forecast_model_common_input(self, seg_num: int = None) -> tuple[DataFrame, ForecastMetaDataFrame, str, str, str]:
-        (updated_model, updated_meta_data, curr_total_values_id) = super()._forecast_model_common_input()
-        
-        # Add a treatment set-up instructions for a treatment section to meta_data table
-        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
-                                                                    id = f"{self._id}_Init",
-                                                                    display_name = self.display_name,
-                                                                    data_values = None,
-                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
-                                                                    action = ForecastDataSeriesMetaDataAction.STEP_INIT,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [curr_total_values_id],
-                                                                    update_last_id=True)
+        (updated_model, updated_meta_data, curr_total_values_id, curr_display_name) = super()._forecast_model_common_input()
 
         # get the segment table data
         segment_table = ForecastDataModel.astype_first_all_cols(self.segment_table)
 
-    
-        # create a segment group id, this is an ID prefix for all columns related to this segment group
-        seg_group_id = f"{self._id}_{self.COL_PREFIX}"
-    
-
-        # create the input columns for entering all the segment percentages, same as the InputTable in this component
-        # we're going to generate and output these same rows for every segment output in the component, this way, the input
-        # rows for the segments are all preserved, even if you don't combine all the outputs at the end in a summation component,
-        # however, if you do combine multiple segment outputs, these input fields will be kept once and all other duplicate fields will be
-        # removed as part of the drop-dups that happens whenever we combine multiple components.
-        num_cols = len(segment_table.columns)
-        pct_col_pred = []
-
-        for i in range(self.NUM_STATIC_COLS, num_cols):       
-            col_seg_name = segment_table.columns[i] # TODO:  Fix when we have a better way of setting names
-            col_seg_values = segment_table[col_seg_name]
-
-            # add segment's percent to data/model and meta-data
-            col_seg_pct_id = f"{seg_group_id}{i}_Percent"
-            (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                        updated_meta_data,
-                                                                        id = col_seg_pct_id,
-                                                                        display_name = f"{col_seg_name} percent of {self.display_name} patients",
-                                                                        data_values = col_seg_values,
-                                                                        step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
-                                                                        action = ForecastDataSeriesMetaDataAction.INPUT,
-                                                                        data_type = ForecastDataSeriesMetaDataDataType.PCT,
-                                                                        display_type = ForecastDataSeriesMetaDataDataType.PCT,
-                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],
-                                                                        update_last_id = True,)
-            pct_col_pred.append(col_seg_pct_id)
-            
-        # add total percent covered by all segments to data/model and meta-data
-        col_seg_total_pct_id = f"{self._id}_Total_Percent"
-        col_seg_total_pct_values = updated_model[pct_col_pred].sum(axis=1)
-        # NOTE:  we do not check to see if the total percentages of all segments all up to 100% of less here, because we already did that when validating the table input data (see function: check_segment_pcts_add_up() in this file)
-        (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                    updated_meta_data,
-                                                                    id = col_seg_total_pct_id,
-                                                                    display_name = f"Total percent of patients covered by all defined segments for {self.display_name}",
-                                                                    data_values = col_seg_total_pct_values,
-                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
-                                                                    action = ForecastDataSeriesMetaDataAction.SUM,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.PCT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.PCT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}, 
-                                                                                  {ForecastDataSeriesMetaDataValidationSchema.VALUE_CHECK: ForecastDataSeriesMetaDataComparisonType.LE}],
-                                                                    pred = pct_col_pred, # this is already a list
-                                                                    update_last_id = True,
-                                                                    args = {ForecastDataSeriesMetaDataComparisonType.LE: 1}) # add argument with the value for LESS_EQUAL_THAN validation
-
-
-        # add remainder not covered by all segments to data/model and meta-data
-        col_seg_remainder_pct_id = f"{self._id}_Remainder_Percent"
-        col_seg_remainder_pct_values = 1 - col_seg_total_pct_values
-        (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                    updated_meta_data,
-                                                                    id = col_seg_remainder_pct_id,
-                                                                    display_name = f"Percent of patients not covered by defined segments for {self.display_name}",
-                                                                    data_values = col_seg_remainder_pct_values,
-                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
-                                                                    action = ForecastDataSeriesMetaDataAction.SUB,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.PCT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.PCT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [1, col_seg_total_pct_id],
-                                                                    update_last_id = True)
+        (updated_model, updated_meta_data, total_values_id) = self.controller.calc_segment_values(seg_num = seg_num,
+                                                                                                                   id = self._id, 
+                                                                                                                   display_name = self.display_name, 
+                                                                                                                   segment_table = segment_table, 
+                                                                                                                   col_prefix = self.COL_PREFIX, 
+                                                                                                                   num_static_cols = self.NUM_STATIC_COLS,
+                                                                                                                   curr_total_values_id = curr_total_values_id, 
+                                                                                                                   updated_model = updated_model, 
+                                                                                                                   updated_meta_data = updated_meta_data)
         
-        # finally, get the current segments name (so we don't have to pass the segment table around)
-        if(seg_num is None):
-            curr_seg_name = None
-        else:
-            curr_seg_name = segment_table.columns[seg_num]
-        
-        return(updated_model, updated_meta_data, curr_seg_name, curr_total_values_id, seg_group_id)
-        
+        return(updated_model, updated_meta_data, total_values_id)
+
 
 
 
@@ -402,36 +337,16 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     #   seg_num - the segment number that this output is handling
     # OUTPUTS:
     #   DataFrame
-    def update_forecast_model_segment(self, seg_num=1) -> Data:
-        (updated_model, updated_meta_data, curr_seg_name, curr_total_values_id, seg_group_id) = self._forecast_model_common_input(seg_num)
+    def update_forecast_model_segment(self, seg_num: int = 1) -> Data:
+        (updated_model, updated_meta_data, total_values_id) = self._forecast_model_common_input(seg_num)
+        #updated_meta_data.set_last_id(total_values_id)
 
-        # calculate the total number of patients just for this segment
-        total_incoming_patients_value = updated_model[curr_total_values_id]
-
-        curr_seg_pct_id = f"{seg_group_id}{seg_num}_Percent"
-        curr_seg_pct_values = updated_model[curr_seg_pct_id]
-
-        col_curr_seg_total_values = total_incoming_patients_value * curr_seg_pct_values
-
-        # Totals just for the current segment (seg_num)
-        # add the totals JUST for this segment (assumes the RESERVED token for editing will always "win" in multiplication, so needs to be NAN or zero)
-        curr_seg_total_id = f"{seg_group_id}{seg_num}_Total"
-
-        (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                    updated_meta_data,
-                                                                    id = curr_seg_total_id,
-                                                                    display_name = f"{curr_seg_name} total patients",
-                                                                    data_values = col_curr_seg_total_values,
-                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
-                                                                    action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    pred = [curr_total_values_id, curr_seg_pct_id],
-                                                                    update_last_id = True)
+        print(f"seg_num = {seg_num}")
+        print(f"total_values_id = {total_values_id}")
+        print(f"get_last_id = {updated_meta_data.get_last_id()}")
 
         # final common checks and output generation
-        return self._forecast_model_common_output(updated_model, updated_meta_data, curr_seg_total_id)
+        return self._forecast_model_common_output(updated_model, updated_meta_data, total_values_id)
     
 
     # update_forecast_model_remainder
@@ -441,35 +356,15 @@ class ForecastSegmentTB(ForecaseSumInputTB, Component):
     # OUTPUTS:
     #   DataFrame
     def update_forecast_model_remainder(self) -> Data:
-        (updated_model, updated_meta_data, curr_seg_name, curr_total_values_id, seg_group_id) = self._forecast_model_common_input()
+        (updated_model, updated_meta_data, total_values_id) = self._forecast_model_common_input()
+        #updated_meta_data.set_last_id(total_values_id)
 
-        # calculate the total number of patients just for this segment
-        total_incoming_patients_value = updated_model[curr_total_values_id]
-
-        remainder_pct_id = f"{self._id}_Remainder_Percent"
-        remainder_pct_values = updated_model[remainder_pct_id]
-
-        remainder_total_values = total_incoming_patients_value * remainder_pct_values
-
-        # Totals just for the current segment (seg_num)
-        # add the totals JUST for this segment (assumes the RESERVED token for editing will always "win" in multiplication, so needs to be NAN or zero)
-        remainder_total_id = f"{self._id}_Remainder_Total"
-
-        (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
-                                                                     updated_meta_data,
-                                                                     id = remainder_total_id,
-                                                                     display_name = f"Total patients not covered by {self._id}",
-                                                                     data_values = remainder_total_values,
-                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
-                                                                     action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                     data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
-                                                                     display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                     pred = [curr_total_values_id, remainder_pct_id],
-                                                                     update_last_id = True)
+        print(f"seg_num = remainder")
+        print(f"total_values_id = {total_values_id}")
+        print(f"get_last_id = {updated_meta_data.get_last_id()}")
 
         # final common checks and output generation
-        return self._forecast_model_common_output(updated_model, updated_meta_data, remainder_total_id)
+        return self._forecast_model_common_output(updated_model, updated_meta_data, total_values_id)
 
 
     # generate_table_schema

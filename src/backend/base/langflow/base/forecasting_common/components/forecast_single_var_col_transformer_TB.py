@@ -27,7 +27,7 @@ from langflow.base.forecasting_common.forms.forecast_form_updater import Forecas
 from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
 
-from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecaseSumInputTB
+from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecastSumInputTB
 
 from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
                                                                         ForecastMetaDataFrame, 
@@ -46,6 +46,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 from typing import List
 import pandas as pd
 import nanoid
+from langflow.base.forecasting_common.controllers.forecast_single_var_col_transformer_TB_controller import ForecastSingleVarColTransformerTBController
 
 
 # CLASSES
@@ -53,7 +54,7 @@ import nanoid
 
 # ForecastDelayTB
 # Adds all the input streams together and results a new row with a total
-class ForecastSingleVarColTransformerTB(ForecaseSumInputTB):
+class ForecastSingleVarColTransformerTB(ForecastSumInputTB):
 
     # CONFIG CONSTANTS
     # ================
@@ -82,6 +83,17 @@ class ForecastSingleVarColTransformerTB(ForecaseSumInputTB):
     TABLE_INFO = "TABLE_INFO"
     COL_1_CONFIG = {"display_name": "Month", "description": "Months after treatment start"}
     COL_2_CONFIG = {"display_name": "Number of patients", "description": "Number of patients in this month.", "type": "int", "edit_mode": EditMode.INLINE}
+
+
+
+    # INIT
+    # ====
+    def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastSingleVarColTransformerTBController()
+
+        super().__init__(**kwargs)
 
 
 

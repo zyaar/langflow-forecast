@@ -31,6 +31,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions)
 
 from langflow.base.forecasting_common.models.forecast_data_packet import ForecastDataPacket
+from langflow.base.forecasting_common.controllers.forecast_controller import ForecastController
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -72,13 +73,18 @@ class ForecastComponent(Component):
     # INSTANCE ATTRIBUTES
     # generated during the __init__
     # -----------------------------
-    # inputs - (list) InputTypes for the component
-    # outputs - (list) OutputTypes for the component
+    # inputs = None   # (list) InputTypes for the component
+    # outputs = None  # (list) OutputTypes for the component
+    # controller 
 
 
-    # __init__
-    # --------
+    # INIT
+    # ====
     def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastController()
+
         # generates some instance variables instead of using class variables, this allows us to customize
         # this instance variables in the children of this abstract class without having to rewrite all the
 
@@ -192,24 +198,31 @@ class ForecastComponent(Component):
             # must have at least a DATE AND another column
             if(len(data.columns) < 2):
                 raise ValueError(f"\n*  _forecast_model_common_output:  data is missing min columns: '{data.columns}'")
+            
+        # get the last_id to the last_value_id
+        last_value_id = meta_data.get_last_value_id()
 
-            last_id_data = data.columns[-1]
-            last_id = last_id_data
+        if(last_value_id not in data.columns):
+            raise ValueError(f"\n:  _forecast_model_common_output:  invalid, last id in ForecastMetaDataFrame '{last_value_id}' not found in DataFrame '{data.columns}'.")
 
 
-        # validation of meta_data
-        if(meta_data is not None):
-            last_id_meta_data = meta_data.get_last_id()
-            last_id = last_id_meta_data
+        #     last_id_data = data.columns[-1]
+        #     #last_id = last_id_data
 
-        # check to make sure the keys match        
-        if check_ids and (data is not None) and (meta_data is not None):
-            if last_id_data != last_id_meta_data:
-                raise ValueError(f"\n:  _forecast_model_common_output:  last ids of data '{last_id_data}' and meta_data '{last_id_meta_data}' do not match.")
+
+        # # validation of meta_data
+        # if(meta_data is not None):
+        #     last_id_meta_data = meta_data.get_last_value_id()
+        #     last_id = meta_data.get_last_id()
+
+        # # check to make sure the keys match        
+        # if check_ids and (data is not None) and (meta_data is not None):
+        #     if last_id_data != last_id_meta_data:
+        #         raise ValueError(f"\n:  _forecast_model_common_output:  last ids of data '{last_id_data}' and meta_data '{last_id_meta_data}' do not match.")
 
         return(ForecastDataPacket.gen_data_packet(dataframe = data, 
                                                   meta_data = meta_data, 
-                                                  last_id = last_id))
+                                                  last_id = last_value_id))
 
 
     # COMPONENT META-DATA
@@ -394,8 +407,8 @@ class ForecastComponent(Component):
     # total_ids - list of the ids of the last ForecastMetaDataSeries in those frames
     # display_names - list of all the display names for the last ForecastMetaDataSeries in those frames
 
-    def _unpack_data_packets(self, data_packet: list[Data]) -> tuple[list[DataFrame], list[ForecastMetaDataFrame], list[str]]:
-        (dataframes, meta_datas, last_ids, last_display_names) = ForecastDataPacket.unpack_data_packets(data_packet)
+    def _unpack_data_packets(self, data_packet: list[Data], convert_to_pandas: bool = False) -> tuple[list[DataFrame], list[ForecastMetaDataFrame], list[str], list[str]]:
+        (dataframes, meta_datas, last_ids, last_display_names) = ForecastDataPacket.unpack_data_packets(data_packet, convert_to_pandas = convert_to_pandas)
         return(dataframes, meta_datas, last_ids, last_display_names)
     
 

@@ -55,17 +55,17 @@ class ForecastDataPacket():
         # if check_ids and (last_id_dataframe != last_id_meta_data):
         #     raise ValueError(f"* gen_data_packet: error, final cols of dataframe and meta-data do not have the same IDs:  dataframe = '{last_id_dataframe}', meta-data = '{last_id_meta_data}'.")
 
-        if(meta_data is not None):
-            new_packet = Data(data={"data": dataframe, "meta_data_json": meta_data.to_Data(), "meta_data": meta_data}, text_key=last_id, default_value = default_value)
-        else:
-            new_packet = Data(data={"data": dataframe, "meta_data": meta_data}, text_key=last_id, default_value = default_value)
+        if(last_id is None):
+            last_id = meta_data.get_last_value_id()
+
+        new_packet = Data(data={"data": dataframe, "meta_data_json": meta_data.to_Data(), "meta_data": meta_data}, text_key=last_id, default_value = default_value)
 
         return(new_packet)
 
 
     
     @staticmethod
-    def unpack_data_packets(data_packets: list[Data]) -> tuple[list[DataFrame], list[ForecastMetaDataFrame], list[str], list[str]]:
+    def unpack_data_packets(data_packets: list[Data], convert_to_pandas = False) -> tuple[list[DataFrame | pd.DataFrame], list[ForecastMetaDataFrame], list[str], list[str]]:
         dataframes = []
         meta_datas = []
         last_ids_dataframes = []
@@ -75,7 +75,12 @@ class ForecastDataPacket():
         # one for the ForecastMetaDataFrames
         for data_packet in data_packets:
             (dataframe, meta_data, last_id_dataframe, last_display_name) = ForecastDataPacket.unpack_data_packet(data_packet)
-            dataframes.append(dataframe)
+
+            if convert_to_pandas:
+                dataframes.append(ForecastDataModel.to_pandas(dataframe))
+            else:
+                dataframes.append(dataframe)
+
             meta_datas.append(meta_data)
 
             last_ids_dataframes.append(last_id_dataframe)

@@ -26,7 +26,7 @@ from langflow.base.forecasting_common.forms.forecast_form_updater import Forecas
 from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
 
-from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecaseSumInputTB
+from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecastSumInputTB
 
 from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
                                                                         ForecastMetaDataFrame, 
@@ -45,6 +45,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 from typing import List
 import pandas as pd
 import nanoid
+from langflow.base.forecasting_common.controllers.forecast_single_fix_col_transformer_TB_controller import ForecastSingleFixedColTransformerTBController, ForecastSingleFixedColTransformerTBOutputCalc
 
 
 # CLASSES
@@ -55,7 +56,7 @@ import nanoid
 # forecasts, and applies a math transform on then and a single variable
 # defined in the component.  Used to very simply implement things like:
 # population cut, pricing, etc.
-class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
+class ForecastSingleFixedColTransformerTB(ForecastSumInputTB):
 
     # CONFIG CONSTANTS
     # ================
@@ -127,9 +128,14 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
 
 
 
-    # __init__
-    # ========
+    # INIT
+    # ====
     def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastSingleFixedColTransformerTBController()
+
+
         # generates some instance variables instead of using class variables, this allows us to customize
         # this instance variables in the children of this abstract class without having to rewrite all the
 
@@ -168,6 +174,7 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
         self.var_col_remainder_calc_id = f"{self.var_col_remainder_id}_{self.VAR_CALC_POSTFIX}"
 
         super().__init__(**kwargs)
+
 
 
 
@@ -288,70 +295,35 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
     #   col_var_values = (pd.Series) the values in the var input values column
 
     def _forecast_model_common_input(self) -> tuple[DataFrame, ForecastMetaDataFrame, str, pd.Series, pd.Series, pd.Series]:
-        (updated_model, updated_meta_data, col_total_in_id) = super()._forecast_model_common_input()
+        (updated_model, updated_meta_data, col_total_in_id, curr_display_name) = super()._forecast_model_common_input()
 
-        # Add a step set-up instructions to meta_data table
-        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
-                                                                    id = f"{self._id}_Init",
-                                                                    display_name = self.display_name,
-                                                                    data_values = None,
-                                                                    step_type = self.VAR_STEP_TYPE,
-                                                                    action = ForecastDataSeriesMetaDataAction.STEP_INIT,
-                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                    update_last_id = True,
-                                                                    pred = [col_total_in_id])
-
-        # get the values of the totals_in column
-        # col_total_in_id = updated_model.columns[-1]
-        col_total_in_values = updated_model[col_total_in_id]
-
-        # get the var table data and make sure it's data types are set correctly (date fields and float fields)
-        var_table = ForecastDataModel.astype_first_all_cols(self.var_table)
-
-        # get var input col values
-        col_var_values = var_table[self.var_col_name]
-        (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
-                                                                                    updated_meta_data,
-                                                                                    id = self.var_col_input_id,
-                                                                                    display_name = f"{self.VAR_TABLE_COL_DISPLAY_NAME}",
-                                                                                    data_values = col_var_values.to_list(),   # this is a DataFrame, so don't need to convert to
-                                                                                    step_type = self.VAR_STEP_TYPE,
-                                                                                    action = ForecastDataSeriesMetaDataAction.INPUT,
-                                                                                    data_type = self.VAR_IN_TYPE,
-                                                                                    display_type = self.VAR_IN_DISPLAY_TYPE,
-                                                                                    validation = self.VAR_VALIDATION_FUNCTS,
-                                                                                    update_last_id = True,
-                                                                                    pred = self.VAR_PRED,
-                                                                                    args = self.VAR_ARGS,
-                                                                                    objs = self.VAR_OBJS)
+        # run biz-logic
+        (updated_model,
+         updated_meta_data, 
+         col_total_in_id, 
+         col_total_in_values, 
+         col_var_values, 
+         col_var_remainder_values) = self.controller.calc_single_fix_col_transform(id = self._id,
+                                                                                   display_name = self.display_name,
+                                                                                   var_args = self.VAR_ARGS,
+                                                                                   var_col_input_id = self.var_col_input_id,
+                                                                                   var_col_name = self.var_col_name,
+                                                                                   var_col_remainder_pct_id = self.var_col_remainder_pct_id,
+                                                                                   var_in_display_type = self.VAR_IN_DISPLAY_TYPE,
+                                                                                   var_in_type = self.VAR_IN_TYPE,
+                                                                                   var_objs = self.VAR_OBJS,
+                                                                                   var_out_remainder_display_name = self.VAR_OUT_REMAINDER_DISPLAY_NAME,
+                                                                                   var_pred = self.VAR_PRED,
+                                                                                   var_remainder_output = self.VAR_REMAINDER_OUTPUT,
+                                                                                   var_step_type = self.VAR_STEP_TYPE,
+                                                                                   var_table = self.var_table,
+                                                                                   var_table_col_display_name = self.VAR_TABLE_COL_DISPLAY_NAME,
+                                                                                   var_validation_functs = self.VAR_VALIDATION_FUNCTS,
+                                                                                   col_total_in_id = col_total_in_id,
+                                                                                   updated_model = updated_model,
+                                                                                   updated_meta_data = updated_meta_data)
         
-        # calcuate remainder percent col values
-        if(self.VAR_REMAINDER_OUTPUT):         
-            # calculate the percent of the remainder
-            col_var_remainder_values = 1 - col_var_values
-            (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
-                                                                                      updated_meta_data,
-                                                                                      id = self.var_col_remainder_pct_id,
-                                                                                      display_name = f"{self.VAR_OUT_REMAINDER_DISPLAY_NAME}",
-                                                                                      data_values = col_var_remainder_values,
-                                                                                      step_type = self.VAR_STEP_TYPE,
-                                                                                      action = ForecastDataSeriesMetaDataAction.SUB,
-                                                                                      data_type = self.VAR_IN_TYPE,
-                                                                                      display_type = self.VAR_IN_DISPLAY_TYPE,
-                                                                                      validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                                      pred = [1, self.var_col_input_id],
-                                                                                      update_last_id = True,
-                                                                                      args = None,
-                                                                                      objs = None)
-            
-        else:
-            col_var_remainder_values = None
-            
-        # return everything
         return(updated_model, updated_meta_data, col_total_in_id, col_total_in_values, col_var_values, col_var_remainder_values)
-
 
 
     # calc_var_out
@@ -364,7 +336,6 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
     #   data_packet - Data with dataframe and meta-data
 
     def calc_var_out(self) -> Data:
-        # (updated_model, updated_meta_data, col_total_in_id, col_total_in_values, col_var_values, col_var_remainder_values) = self.calc_var_common()
         (updated_model, updated_meta_data, col_total_in_id, col_total_in_values, col_var_values, col_var_remainder_values) = self._forecast_model_common_input()
 
         # component specific remainder calculations
@@ -391,7 +362,6 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
     #   data_packet - Data with dataframe and meta-data
 
     def calc_var_remainder_out(self) -> Data:
-        # (updated_model, updated_meta_data, col_total_in_id, col_total_in_values, col_var_values, col_var_remainder_values) = self.calc_var_common()
         (updated_model, updated_meta_data, col_total_in_id, col_total_in_values, col_var_values, col_var_remainder_values) = self._forecast_model_common_input()
 
         # component specific remainder calculations
@@ -459,26 +429,25 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                   col_var_values: pd.Series, 
                                   col_var_remainder_values: pd.Series) -> tuple[DataFrame | pd.DataFrame, ForecastMetaDataFrame, str]:
         
-        # calculate the var action values (which is the product of total_in and var percent values)
-        col_var_action_values = col_total_in_values * col_var_values
-
-        (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
-                                                                                  updated_meta_data,
-                                                                                  id = self.var_col_calc_id,
-                                                                                  display_name = f"{self.VAR_OUT_DISPLAY_NAME}",
-                                                                                  data_values = col_var_action_values.to_list(),
-                                                                                  step_type = self.VAR_STEP_TYPE,
-                                                                                  action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                                  data_type = self.VAR_OUT_TYPE,
-                                                                                  display_type = self.VAR_OUT_DISPLAY_TYPE,
-                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                                  pred = [col_total_in_id, self.var_col_input_id],
-                                                                                  update_last_id = True,
-                                                                                  args = None,
-                                                                                  objs = None)
-        
+        (updated_model, 
+         updated_meta_data) = self.controller.component_specific_calcs(calc_type = ForecastSingleFixedColTransformerTBOutputCalc.VAR,
+                                                                       var_col_calc_id = self.var_col_calc_id,
+                                                                       var_col_remainder_calc_id = self.var_col_remainder_calc_id,
+                                                                       var_out_display_name = self.VAR_OUT_DISPLAY_NAME,
+                                                                       var_out_remainder_display_name = self.VAR_OUT_REMAINDER_DISPLAY_NAME,
+                                                                       var_step_type = self.VAR_STEP_TYPE,
+                                                                       var_out_type = self.VAR_OUT_TYPE,
+                                                                       var_out_display_type = self.VAR_OUT_DISPLAY_TYPE,
+                                                                       var_col_input_id = self.var_col_input_id,
+                                                                       var_col_remainder_pct_id = self.var_col_remainder_pct_id,
+                                                                       updated_model = updated_model, 
+                                                                       updated_meta_data = updated_meta_data,
+                                                                       col_total_in_id = col_total_in_id,
+                                                                       col_total_in_values = col_total_in_values, 
+                                                                       col_var_values = col_var_values,
+                                                                       col_var_remainder_values = col_var_remainder_values)
         return(updated_model, updated_meta_data, self.var_col_calc_id)
-    
+        
 
 
     # _component_specific_remainder_calcs
@@ -496,27 +465,27 @@ class ForecastSingleFixedColTransformerTB(ForecaseSumInputTB):
                                             col_total_in_values: pd.Series, 
                                             col_var_values: pd.Series, 
                                             col_var_remainder_values: pd.Series) -> tuple[DataFrame | pd.DataFrame, ForecastMetaDataFrame, str]:
-        
-        # calculate the var action values (which is the product of total_in and var percent values)
-        col_var_action_values = col_total_in_values * col_var_remainder_values
 
-        (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
-                                                                                  updated_meta_data,
-                                                                                  id = self.var_col_remainder_calc_id,
-                                                                                  display_name = f"{self.VAR_OUT_REMAINDER_DISPLAY_NAME}",
-                                                                                  data_values = col_var_action_values.to_list(),
-                                                                                  step_type = self.VAR_STEP_TYPE,
-                                                                                  action = ForecastDataSeriesMetaDataAction.PROD,
-                                                                                  data_type = self.VAR_OUT_TYPE,
-                                                                                  display_type = self.VAR_OUT_DISPLAY_TYPE,
-                                                                                  validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
-                                                                                  pred = [col_total_in_id, self.var_col_remainder_pct_id],
-                                                                                  update_last_id = True,
-                                                                                  args = None,
-                                                                                  objs = None)
+        (updated_model, 
+         updated_meta_data) = self.controller.component_specific_calcs(calc_type = ForecastSingleFixedColTransformerTBOutputCalc.VAR_REMAINDER,
+                                                                       var_col_calc_id = self.var_col_calc_id,
+                                                                       var_col_remainder_calc_id = self.var_col_remainder_calc_id,
+                                                                       var_out_display_name = self.VAR_OUT_DISPLAY_NAME,
+                                                                       var_out_remainder_display_name = self.VAR_OUT_REMAINDER_DISPLAY_NAME,
+                                                                       var_step_type = self.VAR_STEP_TYPE,
+                                                                       var_out_type = self.VAR_OUT_TYPE,
+                                                                       var_out_display_type = self.VAR_OUT_DISPLAY_TYPE,
+                                                                       var_col_input_id = self.var_col_input_id,
+                                                                       var_col_remainder_pct_id = self.var_col_remainder_pct_id,
+                                                                       updated_model = updated_model, 
+                                                                       updated_meta_data = updated_meta_data,
+                                                                       col_total_in_id = col_total_in_id,
+                                                                       col_total_in_values = col_total_in_values, 
+                                                                       col_var_values = col_var_values,
+                                                                       col_var_remainder_values = col_var_remainder_values)
         
         return(updated_model, updated_meta_data, self.var_col_remainder_calc_id)
-    
+            
 
 
     # Children MUST PROVIDES

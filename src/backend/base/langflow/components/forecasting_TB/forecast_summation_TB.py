@@ -26,7 +26,7 @@ from langflow.base.forecasting_common.forms.forecast_form_updater import Forecas
 from langflow.base.forecasting_common.forms.forecast_form_trigger_calc import ForecastFormTriggerCalc
 from langflow.base.forecasting_common.forms.forecast_form_model_utilities import ForecastFormModelUtilities
 
-from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecaseSumInputTB
+from langflow.base.forecasting_common.components.forecast_sum_input_TB import ForecastSumInputTB
 
 from langflow.base.forecasting_common.models.forecast_meta_data import (ForecastMetaDataSeries, 
                                                                         ForecastMetaDataFrame, 
@@ -45,6 +45,7 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
 from typing import List
 import pandas as pd
 import nanoid
+from langflow.base.forecasting_common.controllers.forecast_summation_TB_controller import ForecastSummationTBController
 
 
 # CLASSES
@@ -52,7 +53,7 @@ import nanoid
 
 # ForecastSummationTB
 # Adds all the input streams together and results a new row with a total
-class ForecastSummationTB(ForecaseSumInputTB, Component):
+class ForecastSummationTB(ForecastSumInputTB, Component):
 
     # CONFIG CONSTANTS
     # ================
@@ -77,6 +78,18 @@ class ForecastSummationTB(ForecaseSumInputTB, Component):
     VAR_OBJS = None
 
 
+    
+    # INIT
+    # ====
+    def __init__(self, **kwargs) -> None:
+        # set-up a controller if needed
+        if not hasattr(self, "controller"):
+            self.controller = ForecastSummationTBController()
+
+        super().__init__(**kwargs)
+    
+    
+    
     # GENERATE INPUTS / OUTPUTS
     # =========================
     # def gen_inputs(self) -> list:
@@ -126,7 +139,7 @@ class ForecastSummationTB(ForecaseSumInputTB, Component):
 
     def calc_var_out(self) -> Data:
         # call common functions
-        (updated_model, updated_meta_data, col_total_in_id) = self._forecast_model_common_input()
+        (updated_model, updated_meta_data, col_total_in_id, curr_display_name) = self._forecast_model_common_input()
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, col_total_in_id)

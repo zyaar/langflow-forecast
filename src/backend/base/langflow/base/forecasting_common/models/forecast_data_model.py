@@ -214,7 +214,7 @@ class ForecastDataModel(DataFrame):
       #   DataFrame df which is Forecast Model compliant
 
       @staticmethod
-      def concat(datas: List[DataFrame]) -> DataFrame:
+      def concat(datas: List[DataFrame | pd.DataFrame], drop_dups: bool = True) -> DataFrame | pd.DataFrame:
             if(len(datas) < 1):
                   raise ValueError(f"*  concat:  error, empty list of datasets provided.")
 
@@ -226,9 +226,13 @@ class ForecastDataModel(DataFrame):
             for i in range(len(datas)):
                   # if second or later dataset, concat with first, but only add columns not found in first
                   if(i == 0):
-                        combined_df = datas[i].copy()
+                        combined_df = datas[0].copy()
                   else:
-                        new_cols = [colname for colname in datas[i].columns if colname not in combined_df.columns]
+                        if drop_dups:
+                              new_cols = [colname for colname in datas[i].columns if colname not in combined_df.columns]
+                        else:
+                              new_cols = [colname for colname in datas[i].columns]
+
                         combined_df = pd.concat([combined_df, datas[i][new_cols]], axis=1)             
             return(combined_df)
 

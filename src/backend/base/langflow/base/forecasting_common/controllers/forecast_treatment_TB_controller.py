@@ -14,6 +14,9 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastMetaDataRange,
                                                                         ForecastMetaDataRangeSchema)
 
+from langflow.base.forecasting_common.controllers.forecast_sum_input_TB_controller import ForecastSumInputTBController
+
+
 # COMPONENT SPECIFIC IMPORTS
 # ==========================
 from typing import Any, List, Tuple
@@ -22,7 +25,7 @@ import pandas as pd
 
 # CLASSES
 # =======
-class ForecastTreatmentTBController():
+class ForecastTreatmentTBController(ForecastSumInputTBController):
 
     # calc_treatment_pat_forecast
     # For each month of the forecast, calculate the number of patients in treatment, total and by treatment month, as well as the number of patients leaving each month,
@@ -270,6 +273,9 @@ class ForecastTreatmentTBController():
 
         # Add by column all the patients by treatment month columns to get the total patients on treatment for that month
         pat_on_treatment_total_id = ForecastTreatmentTBController._gen_pat_on_treat_id(id = id, month_prefix = month_prefix, isTotal=True)
+        
+        
+        pat_by_treatment_month_data = ForecastDataModel.to_pandas(pat_by_treatment_month_data)
         pat_by_treatment_month_data[pat_on_treatment_total_id] = pat_by_treatment_month_data[pat_on_treatment_list_of_col_ids].sum(axis=1)
 
         pat_by_treatment_month_meta_data = pat_by_treatment_month_meta_data.add_col_meta_data(frame = pat_by_treatment_month_meta_data,
@@ -425,6 +431,8 @@ class ForecastTreatmentTBController():
         # generate a totals PATIENTS LEAVING TREATMENT column
         # Add by column all the patients leaving by treatment month columns to get the total patients leaving treatment for that month
         pat_leaving_treat_total_id = ForecastTreatmentTBController._gen_pat_leaving_id(id = id, month_prefix = month_prefix, isTotal=True) # ZIV
+
+        pat_leaving_by_treatment_month_data = ForecastDataModel.to_pandas(pat_leaving_by_treatment_month_data)
         pat_leaving_by_treatment_month_data[pat_leaving_treat_total_id] = pat_leaving_by_treatment_month_data[pat_leaving_treatment_list_of_col_ids].sum(axis=1)
 
         pat_leaving_by_treatment_month_meta_data = pat_leaving_by_treatment_month_meta_data.add_col_meta_data(frame = pat_leaving_by_treatment_month_meta_data,
