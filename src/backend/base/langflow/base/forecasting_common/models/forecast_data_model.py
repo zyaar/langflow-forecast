@@ -221,12 +221,12 @@ class ForecastDataModel(DataFrame):
             # if we only have one dataset and the flag to skip generating total col if only one is True,
             # just return the existing dataset
             if(len(datas) == 1):
-                  return(datas[0])
+                  return(copy.deepcopy(datas[0]))
 
             for i in range(len(datas)):
                   # if second or later dataset, concat with first, but only add columns not found in first
                   if(i == 0):
-                        combined_df = datas[0].copy()
+                        combined_df = copy.deepcopy(datas[0])
                   else:
                         if drop_dups:
                               new_cols = [colname for colname in datas[i].columns if colname not in combined_df.columns]

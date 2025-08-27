@@ -341,10 +341,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         (updated_model, updated_meta_data, total_values_id) = self._forecast_model_common_input(seg_num)
         #updated_meta_data.set_last_id(total_values_id)
 
-        print(f"seg_num = {seg_num}")
-        print(f"total_values_id = {total_values_id}")
-        print(f"get_last_id = {updated_meta_data.get_last_id()}")
-
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, total_values_id)
     
@@ -358,10 +354,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     def update_forecast_model_remainder(self) -> Data:
         (updated_model, updated_meta_data, total_values_id) = self._forecast_model_common_input()
         #updated_meta_data.set_last_id(total_values_id)
-
-        print(f"seg_num = remainder")
-        print(f"total_values_id = {total_values_id}")
-        print(f"get_last_id = {updated_meta_data.get_last_id()}")
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, total_values_id)

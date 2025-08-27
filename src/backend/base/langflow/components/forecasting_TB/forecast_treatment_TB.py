@@ -396,9 +396,8 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     #   DataFrame
     def calc_patients_leaving_treatment(self) -> Data:
         results = self._forecast_model_common_input(keep_granular = False)
-
         updated_model = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_data"]
-        updated_meta_data = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_meta_data"]
+        updated_meta_data: ForecastMetaDataFrame = results["pat_leaving_treatment"]["pat_leaving_by_treatment_month_meta_data"]
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
@@ -527,7 +526,8 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = f"{treatment_group_id}_Init",
                                                                     display_name = self.display_name,
-                                                                    data_values = updated_model[updated_meta_data.get_last_id()].to_list(),
+                                                                    #data_values = updated_model[updated_meta_data.get_last_id()].to_list(),
+                                                                    data_values = None,
                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                     action = ForecastDataSeriesMetaDataAction.STEP_INIT,
                                                                     data_type = ForecastDataSeriesMetaDataDataType.INT,
