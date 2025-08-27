@@ -289,7 +289,7 @@ class ForecastSingleFixedColTransformerTB(ForecastSumInputTB):
          updated_meta_data, 
          col_total_in_id, 
          var_col_input_id) = self.controller.calc_single_fix_col_transform(id = self._id,
-                                                                           display_name = self.display_name,
+                                                                           display_name = self.get_display_name(),
                                                                            var_args = self.VAR_ARGS,
                                                                            var_col_input_id = self.var_col_input_id,
                                                                            var_col_name = self.var_col_name,

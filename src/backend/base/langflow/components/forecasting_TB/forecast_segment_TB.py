@@ -317,7 +317,7 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
         (updated_model, updated_meta_data, total_values_id) = self.controller.calc_segment_values(seg_num = seg_num,
                                                                                                   id = self._id, 
-                                                                                                  display_name = self.display_name, 
+                                                                                                  display_name = self.get_display_name(), 
                                                                                                   segment_table = segment_table, 
                                                                                                   col_prefix = self.COL_PREFIX, 
                                                                                                   num_static_cols = self.NUM_STATIC_COLS,

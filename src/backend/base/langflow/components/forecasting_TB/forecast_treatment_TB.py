@@ -427,7 +427,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         (updated_data, updated_meta_data) = self.controller.calc_treatment_rx_forecast_for_product(seg_num = seg_num,
                                                                                                    # self variables passed in
                                                                                                    treatment_id = self._id,
-                                                                                                   treatment_display_name = self.display_name,
+                                                                                                   treatment_display_name = self.get_display_name(),
                                                                                                    product_id = product_id,
                                                                                                    product_display_name = product_display_name,
                                                                                                    month_prefix = self.MONTH_PREFIX,
@@ -525,7 +525,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         # TREATMENT STEP_INIT
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = f"{treatment_group_id}_Init",
-                                                                    display_name = self.display_name,
+                                                                    display_name = self.get_display_name(),
                                                                     #data_values = updated_model[updated_meta_data.get_last_id()].to_list(),
                                                                     data_values = None,
                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
@@ -560,7 +560,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         results = self.controller.calc_treatment_pat_forecast(
             # self variables
             id = self._id,
-            display_name = self.display_name,
+            display_name = self.get_display_name(),
             month_prefix = self.MONTH_PREFIX,
 
             # current forecast
@@ -840,7 +840,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
             (prior_month_patient_flow_data, prior_month_patient_flow_meta_data) = ForecastComponent._add_col_data_meta(prior_month_patient_flow_data,
                                                                                                                        prior_month_patient_flow_meta_data,
                                                                                                                        id = f"{pmpf_col_prefix}_{i+1}",
-                                                                                                                       display_name = f"# of patients in '{self.display_name}' Month {i+1}",
+                                                                                                                       display_name = f"# of patients in '{self.get_display_name()}' Month {i+1}",
                                                                                                                        data_values = [float(data_value)],
                                                                                                                        step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                                                                        action = ForecastDataSeriesMetaDataAction.PROD,

@@ -255,7 +255,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
                                                         action = ForecastDataSeriesMetaDataAction.STEP_INIT,
                                                         data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                         display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                        display_name = self.display_name,
+                                                        display_name = self.get_display_name(),
                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],)  
         
         # generate the meta data instructions for the epi line
@@ -264,7 +264,7 @@ class ForecastEpidemiologyTB(ForecastComponent):
                                                       action = ForecastDataSeriesMetaDataAction.INPUT,
                                                       data_type = ForecastDataSeriesMetaDataDataType.INT,
                                                       display_type = ForecastDataSeriesMetaDataDataType.INT,
-                                                      display_name = f"# of {self.display_name}",
+                                                      display_name = f"# of {self.get_display_name()}",
                                                       data_values = updated_model[input_col_id].to_list(),
                                                       validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.TOKEN_CHECK}],)
         

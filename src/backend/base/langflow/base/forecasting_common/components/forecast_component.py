@@ -103,6 +103,18 @@ class ForecastComponent(Component):
             
             # Number of Years in Forecast
             StrInput(
+                name="display_name2",
+                display_name="Name",
+                info="The name of this component",
+                placeholder = self.display_name,
+                required=False,
+                dynamic = False,
+                real_time_refresh = False,
+            ),
+
+            
+            # Number of Years in Forecast
+            StrInput(
                 name="num_years",
                 display_name="# of Years to Forecast",
                 info="The number of years to include in the forecast.",
@@ -206,20 +218,6 @@ class ForecastComponent(Component):
             raise ValueError(f"\n:  _forecast_model_common_output:  invalid, last id in ForecastMetaDataFrame '{last_value_id}' not found in DataFrame '{data.columns}'.")
 
 
-        #     last_id_data = data.columns[-1]
-        #     #last_id = last_id_data
-
-
-        # # validation of meta_data
-        # if(meta_data is not None):
-        #     last_id_meta_data = meta_data.get_last_value_id()
-        #     last_id = meta_data.get_last_id()
-
-        # # check to make sure the keys match        
-        # if check_ids and (data is not None) and (meta_data is not None):
-        #     if last_id_data != last_id_meta_data:
-        #         raise ValueError(f"\n:  _forecast_model_common_output:  last ids of data '{last_id_data}' and meta_data '{last_id_meta_data}' do not match.")
-
         return(ForecastDataPacket.gen_data_packet(dataframe = data, 
                                                   meta_data = meta_data, 
                                                   last_id = last_value_id))
@@ -248,6 +246,15 @@ class ForecastComponent(Component):
 
     # COMMON HELPER FUNCTIONS
     # -----------------------
+
+    # INPUTS
+
+    def get_display_name(self) -> str:
+        if(self.display_name2 is None or self.display_name2 == "" or len(self.display_name2) == 0):
+            return self.display_name
+        else:
+            return self.display_name2
+
 
     # TABLE
 

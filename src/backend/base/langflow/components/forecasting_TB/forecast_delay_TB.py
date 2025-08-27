@@ -165,7 +165,7 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
         # Add a treatment set-up instructions for a treatment section to meta_data table
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = f"{self._id}_Init",
-                                                                    display_name = self.display_name,
+                                                                    display_name = self.get_display_name(),
                                                                     data_values = None,
                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.DELAY,
                                                                     action = ForecastDataSeriesMetaDataAction.STEP_INIT,
@@ -185,7 +185,7 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
             # Add a treatment set-up instructions for a treatment section to meta_data table
             updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                         id = new_last_series_id,
-                                                                        display_name = f"Convert {self.display_name} from yearly to monthly",
+                                                                        display_name = f"Convert {self.get_display_name()} from yearly to monthly",
                                                                         data_values = last_series_values,
                                                                         step_type = ForecastDataSeriesMetaDataStepTypes.DELAY,
                                                                         action = ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH,
@@ -209,7 +209,7 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
         # Add a treatment set-up instructions for a treatment section to meta_data table
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                     id = delayed_col_id,
-                                                                    display_name = f"{self.display_name}",
+                                                                    display_name = f"{self.get_display_name()}",
                                                                     data_values = delayed_values.to_list(),
                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.DELAY,
                                                                     action = ForecastDataSeriesMetaDataAction.SHIFT,
@@ -230,7 +230,7 @@ class ForecastDelayTB(ForecastSingleVarColTransformerTB, Component):
             # Add a treatment set-up instructions for a treatment section to meta_data table
             updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                         id = new_last_series_id,
-                                                                        display_name = f"Convert {self.display_name} from monthly to yearly",
+                                                                        display_name = f"Convert {self.get_display_name()} from monthly to yearly",
                                                                         data_values = new_last_series_values.to_list(),
                                                                         step_type = ForecastDataSeriesMetaDataStepTypes.DELAY,
                                                                         action = ForecastDataSeriesMetaDataAction.MONTH_TO_YEAR,
