@@ -50,7 +50,8 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
                            seg_num: int,
                            id: str, 
                            display_name: str, 
-                           segment_table: DataFrame, 
+                           segment_table: DataFrame,
+                           segment_names: DataFrame,
                            col_prefix: str, 
                            num_static_cols: int,
                            curr_total_values_id: str, 
@@ -103,8 +104,9 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         # INPUT:  % OF TOTAL INBOUND PATIENTS PER SEGMENT
         # ===============================================
         for i in range(num_static_cols, num_cols):       
-            col_seg_name = segment_table.columns[i] # TODO:  Fix when we have a better way of setting names
-            col_seg_values = segment_table[col_seg_name]
+            col_seg_id = segment_table.columns[i]
+            col_seg_name = segment_names["seg_name"][i-num_static_cols]
+            col_seg_values = segment_table[col_seg_id]
 
             # add segment's percent to data/model and meta-data
             col_seg_pct_id = f"{seg_group_id}{i}_Percent_Input"
@@ -142,7 +144,7 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
                                                                     updated_meta_data,
                                                                     id = col_seg_total_pct_id,
-                                                                    display_name = f"% of patients covered in {display_name}",
+                                                                    display_name = f"% of patients covered by {display_name}",
                                                                     data_values = col_seg_total_pct_values,
                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
                                                                     action = ForecastDataSeriesMetaDataAction.SUM,
@@ -172,7 +174,7 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
                                                                     updated_meta_data,
                                                                     id = col_seg_remainder_pct_id,
-                                                                    display_name = f"% of patients not covered in {display_name}",
+                                                                    display_name = f"% of patients not covered by {display_name}",
                                                                     data_values = col_seg_remainder_pct_values.to_list(),
                                                                     step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
                                                                     action = ForecastDataSeriesMetaDataAction.SUB,
@@ -187,8 +189,9 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         # ==============================
         # TOTAL PATIENT FOR EACH SEGMENT
         # ==============================
-        for i in range(num_static_cols, num_cols):       
-            col_seg_name = segment_table.columns[i] # TODO:  Fix when we have a better way of setting names
+        for i in range(num_static_cols, num_cols):
+            col_seg_id = segment_table.columns[i]       
+            col_seg_name = segment_names["seg_name"][i-num_static_cols]
             curr_seg_pct_id = f"{seg_group_id}{i}_Percent_Input"
             curr_seg_total_id = f"{seg_group_id}{i}_Total"
 
@@ -234,7 +237,7 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
                                                                      updated_meta_data,
                                                                      id = total_total_id,
-                                                                     display_name = f"# of patients covered in {display_name}",
+                                                                     display_name = f"# of patients covered by {display_name}",
                                                                      data_values = total_total_values.to_list(),
                                                                      step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
                                                                      action = ForecastDataSeriesMetaDataAction.PROD,
@@ -248,7 +251,6 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         # ================================
         # TOTAL PATIENT FOR REMAINDER FLOW
         # ================================
-        #total_incoming_patients_value = updated_model[curr_total_values_id]
         remainder_pct_id = f"{id}_Remainder_Percent"
         remainder_total_id = f"{id}_Remainder_Total"
 
@@ -261,7 +263,7 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         (updated_model, updated_meta_data) = self._add_col_data_meta(updated_model,
                                                                      updated_meta_data,
                                                                      id = remainder_total_id,
-                                                                     display_name = f"# of patients not covered in {display_name}",
+                                                                     display_name = f"# of patients not covered by {display_name}",
                                                                      data_values = remainder_total_values.to_list(),
                                                                      step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
                                                                      action = ForecastDataSeriesMetaDataAction.PROD,

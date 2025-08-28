@@ -357,13 +357,15 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     def _forecast_model_common_input(self, seg_num: int = None) -> tuple[DataFrame, ForecastMetaDataFrame, str, str, str]:
         (updated_model, updated_meta_data, curr_total_values_id, curr_display_name) = super()._forecast_model_common_input()
 
-        # get the segment table data
+        # get the segment data
         segment_table = ForecastDataModel.astype_first_all_cols(self.segment_table)
+        segment_names = DataFrame(self.segment_names)
 
         (updated_model, updated_meta_data, total_values_id) = self.controller.calc_segment_values(seg_num = seg_num,
                                                                                                   id = self._id, 
                                                                                                   display_name = self.get_display_name(), 
-                                                                                                  segment_table = segment_table, 
+                                                                                                  segment_table = segment_table,
+                                                                                                  segment_names = segment_names,
                                                                                                   col_prefix = self.COL_PREFIX, 
                                                                                                   num_static_cols = self.NUM_STATIC_COLS,
                                                                                                   curr_total_values_id = curr_total_values_id, 
