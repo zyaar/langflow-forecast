@@ -437,11 +437,19 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
         # then generate a variable number of segment column defs, depending on number of segments
         for i in range(num_segments):
+            seg_display_name = self.get_seg_display_name(i)
+
+            if(seg_display_name is None):
+                seg_display_name = f"Segment {i+1}" # segment numbering starts at 1, not at zero
+
+            print(seg_display_name)
+
+
             table_schema.append({
                 "name": f"{self.COL_PREFIX}{i+1}",
-                "display_name": f"Segment {i+1}",
+                "display_name": seg_display_name,
                 "type": "float",
-                "description": f"Percent of total population going to Segment {i+1}, for each time period",
+                "description": f"Percent of total population who are '{seg_display_name}', for each time period, expressed as decimal between 0 and 1 (i.e. 0.25, 0.5, etc.)",
                 "disable_edit": False,
                 "sortable": False,
                 "filterable": False,
@@ -451,6 +459,8 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         
         build_config["segment_table"]["table_schema"]["columns"] = table_schema
         return(build_config)
+    
+
 
     def show_config_status(self, field_name = None, field_value = None, frontend_node = None, build_config = None):
         #if(frontend_node is None):
@@ -637,10 +647,42 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
         for i in range(len(seg_names)):
             build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"] = seg_names[i] # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
-            build_config["segment_table"]["table_schema"]["columns"][i+1]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"  # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
+            build_config["segment_table"]["table_schema"]["columns"][i+1]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period, expressed as decimal between 0 and 1 (i.e. 0.25, 0.5, etc.)."  # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
 
         return(build_config)
     
+
+    # ================
+    # HELPER FUNCTIONS
+    # ================
+
+    # get_seg_display_name
+    # Does a "safe" get of a display name for a segment from the segment_name table, handling all the issues that may happen silently
+    # 
+    # INPUTS:
+    #   idx - index of the display name (zero based index, same as the rest)
+    #
+    # OUTPUTS:
+    #   str or None
+
+    def get_seg_display_name(self, idx: int) -> str | None:
+        if (not hasattr(self, "segment_names")) or (self.segment_names is None) or (len(self.segment_names) < 1):
+            print("\n\nWARNING:  (not hasattr(self, 'segment_names')) or (self.segment_names is None) or (len(self.segment_names)\n\n")
+            return None
+        
+        if(len(self.segment_names) <= idx):
+            print("\n\nWARNING:  len(self.segment_names) <= idx\n\n")
+            return None
+        
+        seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
+
+        return(seg_names[idx])
+
+
+
+
+
+
 
 
 
