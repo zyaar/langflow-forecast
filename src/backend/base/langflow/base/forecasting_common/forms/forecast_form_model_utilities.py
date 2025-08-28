@@ -331,10 +331,11 @@ class ForecastFormModelUtilities():
             if key in df_keys:
                 # check that the number of rows provided, is the same size as the dataframe's
                 if(len(value) != new_dim_rows):
-                    raise ValueError(f"* fill_datafame:  cannot ovveride column '{key}' with values provided, number of rows mismatch received: {len(value)}, expected: {new_dim_rows}")
+                    raise ValueError(f"* fill_datafame:  cannot override column '{key}' with values provided, number of rows mismatch received: {len(value)}, expected: {new_dim_rows}")
                 else:
-                    new_df[key] = value
-
+                    # UPDATE:  add values ONLY if the field is currently empty
+                    new_df[key] = [new_df[key][i] if new_df[key][i] != ForecastDataModel.EDITABLE_VALUES_TOKEN else value[i] for i in range(len(new_df[key]))]
+        
         # return the new dataframe
         return(new_df)
 

@@ -101,6 +101,39 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
                 range_spec = RangeSpec(min=0, max=self.MAX_SEGMENTS)
             ),
             
+
+
+            # Table to enter segment names
+            TableInput(
+                name="segment_names",
+                display_name="Segment names",
+                info="Display names for each segment",
+                required=True,
+                show=True,
+                dynamic=True,
+                real_time_refresh=True,
+                table_schema=[
+                    {
+                        "name": "seg_num",
+                        "display_name": "ID",
+                        "type": "int",
+                        "description": "The number of the segment.",
+                        "edit_mode": EditMode.INLINE,
+                        "disable_edit": True,
+                    },
+                    {
+                        "name": "seg_name",
+                        "display_name": "Name",
+                        "type": "str",
+                        "description": "Name of the segment",
+                        "edit_mode": EditMode.INLINE,
+                        "disable_edit": False,
+                    },
+                ],
+                value=[],
+            ),
+
+            
             # segmentation_table
             TableInput(
                 name="segment_table",
@@ -178,11 +211,18 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     form_update_rules = {}
     form_trigger_rules = [
         (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_segments_table_def", ["num_segments", "segment_table"])),
+        (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_seg_table_display_names", ["segment_names"])),
+        #(ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("test_data_generation", ["segment_names"])),
+        (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("segment_names", "generate_table_seg_name_values", ["num_segments"])),
         (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("segment_table", "generate_table_values", ["num_segments", "segment_table"])),
     ]
 
 
+
     def update_build_config(self, build_config, field_value, field_name = None):
+        print(f"update_build_config: {field_name}")
+        #self.show_config_status(field_name = field_name, field_value = field_value, frontend_node = None, build_config = build_config)
+
         # update the fields in the form to show/hide, based on the field updated
         forecastFormUpdater = ForecastFormUpdater()
         build_config = forecastFormUpdater.forecast_update_fields(build_config, 
@@ -200,7 +240,10 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
                                                                
                                                                # list of all the updater functions for calculated fields
                                                                update_segments_table_def=self.generate_table_schema,
-                                                               generate_table_values=self.generate_table_values)
+                                                               test_data_generation = self.test_data_generation,
+                                                               generate_table_values=self.generate_table_values,
+                                                               update_seg_table_display_names = self.update_seg_table_display_names,
+                                                               generate_table_seg_name_values = self.generate_table_seg_name_values)
 
 
         # return updated config         
@@ -214,6 +257,8 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
     def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
+        print(f"update_output: {field_name}")
+        #self.show_config_status(field_name = field_name, field_value = field_value, frontend_node = frontend_node, build_config = None)
         curr_num_output_nodes = len(frontend_node["outputs"])-1
 
         # check if this is an update to the number of segments, in which case we definitely need
@@ -407,6 +452,43 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         build_config["segment_table"]["table_schema"]["columns"] = table_schema
         return(build_config)
 
+    def show_config_status(self, field_name = None, field_value = None, frontend_node = None, build_config = None):
+        #if(frontend_node is None):
+        #    frontend_node = self.to_frontend_node()
+
+        #curr_num_output_nodes = len(self.frontend_node["outputs"])
+
+        print("\n\nconfig_update: ")
+
+        if(field_name is not None):
+            print("field_NAME PROVIDED")
+
+        if(field_value is not None):
+            print("field_VALUE PROVIDED")
+
+        if(frontend_node is not None):
+            print("frontend_node PROVIDED\n")
+
+        if(build_config is not None):
+            print("build_config PROVIDED\n")
+
+        print(f"field_name = {field_name}")
+        print(f"field_value = {field_value}\n")
+        print(f"self.num_segments = {self.num_segments}")
+
+        if(frontend_node is not None):
+            print(f"num_output_nodes = {len(frontend_node["outputs"])}\n")
+        else:
+            print(f"num_output_nodes = MISSING\n")
+
+        if(hasattr(self, "segment_names") and self.segment_names is not None):
+            print(f"\nsegment_names TABLE\n{self.segment_names}")
+        else:
+            print("segment_names = MISSING")
+
+
+        
+
 
     # generate_table_values
     # Based on the latest schema, generates the values for the table
@@ -419,7 +501,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     # OUTPUTS:
     #   build_config
     def generate_table_values(self, field_value: str, field_name: str) -> List[dict]:
-        
         num_segments = self.num_segments
         num_cols = num_segments+1 # have to add an extra column to cover the dates column
 
@@ -488,3 +569,144 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         if(errMsg != ""):
             errMsg = f"Error, invalid values for segments percentages found in '{self.get_input_display_name("segment_table")}':\n" + errMsg
             raise ValueError(errMsg)
+        
+
+
+    # generate_table_seg_name_values
+    # Based on the latest schema, generates the values for the table
+    # 
+    # INPUTS:
+    #   build_config
+    #   field_value
+    #   field_name
+    #
+    # OUTPUTS:
+    #   build_config
+
+    def generate_table_seg_name_values(self, field_value: str, field_name: str) -> List[dict]:
+        # determine how many rows we need
+        if(field_name == "num_segments"):
+            num_rows = int(field_value)
+        else:
+            num_rows = self.num_segments
+            
+        # Check if we have existing data
+        old_values = self.segment_names
+        if(old_values is not None and isinstance(old_values, list) and len(old_values) > 0):
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows = num_rows,
+                                                               new_dim_cols = 2,
+                                                               prev_data  = old_values, 
+                                                               default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
+                                                               col_name_prefix = None, 
+                                                               num_static_cols = 2, 
+                                                               seg_num = list(range(1, num_rows+1)),
+                                                               seg_name = [f"Segment {i}" for i in range(1, num_rows+1)])
+        else:
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows = num_rows,
+                                                               new_dim_cols = 2,
+                                                               set_col_names = ["seg_num", "seg_name"],  
+                                                               default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
+                                                               col_name_prefix = None, 
+                                                               num_static_cols = 2, 
+                                                               seg_num = list(range(1, num_rows+1)),
+                                                               seg_name = [f"Segment {i}" for i in range(1, num_rows+1)])
+        
+        return(new_df.to_data_list())
+    
+
+
+
+    # update_seg_table_display_names
+    # Update the display names for the segments in the Segments Table whenever updates are made to the Segment Names Table
+    # 
+    # INPUTS:
+    #   build_config
+    #   field_value
+    #   field_name
+    #
+    # OUTPUTS:
+    #   build_config
+
+    def update_seg_table_display_names(self, build_config, field_value, field_name):
+
+        if (field_name != "segment_names") or (not hasattr(self, "segment_names")) or (self.segment_names is None) or (len(self.segment_names) < 1):
+            return(build_config)
+
+        # get list of segment names
+        seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
+
+        for i in range(len(seg_names)):
+            build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"] = seg_names[i] # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
+            build_config["segment_table"]["table_schema"]["columns"][i+1]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"  # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
+
+        return(build_config)
+    
+
+
+
+
+
+
+
+
+
+
+
+
+    def test_data_generation(self, build_config, field_value, field_name):
+        import json
+
+        if (field_name != "segment_names") or (not hasattr(self, "segment_names")) or (self.segment_names is None) or (len(self.segment_names) < 1):
+            return(build_config)
+
+        print("\n\ngenerate_table_seg_name_values CALLED")
+        print("-------------------------------------")
+
+        if (field_name == "num_segments") and isinstance(field_value, (int, float, str)):
+            num_segments = int(field_value)
+        else:
+            num_segments = int(self.num_segments)
+
+        print("\nsegment_table")
+        print(json.dumps(build_config["segment_table"], indent=4))
+        print("\n\n")
+        print("segment_names")
+        print(json.dumps(build_config["segment_names"], indent=4))
+        print("\n\n")
+
+        if(hasattr(self, "segment_table")):
+            print(f"segment_table = {self.segment_table}")
+        else:
+            print("No segment_table")
+
+
+        if(hasattr(self, "segment_names")):
+            print(f"segment_table = {self.segment_names}")
+        else:
+            print("No segment_names")
+
+
+        # get list of segment names
+        seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
+        print(f"seg_names = {seg_names}")
+        print(build_config["segment_table"]["table_schema"]["columns"])
+        print("\n\n")
+
+        for i in range(len(seg_names)):
+            print(build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"])
+            print(build_config["segment_table"]["table_schema"]["columns"][i+1]["description"])
+
+            build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"] = seg_names[i] # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
+            build_config["segment_table"]["table_schema"]["columns"][i+1]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"  # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
+
+
+
+            #                 "description": f"Percent of total population going to Segment {i+1}, for each time period",
+
+
+        print("\n\n-------------------------------------")
+
+
+
+        # build_config["segment_table"]["table_schema"]["columns"]
+        return(build_config)
