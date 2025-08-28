@@ -460,8 +460,6 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
         # calculate the number of Rx for this product, total and by treatment month
         product_id = f"{ForecastTreatmentTB.COL_PREFIX}_{seg_num}"
-        #product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
-        # ZIV
         product_display_name = DataFrame(self.product_names)["prod_name"][seg_num-1] # subtract 1 because seg_num starts at 1, not 0
 
         (updated_data, updated_meta_data) = self.controller.calc_treatment_rx_forecast_for_product(seg_num = seg_num,
@@ -926,8 +924,6 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     #   build_config
 
     def generate_table_schema(self, build_config, field_value, field_name):
-        #build_config["ziv"]["value"] = 23
-
         # get the latest num_products
         if(field_name == "num_products"):
             num_products = int(field_value)
@@ -952,11 +948,17 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     # the specific details of the new column attributes to this class
     # ZIV
     def _gen_new_table_col(self, col_num: int) -> dict:
+        
+        product_display_name = self.get_prod_display_name(col_num)
+
+        if product_display_name is None:
+            product_display_name = f"Product {col_num+1}"
+
         return({
                 "name": f"{ForecastTreatmentTB.COL_PREFIX}_{col_num+1}",
-                "display_name": f"Product {col_num+1} Rx",
+                "display_name": f"Product {col_num+1}",
                 "type": "float",
-                "description": f"Number of prescriptions of product {col_num+1}, for the N's time period of a treatment",
+                "description": f"Number of prescriptions of '{product_display_name}', for each month of treatment",
                 "disable_edit": False,
                 "sortable": False,
                 "filterable": False,
@@ -1219,3 +1221,31 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
             build_config[ForecastTreatmentTB.TABLE_NAME]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["description"] = f"# of Rx written for '{prod_names[i]}' each month of the '{self.display_name2}' treatment."
 
         return(build_config)
+
+
+
+    # ================
+    # HELPER FUNCTIONS
+    # ================
+
+    # get_prod_display_name
+    # Does a "safe" get of a display name for a product from the product_names table, handling all the issues that may happen silently
+    # 
+    # INPUTS:
+    #   idx - index of the display name (zero based index, same as the rest)
+    #
+    # OUTPUTS:
+    #   str or None
+
+    def get_prod_display_name(self, idx: int) -> str | None:
+        if (not hasattr(self, "product_names")) or (self.product_names is None) or (len(self.product_names) < 1):
+            print("\n\nWARNING:  (not hasattr(self, 'product_names')) or (self.product_names is None) or (len(self.product_names)\n\n")
+            return None
+        
+        if(len(self.product_names) <= idx):
+            print("\n\nWARNING:  len(self.product_names) <= idx\n\n")
+            return None
+        
+        prod_names = [self.product_names[i]["prod_name"] for i in range(len(self.product_names))]
+
+        return(prod_names[idx])
