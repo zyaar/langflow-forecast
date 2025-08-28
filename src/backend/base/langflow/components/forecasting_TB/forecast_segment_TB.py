@@ -117,7 +117,7 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
                         "name": "seg_num",
                         "display_name": "ID",
                         "type": "int",
-                        "description": "The number of the segment.",
+                        "description": "The id of the segment.",
                         "edit_mode": EditMode.INLINE,
                         "disable_edit": True,
                     },
@@ -386,7 +386,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     #   DataFrame
     def update_forecast_model_segment(self, seg_num: int = 1) -> Data:
         (updated_model, updated_meta_data, total_values_id) = self._forecast_model_common_input(seg_num)
-        #updated_meta_data.set_last_id(total_values_id)
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, total_values_id)
@@ -400,7 +399,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     #   DataFrame
     def update_forecast_model_remainder(self) -> Data:
         (updated_model, updated_meta_data, total_values_id) = self._forecast_model_common_input()
-        #updated_meta_data.set_last_id(total_values_id)
 
         # final common checks and output generation
         return self._forecast_model_common_output(updated_model, updated_meta_data, total_values_id)
@@ -648,10 +646,12 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
 
         for i in range(len(seg_names)):
-            build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"] = seg_names[i] # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
-            build_config["segment_table"]["table_schema"]["columns"][i+1]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period, expressed as decimal between 0 and 1 (i.e. 0.25, 0.5, etc.)."  # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
+            build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["display_name"] = seg_names[i]
+            build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period, expressed as decimal between 0 and 1 (i.e. 0.25, 0.5, etc.)."
 
         return(build_config)
+    
+
     
 
     # ================
@@ -740,8 +740,8 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
             print(build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"])
             print(build_config["segment_table"]["table_schema"]["columns"][i+1]["description"])
 
-            build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"] = seg_names[i] # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
-            build_config["segment_table"]["table_schema"]["columns"][i+1]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"  # TODO:  i+1 is temp placeholder for i+self.NUM_FIXED_COLS
+            build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["display_name"] = seg_names[i]
+            build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"
 
 
 

@@ -165,7 +165,39 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
                 required = True,
                 range_spec = RangeSpec(min=0, max=self.MAX_PRODUCTS)
             ),
-            
+
+
+            # product_names
+            TableInput(
+                name="product_names",
+                display_name="Product names",
+                info="Display names for each product",
+                required=True,
+                show=True,
+                dynamic=True,
+                real_time_refresh=True,
+                table_schema=[
+                    {
+                        "name": "prod_num",
+                        "display_name": "ID",
+                        "type": "int",
+                        "description": "The id of the product.",
+                        "edit_mode": EditMode.INLINE,
+                        "disable_edit": True,
+                    },
+                    {
+                        "name": "prod_name",
+                        "display_name": "Name",
+                        "type": "str",
+                        "description": "Name of the product",
+                        "edit_mode": EditMode.INLINE,
+                        "disable_edit": False,
+                    },
+                ],
+                value=[],
+            ),
+
+
             # treatment_details
             TableInput(
                 name=ForecastTreatmentTB.TABLE_NAME,
@@ -250,7 +282,10 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
     form_update_rules = {}
     form_trigger_rules = [
+        # update_prod_table_display_names
         (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_treatment_table_def", ["num_products", "treatment_duration"])),
+        (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_prod_table_display_names", ["product_names"])),
+        (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("product_names", "generate_table_prod_name_values", ["num_products"])),
         (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("treatment_details", "generate_table_values", ["num_products", "treatment_duration"])),
     ]
 
@@ -273,6 +308,8 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
                                                                
                                                                # list of all the updater functions for calculated fields
                                                                update_treatment_table_def=self.generate_table_schema,
+                                                               update_prod_table_display_names = self.update_prod_table_display_names,
+                                                               generate_table_prod_name_values = self.generate_table_prod_name_values,
                                                                generate_table_values=self.generate_table_values)
 
         # return updated config         
@@ -423,7 +460,10 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
         # calculate the number of Rx for this product, total and by treatment month
         product_id = f"{ForecastTreatmentTB.COL_PREFIX}_{seg_num}"
-        product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
+        #product_display_name = self._get_input_table_col_display_name(table_name = self.TABLE_NAME,  col = product_id)
+        # ZIV
+        product_display_name = DataFrame(self.product_names)["prod_name"][seg_num-1] # subtract 1 because seg_num starts at 1, not 0
+
         (updated_data, updated_meta_data) = self.controller.calc_treatment_rx_forecast_for_product(seg_num = seg_num,
                                                                                                    # self variables passed in
                                                                                                    treatment_id = self._id,
@@ -485,6 +525,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
         # make sure that data-types for treatment_details is set correctly
         treatment_details = ForecastDataModel.astype_first_all_cols(self.treatment_details, first_col_type="int")
+        product_names= DataFrame(self.product_names)
 
         # Create treatment table meta_data
         # Create the data and meta-data for the treatment_details table... 
@@ -493,7 +534,8 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         treatment_details_table_group_id = f"{treatment_group_id}_treatment_details"
         (treatment_details_model, treatment_details_meta_data, pc_col_id) = self.create_treatment_data_object(id = treatment_details_table_group_id,
                                                                                                               table_name = "treatment_details", 
-                                                                                                              treatment_details = treatment_details)
+                                                                                                              treatment_details = treatment_details,
+                                                                                                              product_names = product_names)
         
         if(need_pre_forecast_data):
             # create pre-forecast inputs meta_data
@@ -626,7 +668,11 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     #   MetaDataFrame with the meta-data for the same thing
     #   id of the row that holds the progression curve
 
-    def create_treatment_data_object(self, id: str, table_name: str, treatment_details: DataFrame) -> tuple[(DataFrame, ForecastMetaDataFrame, str, str)]:
+    def create_treatment_data_object(self, 
+                                     id: str, 
+                                     table_name: str, 
+                                     treatment_details: DataFrame, 
+                                     product_names: DataFrame) -> tuple[(DataFrame, ForecastMetaDataFrame, str, str)]:
 
         # Create an empty dataframe which we will build up using the same ids as we do with the meta-data
         updated_model = DataFrame()
@@ -685,6 +731,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
         for i in range(num_cols):
             col_name = treatment_details.columns[i+self.NUM_STATIC_COLS]
+            col_display_name = product_names["prod_name"][i]
             col_treat_prod_values = treatment_details[col_name]
             col_treat_prod_id = f"{ForecastTreatmentTB.COL_PREFIX}_{i+1}"
 
@@ -694,7 +741,8 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
             (updated_model, updated_meta_data) = ForecastComponent._add_col_data_meta(updated_model,
                                                                         updated_meta_data,
                                                                         id = col_treat_prod_id ,
-                                                                        display_name = self._get_input_table_col_display_name(table_name = table_name, col = col_treat_prod_id),
+                                                                        #display_name = self._get_input_table_col_display_name(table_name = table_name, col = col_treat_prod_id),
+                                                                        display_name = col_display_name,
                                                                         data_values = col_treat_prod_values,
                                                                         step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                         action = ForecastDataSeriesMetaDataAction.INPUT,
@@ -902,6 +950,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
     # callback from the _updated_table_schema in ForecastComponent that delegates
     # the specific details of the new column attributes to this class
+    # ZIV
     def _gen_new_table_col(self, col_num: int) -> dict:
         return({
                 "name": f"{ForecastTreatmentTB.COL_PREFIX}_{col_num+1}",
@@ -1062,9 +1111,11 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
             col_names = []
 
             for i in range(len(cols)):
+                #if col_name == cols[i]["name"]:
                 if col_name == cols[i]["name"]:
                     return(i)
                 else:
+                    #col_names.append(cols[i]["name"])
                     col_names.append(cols[i]["name"])
 
             raise ValueError(f"\n*  _get_input_table_col_num_from_name:  column name '{col_name}' not found in '{table_name}', list of columns {col_names}.")
@@ -1093,3 +1144,78 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         
         return True
 
+
+
+    # generate_table_prod_name_values
+    # Based on the latest schema, generates the values for the table
+    # 
+    # INPUTS:
+    #   build_config
+    #   field_value
+    #   field_name
+    #
+    # OUTPUTS:
+    #   build_config
+
+    def generate_table_prod_name_values(self, field_value: str, field_name: str) -> List[dict]:
+        # determine how many rows we need
+        if(field_name == "num_products"):
+            num_rows = int(field_value)
+        else:
+            num_rows = self.num_products
+            
+        # Check if we have existing data
+        old_values = self.product_names
+        if(old_values is not None and isinstance(old_values, list) and len(old_values) > 0):
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows = num_rows,
+                                                               new_dim_cols = 2,
+                                                               prev_data  = old_values, 
+                                                               default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
+                                                               col_name_prefix = None, 
+                                                               num_static_cols = 2, 
+                                                               prod_num = list(range(1, num_rows+1)),
+                                                               prod_name = [f"Product {i}" for i in range(1, num_rows+1)])
+        else:
+            new_df = ForecastFormModelUtilities.fill_dataframe(new_dim_rows = num_rows,
+                                                               new_dim_cols = 2,
+                                                               set_col_names = ["prod_num", "prod_name"],  
+                                                               default_col_value = ForecastDataModel.EDITABLE_VALUES_TOKEN, 
+                                                               col_name_prefix = None, 
+                                                               num_static_cols = 2, 
+                                                               prod_num = list(range(1, num_rows+1)),
+                                                               prod_name = [f"Product {i}" for i in range(1, num_rows+1)])
+        
+        return(new_df.to_data_list())
+    
+
+
+
+    # update_prod_table_display_names
+    # Update the display names for the products in the Paroducts Table whenever updates are made to the Product Names Table
+    # 
+    # INPUTS:
+    #   build_config
+    #   field_value
+    #   field_name
+    #
+    # OUTPUTS:
+    #   build_config
+
+    # src_table = "segment_names"
+    # src_col = "seg_name"
+    # dst_table = "segment_table"
+    # seg_names = display_names
+
+    def update_prod_table_display_names(self, build_config, field_value, field_name):
+
+        if (field_name != "product_names") or (not hasattr(self, "product_names")) or (self.product_names is None) or (len(self.product_names) < 1):
+            return(build_config)
+
+        # get list of segment names
+        prod_names = [self.product_names[i]["prod_name"] for i in range(len(self.product_names))]
+
+        for i in range(len(prod_names)):
+            build_config[ForecastTreatmentTB.TABLE_NAME]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["display_name"] = prod_names[i]
+            build_config[ForecastTreatmentTB.TABLE_NAME]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["description"] = f"# of Rx written for '{prod_names[i]}' each month of the '{self.display_name2}' treatment."
+
+        return(build_config)

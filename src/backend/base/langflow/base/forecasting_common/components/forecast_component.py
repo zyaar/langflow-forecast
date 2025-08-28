@@ -288,6 +288,8 @@ class ForecastComponent(Component):
     def _gen_new_table_col(self, col_num: int) -> dict:
         raise ValueError(f"\n*  ForecastComponent._gen_new_table_col:  error, this is an abstract method which should never be called.")
 
+
+
     # _get_input_table_display_name
     # Convenience function to get the display name of a TableInput
     #
