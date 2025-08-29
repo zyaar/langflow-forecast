@@ -10,7 +10,7 @@
 #####################################################################
 
 from langflow.custom import Component
-from langflow.io import StrInput, DataInput, IntInput, TableInput
+from langflow.io import StrInput, DataInput, IntInput, TableInput, NestedDictInput
 from langflow.schema import DataFrame, Data
 from langflow.schema.table import EditMode
 from langflow.template import Output
@@ -71,6 +71,8 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
     # INPUTS / OUTPUTS
     NUM_STATIC_COLS = 1 # one static columns in 'segment_table' ('Date' is static, rest is segment specific)
+    NUM_STATIC_OUTPUTS = 1 # only 'Remainder Patient Flow'
+    STATIC_OUTPUTS_AT_START = False
 
 
     # INIT
@@ -101,8 +103,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
                 range_spec = RangeSpec(min=0, max=self.MAX_SEGMENTS)
             ),
             
-
-
             # Table to enter segment names
             TableInput(
                 name="segment_names",
@@ -133,7 +133,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
                 value=[],
             ),
 
-            
             # segmentation_table
             TableInput(
                 name="segment_table",
@@ -212,7 +211,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     form_trigger_rules = [
         (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_segments_table_def", ["num_segments", "segment_table"])),
         (ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("update_seg_table_display_names", ["segment_names"])),
-        #(ForecastFormTriggerCalc.TriggerType.RUN_FUNCT, ("test_data_generation", ["segment_names"])),
         (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("segment_names", "generate_table_seg_name_values", ["num_segments"])),
         (ForecastFormTriggerCalc.TriggerType.UPDATE_VALUE, ("segment_table", "generate_table_values", ["num_segments", "segment_table"])),
     ]
@@ -220,8 +218,7 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
 
     def update_build_config(self, build_config, field_value, field_name = None):
-        print(f"update_build_config: {field_name}")
-        #self.show_config_status(field_name = field_name, field_value = field_value, frontend_node = None, build_config = build_config)
+        self._dump_in_editor_state(field_name = field_name, field_value = field_value, build_config = build_config)
 
         # update the fields in the form to show/hide, based on the field updated
         forecastFormUpdater = ForecastFormUpdater()
@@ -240,7 +237,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
                                                                
                                                                # list of all the updater functions for calculated fields
                                                                update_segments_table_def=self.generate_table_schema,
-                                                               test_data_generation = self.test_data_generation,
                                                                generate_table_values=self.generate_table_values,
                                                                update_seg_table_display_names = self.update_seg_table_display_names,
                                                                generate_table_seg_name_values = self.generate_table_seg_name_values)
@@ -256,43 +252,84 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
     # ==============
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
-    def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
-        print(f"update_output: {field_name}")
-        #self.show_config_status(field_name = field_name, field_value = field_value, frontend_node = frontend_node, build_config = None)
-        curr_num_output_nodes = len(frontend_node["outputs"])-1
+    def update_outputs(self, frontend_node: list, field_name: str, field_value: Any) -> dict:
+        #self._dump_in_editor_state(field_name = field_name, field_value = field_value, frontend_node = frontend_node)
 
-        # check if this is an update to the number of segments, in which case we definitely need
-        # to refresh the outputs... alternatively, it could be an update to something else, but
-        # there is an edge case when the component first starts the number of outputs may not match
-        # the number of segments, in which case, we need to do it anyway
-        if(field_name == "num_segments"):
-            target_segments = int(field_value)
-        else:
-            target_segments = int(self.num_segments)
-
-        # check if the length of outputs is different than the value of num_segments, if not, then return
-        if(target_segments != curr_num_output_nodes):
-            remainder_output = frontend_node["outputs"].pop()
-
-            # if less value, then remove the last few nodes
-            if(target_segments < curr_num_output_nodes):
-                num_nodes_remove = curr_num_output_nodes - target_segments
-
-                for i in range(num_nodes_remove):
-                    frontend_node["outputs"].pop()
+        # only update for specific field updates
+        if(field_name not in ["num_segments", "segment_names"]):
+            return(frontend_node)
         
-            # if it's greater than, then add a bunch of blank nodes
-            else:
-                num_nodes_add = target_segments - curr_num_output_nodes
+        # get num_segments
+        if (field_name == "num_segments") and (isinstance(field_value, int | str)):
+            num_segments = int(field_value)
+        elif (hasattr(self, "num_segments")):
+            num_segments = int(self.num_segments)
+        else:
+            num_segments = 0
 
-                for i in range(num_nodes_add):
-                    curr_num = curr_num_output_nodes + (i+1)
-                    frontend_node["outputs"].append(Output(name=f"{self.COL_PREFIX}{curr_num}", display_name=f"Segment {curr_num}", method=f"update_forecast_model_segment_{curr_num}"))
+        # get outputs
+        # before updating, check if we're saved the latest version of the outputs in our hidden configuration
+        # if yes, load from there, if not, load from frontend_node
+        if (hasattr(self, "output_config") and (self.output_config is not None) and (len(self.output_config) > 0)):
+            new_output_config: list = self.output_config
+        else:
+            new_output_config: list = frontend_node
+        
+        num_outputs = len(new_output_config["outputs"])
 
-            frontend_node["outputs"].append(remainder_output)
+        # remove outputs
+        if(num_outputs > num_segments + self.NUM_STATIC_OUTPUTS):
+            # determine number to remove
+            num_remove = num_outputs - (num_segments + self.NUM_STATIC_OUTPUTS)
 
-        return frontend_node
-    
+            # temporarily remove the one at the very end 'Remainder Patient Flow'
+            temp_holder = new_output_config["outputs"].pop()
+
+            # pop the required number of outputs off the END of the list
+            for i in range(num_remove):
+                new_output_config["outputs"].pop()
+
+            # add 'Remainder Patient Flow' back to the very end
+            new_output_config["outputs"].append(temp_holder)
+            pass
+
+        # add outputs
+        elif(num_outputs < num_segments + self.NUM_STATIC_OUTPUTS):
+            # determine number to add
+            num_add = (num_segments + self.NUM_STATIC_OUTPUTS) - num_outputs
+
+            # temporarily remove the one at the very end 'Remainder Patient Flow'
+            temp_holder = new_output_config["outputs"].pop()
+
+            for i in range(num_add):
+                new_display_name = f"Segment {i+1}"
+
+                new_output_config["outputs"].append(Output(name = f"{self.COL_PREFIX}{i+1}", 
+                                                           display_name = new_display_name, 
+                                                           method = f"update_forecast_model_segment_{i+1}"))
+            
+            # add 'Remainder Patient Flow' back to the very end
+            new_output_config["outputs"].append(temp_holder)
+
+        # already equal, do nothing
+        else:
+            # same number of outputs, no more is required
+            pass
+
+
+        # go through all the new_outputs making sure that they have the latest segment names
+        for i in range(num_segments):
+            new_display_name = self.get_seg_display_name(i)
+
+            if(new_display_name is None):
+                new_display_name = f"Segment {i+1}"
+
+            new_output_config["outputs"][i].display_name = new_display_name
+
+        # TODO:  might this actually be better implemented with 
+        return super().update_outputs(frontend_node = new_output_config, field_name = field_name, field_value = field_value)
+
+
 
     # __getattribute__
     # Because Langflow does not allow calling methods in outputs with arguments, we need a way to generate a unique methe call for each 
@@ -442,9 +479,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
             if(seg_display_name is None):
                 seg_display_name = f"Segment {i+1}" # segment numbering starts at 1, not at zero
 
-            print(seg_display_name)
-
-
             table_schema.append({
                 "name": f"{self.COL_PREFIX}{i+1}",
                 "display_name": seg_display_name,
@@ -460,45 +494,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         build_config["segment_table"]["table_schema"]["columns"] = table_schema
         return(build_config)
     
-
-
-    def show_config_status(self, field_name = None, field_value = None, frontend_node = None, build_config = None):
-        #if(frontend_node is None):
-        #    frontend_node = self.to_frontend_node()
-
-        #curr_num_output_nodes = len(self.frontend_node["outputs"])
-
-        print("\n\nconfig_update: ")
-
-        if(field_name is not None):
-            print("field_NAME PROVIDED")
-
-        if(field_value is not None):
-            print("field_VALUE PROVIDED")
-
-        if(frontend_node is not None):
-            print("frontend_node PROVIDED\n")
-
-        if(build_config is not None):
-            print("build_config PROVIDED\n")
-
-        print(f"field_name = {field_name}")
-        print(f"field_value = {field_value}\n")
-        print(f"self.num_segments = {self.num_segments}")
-
-        if(frontend_node is not None):
-            print(f"num_output_nodes = {len(frontend_node["outputs"])}\n")
-        else:
-            print(f"num_output_nodes = MISSING\n")
-
-        if(hasattr(self, "segment_names") and self.segment_names is not None):
-            print(f"\nsegment_names TABLE\n{self.segment_names}")
-        else:
-            print("segment_names = MISSING")
-
-
-        
-
 
     # generate_table_values
     # Based on the latest schema, generates the values for the table
@@ -684,73 +679,60 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
 
 
+    # def test_data_generation(self, build_config, field_value, field_name):
+    #     import json
+
+    #     if (field_name != "segment_names") or (not hasattr(self, "segment_names")) or (self.segment_names is None) or (len(self.segment_names) < 1):
+    #         return(build_config)
+
+    #     print("\n\ngenerate_table_seg_name_values CALLED")
+    #     print("-------------------------------------")
+
+    #     if (field_name == "num_segments") and isinstance(field_value, (int, float, str)):
+    #         num_segments = int(field_value)
+    #     else:
+    #         num_segments = int(self.num_segments)
+
+    #     print("\nsegment_table")
+    #     print(json.dumps(build_config["segment_table"], indent=4))
+    #     print("\n\n")
+    #     print("segment_names")
+    #     print(json.dumps(build_config["segment_names"], indent=4))
+    #     print("\n\n")
+
+    #     if(hasattr(self, "segment_table")):
+    #         print(f"segment_table = {self.segment_table}")
+    #     else:
+    #         print("No segment_table")
+
+
+    #     if(hasattr(self, "segment_names")):
+    #         print(f"segment_table = {self.segment_names}")
+    #     else:
+    #         print("No segment_names")
+
+
+    #     # get list of segment names
+    #     seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
+    #     print(f"seg_names = {seg_names}")
+    #     print(build_config["segment_table"]["table_schema"]["columns"])
+    #     print("\n\n")
+
+    #     for i in range(len(seg_names)):
+    #         print(build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"])
+    #         print(build_config["segment_table"]["table_schema"]["columns"][i+1]["description"])
+
+    #         build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["display_name"] = seg_names[i]
+    #         build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"
 
 
 
+    #         #                 "description": f"Percent of total population going to Segment {i+1}, for each time period",
+
+
+    #     print("\n\n-------------------------------------")
 
 
 
-
-
-
-
-
-
-
-    def test_data_generation(self, build_config, field_value, field_name):
-        import json
-
-        if (field_name != "segment_names") or (not hasattr(self, "segment_names")) or (self.segment_names is None) or (len(self.segment_names) < 1):
-            return(build_config)
-
-        print("\n\ngenerate_table_seg_name_values CALLED")
-        print("-------------------------------------")
-
-        if (field_name == "num_segments") and isinstance(field_value, (int, float, str)):
-            num_segments = int(field_value)
-        else:
-            num_segments = int(self.num_segments)
-
-        print("\nsegment_table")
-        print(json.dumps(build_config["segment_table"], indent=4))
-        print("\n\n")
-        print("segment_names")
-        print(json.dumps(build_config["segment_names"], indent=4))
-        print("\n\n")
-
-        if(hasattr(self, "segment_table")):
-            print(f"segment_table = {self.segment_table}")
-        else:
-            print("No segment_table")
-
-
-        if(hasattr(self, "segment_names")):
-            print(f"segment_table = {self.segment_names}")
-        else:
-            print("No segment_names")
-
-
-        # get list of segment names
-        seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
-        print(f"seg_names = {seg_names}")
-        print(build_config["segment_table"]["table_schema"]["columns"])
-        print("\n\n")
-
-        for i in range(len(seg_names)):
-            print(build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"])
-            print(build_config["segment_table"]["table_schema"]["columns"][i+1]["description"])
-
-            build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["display_name"] = seg_names[i]
-            build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"
-
-
-
-            #                 "description": f"Percent of total population going to Segment {i+1}, for each time period",
-
-
-        print("\n\n-------------------------------------")
-
-
-
-        # build_config["segment_table"]["table_schema"]["columns"]
-        return(build_config)
+    #     # build_config["segment_table"]["table_schema"]["columns"]
+    #     return(build_config)

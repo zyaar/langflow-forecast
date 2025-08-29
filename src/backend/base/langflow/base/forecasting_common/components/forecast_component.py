@@ -101,7 +101,18 @@ class ForecastComponent(Component):
     def _gen_inputs(self) -> list:
         inputs_list = [
             
-            # Number of Years in Forecast
+        # hidden field which holds the current configuration of the outputs
+            NestedDictInput(
+                name="output_config",
+                required = False,
+                dynamic = True,
+                real_time_refresh = True,
+                advanced = True,
+                is_list = True,
+                value = {},
+            ),
+
+        # Number of Years in Forecast
             StrInput(
                 name="display_name2",
                 display_name="Name",
@@ -169,6 +180,7 @@ class ForecastComponent(Component):
                 real_time_refresh = True,
                 advanced=True,
             ),
+
         ]
 
         return(inputs_list)
@@ -191,6 +203,16 @@ class ForecastComponent(Component):
 
     # INPUT/OUTPUTS CALCULATIONS
     # ==========================
+
+    def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
+        # save the current output state to the hidden output_config field
+        if (hasattr(self, "output_config")):
+            self.output_config = frontend_node
+
+        return(frontend_node)
+
+
+
 
     def _forecast_model_common_input(self):
         self.validate_inputs()
@@ -424,7 +446,7 @@ class ForecastComponent(Component):
 
     # _unpack_data_packet
     # updacks an individual data packet into a single Dataframe and a single ForecastMetaDataFrame
-   # 
+    # 
     # INPUTS:
     #   data_packet - (list) of data packets
     #
@@ -525,3 +547,74 @@ class ForecastComponent(Component):
 
 
           return(updated_dataframe, updated_meta_data)
+    
+
+
+    # DEBUGGING
+
+    def _dump_in_editor_state(self, field_name = None, field_value = None, frontend_node = None, build_config = None, **kwargs):
+
+        def dump_single(name: str, item: Any):
+            if (item is not None):
+                print(f"{name} provided:")
+                print(f"{name} {type(item)} = {item}")
+            else:
+                print(f"{name} NOT PROVIDED")
+
+            #print("\n")
+
+
+        def dump_multi(name: str, item: Any):
+            if (item is not None):
+                print(f"{name} provided:")
+                
+                if(isinstance(item, list)):
+                    print(f"{name} len = '{len(item)}'")
+
+                    for value in item:
+                        print(f"{type(value)}")
+
+                elif(isinstance(item, dict)):
+                    for key, value in item.items():
+                        print(f"\t{key} = {type(value)}")
+            else:
+                print(f"{name} NOT PROVIDED")
+
+            #print("\n")
+
+
+        def dump_unknown(name: str, item: Any):
+            if item is not None:
+                print(f"Unknown's type: {type(item)}")
+
+                if isinstance(item, int | float | str):
+                    dump_single(name, item)
+                elif isinstance(item, list | dict):
+                    dump_multi(name, item)
+                else:
+                    print(f"{name} provided:")
+                    print(f"{name} is '{type(item)}'")
+            else:
+                print(f"{name} NOT PROVIDED")
+
+            #print("\n")
+            
+
+
+        # main function
+        print("\n\nDUMP IN EDITOR STATE:\n")
+
+        dump_unknown(field_name, field_value)
+        dump_multi("frontend_node", frontend_node)
+        dump_multi("build_config", build_config)
+
+        # iterate over kwargs
+        if kwargs:
+            for key, value in kwargs.items():
+                dump_unknown(key, value)
+
+        print("\n\n")
+
+
+
+
