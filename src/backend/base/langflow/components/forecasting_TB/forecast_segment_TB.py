@@ -218,7 +218,7 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
 
     def update_build_config(self, build_config, field_value, field_name = None):
-        self._dump_in_editor_state(field_name = field_name, field_value = field_value, build_config = build_config)
+        #self._dump_in_editor_state(field_name = field_name, field_value = field_value, build_config = build_config)
 
         # update the fields in the form to show/hide, based on the field updated
         forecastFormUpdater = ForecastFormUpdater()
@@ -664,75 +664,13 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
     def get_seg_display_name(self, idx: int) -> str | None:
         if (not hasattr(self, "segment_names")) or (self.segment_names is None) or (len(self.segment_names) < 1):
-            print("\n\nWARNING:  (not hasattr(self, 'segment_names')) or (self.segment_names is None) or (len(self.segment_names)\n\n")
+            #print("\n\nWARNING:  (not hasattr(self, 'segment_names')) or (self.segment_names is None) or (len(self.segment_names)\n\n")
             return None
         
         if(len(self.segment_names) <= idx):
-            print("\n\nWARNING:  len(self.segment_names) <= idx\n\n")
+            #print("\n\nWARNING:  len(self.segment_names) <= idx\n\n")
             return None
         
         seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
 
         return(seg_names[idx])
-
-
-
-
-
-    # def test_data_generation(self, build_config, field_value, field_name):
-    #     import json
-
-    #     if (field_name != "segment_names") or (not hasattr(self, "segment_names")) or (self.segment_names is None) or (len(self.segment_names) < 1):
-    #         return(build_config)
-
-    #     print("\n\ngenerate_table_seg_name_values CALLED")
-    #     print("-------------------------------------")
-
-    #     if (field_name == "num_segments") and isinstance(field_value, (int, float, str)):
-    #         num_segments = int(field_value)
-    #     else:
-    #         num_segments = int(self.num_segments)
-
-    #     print("\nsegment_table")
-    #     print(json.dumps(build_config["segment_table"], indent=4))
-    #     print("\n\n")
-    #     print("segment_names")
-    #     print(json.dumps(build_config["segment_names"], indent=4))
-    #     print("\n\n")
-
-    #     if(hasattr(self, "segment_table")):
-    #         print(f"segment_table = {self.segment_table}")
-    #     else:
-    #         print("No segment_table")
-
-
-    #     if(hasattr(self, "segment_names")):
-    #         print(f"segment_table = {self.segment_names}")
-    #     else:
-    #         print("No segment_names")
-
-
-    #     # get list of segment names
-    #     seg_names = [self.segment_names[i]["seg_name"] for i in range(len(self.segment_names))]
-    #     print(f"seg_names = {seg_names}")
-    #     print(build_config["segment_table"]["table_schema"]["columns"])
-    #     print("\n\n")
-
-    #     for i in range(len(seg_names)):
-    #         print(build_config["segment_table"]["table_schema"]["columns"][i+1]["display_name"])
-    #         print(build_config["segment_table"]["table_schema"]["columns"][i+1]["description"])
-
-    #         build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["display_name"] = seg_names[i]
-    #         build_config["segment_table"]["table_schema"]["columns"][i+self.NUM_STATIC_COLS]["description"] = f"Percent of total population who are '{seg_names[i]}', for each time period"
-
-
-
-    #         #                 "description": f"Percent of total population going to Segment {i+1}, for each time period",
-
-
-    #     print("\n\n-------------------------------------")
-
-
-
-    #     # build_config["segment_table"]["table_schema"]["columns"]
-    #     return(build_config)

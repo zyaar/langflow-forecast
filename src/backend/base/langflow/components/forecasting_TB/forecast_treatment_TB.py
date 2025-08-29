@@ -11,7 +11,7 @@
 #####################################################################
 
 from langflow.custom import Component
-from langflow.io import StrInput, DataInput, IntInput, TableInput, NestedDictInput
+from langflow.io import StrInput, DataInput, IntInput, TableInput, NestedDictInput, DictInput
 from langflow.schema import DataFrame, Data
 from langflow.schema.table import Column
 from langflow.schema.table import EditMode
@@ -98,7 +98,9 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     TABLE_SCHEMA_INPUT_NAME = f"hidden_treatment_details"
     NUM_STATIC_COLS = 2 # two static columns in table (month of pression, % of people progressing), rest is product
     NUM_STATIC_IGNORE_COLS = 0 # of static columns to ignore
-    NUM_STATIC_INPUT_COLS = 2 # of static columsn to read as input (before the variable columns)
+    NUM_STATIC_INPUT_COLS = 2 # of static columns to read as input (before the variable columns)
+    NUM_STATIC_OUTPUTS = 2 # the static outputs that don't change as we change the number of products (variable outputs) (i.e. # patients ON-THERAPY, # patients LEAVING)
+    STATIC_OUTPUTS_AT_START = True
 
     # MISC
     CHECK_OUTPUT_ID = False
@@ -322,37 +324,127 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     # ==============
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
-    def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
-        curr_prod_outputs = len(frontend_node["outputs"])-self.NUM_STATIC_OUTPUTS
+    # ZIV
+    def update_outputs(self, frontend_node, field_name: str, field_value: Any) -> dict:
 
-        # check if this is an update to the number of segments, in which case we definitely need
-        # to refresh the outputs... alternatively, it could be an update to something else, but
-        # there is an edge case when the component first starts the number of outputs may not match
-        # the number of segments, in which case, we need to do it anyway
-        if(field_name == "num_products"):
-            num_products = field_value
+        # get outputs
+        # before doing anything, check if we're saved the latest version of the outputs in our hidden configuration
+        # if yes, load from there, if not, load from frontend_node
+
+        if (hasattr(self, "output_config") and (self.output_config is not None) and (len(self.output_config) > 0)):
+            new_output_config: list = self.output_config
         else:
-            num_products = self.num_products
- 
-        # check if the length of outputs is different than the value of num_products, if not, then return
-        prod_outputs_to_add = num_products - curr_prod_outputs
+            new_output_config: list = frontend_node.copy()
 
-        if(prod_outputs_to_add != 0):
-            # if less value, then remove the last few nodes
-            if(prod_outputs_to_add < 0):
-                for i in range(-prod_outputs_to_add):
-                    frontend_node["outputs"].pop()
+        # # only update for specific field updates, otherwise, exit here
+        # if(field_name not in ["num_products", "product_names"]):
+        #     return super().update_outputs(frontend_node = new_output_config, field_name = field_name, field_value = field_value)
         
-            # if it's greater than, then add a bunch of product output nodes to the end
-            else:
-                for i in range(curr_prod_outputs, curr_prod_outputs + prod_outputs_to_add):
-                    frontend_node["outputs"].append(Output(
-                        name=f"{ForecastTreatmentTB.COL_PREFIX}_{i+1}", 
-                        display_name=f"Product {i+1} Rx", 
-                        method=f"update_forecast_model_product_{i+1}"
-                    ))
 
-        return frontend_node
+        # get num_products
+        if (field_name == "num_products") and (isinstance(field_value, int | str)):
+            num_products = int(field_value)
+        elif (hasattr(self, "num_products")):
+            num_products = int(self.num_products)
+        else:
+            num_products = 0
+
+        num_outputs = len(new_output_config["outputs"])
+
+        # remove outputs
+        if(num_outputs > num_products + self.NUM_STATIC_OUTPUTS):
+            # determine number to remove
+            num_remove = num_outputs - (num_products + self.NUM_STATIC_OUTPUTS)
+
+            # pop the required number of outputs off the END of the list
+            for i in range(num_remove):
+                new_output_config["outputs"].pop()
+
+        # add outputs
+        elif(num_outputs < num_products + self.NUM_STATIC_OUTPUTS):
+            # determine number to add
+            num_add = (num_products + self.NUM_STATIC_OUTPUTS) - num_outputs
+
+            for i in range(num_add):
+                new_display_name = f"Product {i+1}"
+
+                new_output_config["outputs"].append(Output(name = f"{ForecastTreatmentTB.COL_PREFIX}_{i+1}", 
+                                                           display_name = new_display_name, 
+                                                           method = f"update_forecast_model_product_{i+1}"))
+                
+        # already equal, do nothing
+        else:
+            # same number of outputs, no more is required
+            pass
+
+
+        # go through all the new_outputs making sure that they have the latest product names
+        for i in range(num_products):
+            new_display_name = self.get_prod_display_name(i)
+
+            if(new_display_name is None):
+                new_display_name = f"Product {i+1}"
+
+            new_output_config["outputs"][i+self.NUM_STATIC_OUTPUTS].display_name = new_display_name
+
+        # TODO:  might this actually be better implemented with
+        return super().update_outputs(frontend_node = new_output_config, field_name = field_name, field_value = field_value)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # curr_prod_outputs = len(frontend_node["outputs"])-self.NUM_STATIC_OUTPUTS
+
+        # # check if this is an update to the number of segments, in which case we definitely need
+        # # to refresh the outputs... alternatively, it could be an update to something else, but
+        # # there is an edge case when the component first starts the number of outputs may not match
+        # # the number of segments, in which case, we need to do it anyway
+        # if(field_name == "num_products"):
+        #     num_products = field_value
+        # else:
+        #     num_products = self.num_products
+ 
+        # # check if the length of outputs is different than the value of num_products, if not, then return
+        # prod_outputs_to_add = num_products - curr_prod_outputs
+
+        # if(prod_outputs_to_add != 0):
+        #     # if less value, then remove the last few nodes
+        #     if(prod_outputs_to_add < 0):
+        #         for i in range(-prod_outputs_to_add):
+        #             frontend_node["outputs"].pop()
+        
+        #     # if it's greater than, then add a bunch of product output nodes to the end
+        #     else:
+        #         for i in range(curr_prod_outputs, curr_prod_outputs + prod_outputs_to_add):
+        #             frontend_node["outputs"].append(Output(
+        #                 name=f"{ForecastTreatmentTB.COL_PREFIX}_{i+1}", 
+        #                 display_name=f"Product {i+1} Rx", 
+        #                 method=f"update_forecast_model_product_{i+1}"
+        #             ))
+
+        # return frontend_node
         
 
 
@@ -1239,11 +1331,11 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
     def get_prod_display_name(self, idx: int) -> str | None:
         if (not hasattr(self, "product_names")) or (self.product_names is None) or (len(self.product_names) < 1):
-            print("\n\nWARNING:  (not hasattr(self, 'product_names')) or (self.product_names is None) or (len(self.product_names)\n\n")
+            #print("\n\nWARNING:  (not hasattr(self, 'product_names')) or (self.product_names is None) or (len(self.product_names)\n\n")
             return None
         
         if(len(self.product_names) <= idx):
-            print("\n\nWARNING:  len(self.product_names) <= idx\n\n")
+            #print("\n\nWARNING:  len(self.product_names) <= idx\n\n")
             return None
         
         prod_names = [self.product_names[i]["prod_name"] for i in range(len(self.product_names))]
