@@ -218,8 +218,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
 
     def update_build_config(self, build_config, field_value, field_name = None):
-        #self._dump_in_editor_state(field_name = field_name, field_value = field_value, build_config = build_config)
-
         # update the fields in the form to show/hide, based on the field updated
         forecastFormUpdater = ForecastFormUpdater()
         build_config = forecastFormUpdater.forecast_update_fields(build_config, 
@@ -253,12 +251,9 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
     def update_outputs(self, frontend_node: list, field_name: str, field_value: Any) -> dict:
-        #self._dump_in_editor_state(field_name = field_name, field_value = field_value, frontend_node = frontend_node)
 
-        # only update for specific field updates
-        if(field_name not in ["num_segments", "segment_names"]):
-            return(frontend_node)
-        
+        new_output_config = frontend_node.copy()
+
         # get num_segments
         if (field_name == "num_segments") and (isinstance(field_value, int | str)):
             num_segments = int(field_value)
@@ -267,14 +262,6 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
         else:
             num_segments = 0
 
-        # get outputs
-        # before updating, check if we're saved the latest version of the outputs in our hidden configuration
-        # if yes, load from there, if not, load from frontend_node
-        if (hasattr(self, "output_config") and (self.output_config is not None) and (len(self.output_config) > 0)):
-            new_output_config: list = self.output_config
-        else:
-            new_output_config: list = frontend_node
-        
         num_outputs = len(new_output_config["outputs"])
 
         # remove outputs
@@ -306,7 +293,8 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
                 new_output_config["outputs"].append(Output(name = f"{self.COL_PREFIX}{i+1}", 
                                                            display_name = new_display_name, 
-                                                           method = f"update_forecast_model_segment_{i+1}"))
+                                                           method = f"update_forecast_model_segment_{i+1}",
+                                                           group_outputs = True))
             
             # add 'Remainder Patient Flow' back to the very end
             new_output_config["outputs"].append(temp_holder)
@@ -326,8 +314,7 @@ class ForecastSegmentTB(ForecastSumInputTB, Component):
 
             new_output_config["outputs"][i].display_name = new_display_name
 
-        # TODO:  might this actually be better implemented with 
-        return super().update_outputs(frontend_node = new_output_config, field_name = field_name, field_value = field_value)
+        return(new_output_config)
 
 
 

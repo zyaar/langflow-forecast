@@ -204,16 +204,6 @@ class ForecastComponent(Component):
     # INPUT/OUTPUTS CALCULATIONS
     # ==========================
 
-    def update_outputs(self, frontend_node: dict, field_name: str, field_value: Any) -> dict:
-        # save the current output state to the hidden output_config field
-        if (hasattr(self, "output_config")):
-           self.output_config = frontend_node.copy()
-
-        return(frontend_node)
-
-
-
-
     def _forecast_model_common_input(self):
         self.validate_inputs()
 
