@@ -585,7 +585,7 @@ class ForecastComponent(Component):
 
         def dump_unknown(name: str, item: Any):
             if item is not None:
-                print(f"Unknown's type: {type(item)}")
+                print(f"'{name}'s type: {type(item)}")
 
                 if isinstance(item, int | float | str):
                     dump_single(name, item)
@@ -603,6 +603,11 @@ class ForecastComponent(Component):
 
         # main function
         print("\n\nDUMP IN EDITOR STATE:\n")
+
+        if(field_name is not None):
+            print(f"field_name: {field_name}")
+        else:
+            print("No field_name provided")
 
         dump_unknown(field_name, field_value)
         dump_multi("frontend_node", frontend_node)
