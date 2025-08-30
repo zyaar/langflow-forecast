@@ -326,19 +326,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
     def update_outputs(self, frontend_node, field_name: str, field_value: Any) -> dict:
 
-        # get outputs
-        # before doing anything, check if we're saved the latest version of the outputs in our hidden configuration
-        # if yes, load from there, if not, load from frontend_node
-
-        if (hasattr(self, "output_config") and (self.output_config is not None) and (len(self.output_config) > 0)):
-            new_output_config: list = self.output_config
-        else:
-            new_output_config: list = frontend_node.copy()
-
-        # # only update for specific field updates, otherwise, exit here
-        # if(field_name not in ["num_products", "product_names"]):
-        #     return super().update_outputs(frontend_node = new_output_config, field_name = field_name, field_value = field_value)
-        
+        new_output_config = frontend_node.copy()
 
         # get num_products
         if (field_name == "num_products") and (isinstance(field_value, int | str)):
@@ -369,13 +357,13 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
                 new_output_config["outputs"].append(Output(name = f"{ForecastTreatmentTB.COL_PREFIX}_{i+1}", 
                                                            display_name = new_display_name, 
-                                                           method = f"update_forecast_model_product_{i+1}"))
+                                                           method = f"update_forecast_model_product_{i+1}",
+                                                           group_outputs = True))
                 
         # already equal, do nothing
         else:
             # same number of outputs, no more is required
             pass
-
 
         # go through all the new_outputs making sure that they have the latest product names
         for i in range(num_products):
@@ -386,9 +374,7 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
 
             new_output_config["outputs"][i+self.NUM_STATIC_OUTPUTS].display_name = new_display_name
 
-        # TODO:  might this actually be better implemented with
-        return super().update_outputs(frontend_node = new_output_config, field_name = field_name, field_value = field_value)
-
+        return(new_output_config)
 
 
 
