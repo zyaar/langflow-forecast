@@ -324,7 +324,6 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
     # ==============
 
     # Updates real_time_refreshing OUTPUT fields whenever an update happens from a dynamic field
-    # ZIV
     def update_outputs(self, frontend_node, field_name: str, field_value: Any) -> dict:
 
         # get outputs
@@ -391,61 +390,6 @@ class ForecastTreatmentTB(ForecastSumInputTB, Component):
         return super().update_outputs(frontend_node = new_output_config, field_name = field_name, field_value = field_value)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # curr_prod_outputs = len(frontend_node["outputs"])-self.NUM_STATIC_OUTPUTS
-
-        # # check if this is an update to the number of segments, in which case we definitely need
-        # # to refresh the outputs... alternatively, it could be an update to something else, but
-        # # there is an edge case when the component first starts the number of outputs may not match
-        # # the number of segments, in which case, we need to do it anyway
-        # if(field_name == "num_products"):
-        #     num_products = field_value
-        # else:
-        #     num_products = self.num_products
- 
-        # # check if the length of outputs is different than the value of num_products, if not, then return
-        # prod_outputs_to_add = num_products - curr_prod_outputs
-
-        # if(prod_outputs_to_add != 0):
-        #     # if less value, then remove the last few nodes
-        #     if(prod_outputs_to_add < 0):
-        #         for i in range(-prod_outputs_to_add):
-        #             frontend_node["outputs"].pop()
-        
-        #     # if it's greater than, then add a bunch of product output nodes to the end
-        #     else:
-        #         for i in range(curr_prod_outputs, curr_prod_outputs + prod_outputs_to_add):
-        #             frontend_node["outputs"].append(Output(
-        #                 name=f"{ForecastTreatmentTB.COL_PREFIX}_{i+1}", 
-        #                 display_name=f"Product {i+1} Rx", 
-        #                 method=f"update_forecast_model_product_{i+1}"
-        #             ))
-
-        # return frontend_node
-        
 
 
     # __getattribute__
