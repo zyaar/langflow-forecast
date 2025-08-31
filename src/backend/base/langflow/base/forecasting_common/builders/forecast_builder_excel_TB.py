@@ -49,13 +49,13 @@ from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import Protection
 
-from  langflow.components.forecasting_TB.forecast_epidemiology_TB import FORECAST_EPIDEMIOLOGY_DATES_LABEL
+from langflow.base.forecasting_common.views.forecast_epidemiology_TB_view import FORECAST_EPIDEMIOLOGY_DATES_LABEL
 
 from langflow.base.forecasting_common.builders.excel.forecast_excel_base_helpers import ForecastExcelBaseHelpers
 from langflow.base.forecasting_common.builders.excel.forecast_excel_validation_builder import ForecastExcelValidationRuleBuilder
 from langflow.base.forecasting_common.builders.excel.forecast_excel_cell_style_builder import ForecastExcelCellStyleBuilder
 
-from langflow.components.forecasting_TB.forecast_treatment_TB import ForecastTreatmentStepInitArgs
+from langflow.base.forecasting_common.views.forecast_treatment_TB_view import ForecastTreatmentStepInitArgs
 
 
 
