@@ -514,6 +514,11 @@ class ForecastBuilderExcelTB():
                     #set the default_card to the new card 
                     default_card = new_card
 
+                case ForecastDataSeriesMetaDataAction.GROUP_INIT:
+                    new_card = self.action_GROUP_INIT(id, default_card, curr_col, ref_map_id = def_ref_map_id)
+
+                case ForecastDataSeriesMetaDataAction.GROUP_END:
+                    new_card = self.action_GROUP_END(id, default_card, curr_col, ref_map_id = def_ref_map_id)
 
                 case ForecastDataSeriesMetaDataAction.YEAR_TO_MONTH:    # TODO:  implement year_to_month action
                     self.action_YEAR_TO_MONTH(id, default_card, curr_col, ref_map_id = def_ref_map_id, add_blank_row_before = True)
@@ -762,7 +767,7 @@ class ForecastBuilderExcelTB():
     #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
     # 
     # OUTPUTS:
-    #   NA
+    #   str:  output card (tab) to use
     def action_STEP_INIT(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries, ref_map_id: str, add_blank_row_before: bool = False, add_blank_row_after: bool = False) -> str:
         step_type = curr_meta_col.get_step_type()
 
@@ -795,6 +800,47 @@ class ForecastBuilderExcelTB():
                                                           add_blank_row_after = add_blank_row_after)
                 
         return(target_card)
+
+
+
+    # action_GROUP_INIT
+    # BUILD INTERFACE:  hhandle the GROUP_INIT action, this involves showing a header with a label on it
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_GROUP_INIT(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries, ref_map_id: str, add_blank_row_before: bool = False, add_blank_row_after: bool = False) -> str:
+        step_type = curr_meta_col.get_step_type()
+
+        target_card = self._add_group_init_default(ref_map_id = ref_map_id,
+                                                    id = id, 
+                                                    tab_name = card_name, 
+                                                    curr_row_meta_data = curr_meta_col, 
+                                                    display_name = curr_meta_col.get_display_name(),
+                                                    add_blank_row_before = add_blank_row_before,
+                                                    add_blank_row_after = add_blank_row_after)
+                        
+        return(target_card)
+
+
+
+    # action_GROUP_END
+    # BUILD INTERFACE:  Generate an extra line at the end of the section
+    #  
+    # INPUTS:
+    #   id = the id of the row
+    #   card_name = name of the EXCEL tab to output results
+    #   curr_meta_col = ForecastMetaDataSeries meta_data for this column
+    # 
+    # OUTPUTS:
+    #   NA
+    def action_GROUP_END(self, id: str, card_name: str, curr_meta_col: ForecastMetaDataSeries, ref_map_id: str, add_blank_row_before: bool = False, add_blank_row_after: bool = None):
+        self._add_blank_row(tab_name = card_name)
+
 
 
 
@@ -1281,6 +1327,52 @@ class ForecastBuilderExcelTB():
             
         
 
+    #  _add_step_init_default
+    # Default handler for STEP_INIT function, adds a blank row and then displays the STEP's display name as a header 3 style
+    #  
+    # INPUTS:
+    #
+    #   id - the id the column
+    #   tab_name - the target tab_name to place the step information
+    #   curr_row_meta_data - the FormatMetaDataSeries information
+    #   display_name - the display name to show
+    # 
+    # OUTPUTS:
+    #   worksheet
+
+    def _add_group_init_default(self,
+                                ref_map_id: str,
+                                id: str,
+                                tab_name: str,
+                                curr_row_meta_data: ForecastMetaDataSeries, 
+                                display_name : str, 
+                                add_blank_row_before: bool = False, 
+                                add_blank_row_after: bool = False) -> str:
+        
+        tab_name = self.DEFAULT_CARD
+
+        # if we are adding a blank row before, then add it now
+        if(add_blank_row_before):
+            self._add_blank_row(tab_name = tab_name)
+
+        # make sure it's a legit tab to go to start writing
+        if(tab_name not in self.row_trackers.keys()):
+            raise ValueError(f"* _add_group_init_default:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
+
+        # # add a blank row
+        # self._add_blank_row(tab_name)
+
+        # boilerplate set-up of the row
+        curr_cell  = self._add_row_label_setup(ref_map_id, id, tab_name, curr_row_meta_data)
+
+        curr_cell.value = display_name
+        ForecastExcelCellStyleBuilder.generate_init_group_header(curr_cell)
+
+        # if we are adding a blank row after, then add it now
+        if(add_blank_row_after):
+            self._add_blank_row(tab_name = tab_name)
+            
+        return(self.DEFAULT_CARD)
 
 
 
@@ -1317,7 +1409,7 @@ class ForecastBuilderExcelTB():
 
         # make sure it's a legit tab to go to start writing
         if(tab_name not in self.row_trackers.keys()):
-            raise ValueError(f"* add_input_row:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
+            raise ValueError(f"* _add_group_init_default:  error, requested tab '{tab_name}' not in the list of tabs\n{self.row_trackers.keys()}")
 
         # add a blank row
         self._add_blank_row(tab_name)
@@ -1409,7 +1501,6 @@ class ForecastBuilderExcelTB():
                                  add_blank_row_after: bool = False):
 
         # SETUP
-        # ZIV
         # get all the input OBJs
         dict_of_objects = curr_row_meta_data.get_objs()
         treatment_details_model = dict_of_objects.get(ForecastTreatmentStepInitArgs.TREATMENT_TABLE_DATA.value, None)

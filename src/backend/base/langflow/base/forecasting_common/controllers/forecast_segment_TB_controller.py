@@ -103,6 +103,21 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
         # ===============================================
         # INPUT:  % OF TOTAL INBOUND PATIENTS PER SEGMENT
         # ===============================================
+        # Add a group set-up for this subgroup
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Pct_Group_Start",
+                                                                    display_name = "Segment %",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_INIT,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
+
+
+
         for i in range(num_static_cols, num_cols):       
             col_seg_id = segment_table.columns[i]
             col_seg_name = segment_names["seg_name"][i-num_static_cols]
@@ -184,11 +199,44 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
                                                                     pred = pred_not_covered,
                                                                     update_last_id = True)
 
+        # Add a group ending for this sub-group
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Pct_Group_End",
+                                                                    display_name = "Segment %",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_END,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
 
-        # NEW:
+
+
+
+
         # ==============================
         # TOTAL PATIENT FOR EACH SEGMENT
         # ==============================
+
+        # Add a group set-up for this subgroup
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Num_Group_Start",
+                                                                    display_name = "Segment #",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_INIT,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
+
+
+
+
+
         for i in range(num_static_cols, num_cols):
             col_seg_id = segment_table.columns[i]       
             col_seg_name = segment_names["seg_name"][i-num_static_cols]
@@ -273,6 +321,24 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
                                                                      pred = preds_remainder_total,
                                                                      update_last_id = True)
         
+
+
+        # Add a group ending for this sub-group
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Num_Group_End",
+                                                                    display_name = "Segment #",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_END,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
+
+
+
+
         # if we're calculating totals for the seg_num, then save the total patients for this segment id
         # pass back to the output function to set as the last id
         if(seg_num is None):

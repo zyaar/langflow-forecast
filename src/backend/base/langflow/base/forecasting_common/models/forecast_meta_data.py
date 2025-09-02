@@ -89,6 +89,9 @@ class ForecastDataSeriesMetaDataAction(str, Enum):
     PROD = "prod" # multiply a series of col ids (preds) or constants
     SUB = "sub"  # subtract a series of col ids (preds) or constants
     STEP_INIT = "step_init" # perform any initialization required for this step type
+    STEP_END = "step_end" # perform any finishing required for this step type
+    GROUP_INIT = "group_init" # perform any initialization required for a new group (sub-section of a step)
+    GROUP_END = "group_end" # perform any finishing required for this group type
     YEAR_TO_MONTH = "year_to_month" # convert a yearly series to monthly
     MONTH_TO_YEAR = "month_to_year" # convert a monthly series to yearly
     SHIFT = "shift" # shift a series by a number of months (positive or negative)

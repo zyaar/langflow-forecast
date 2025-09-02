@@ -48,7 +48,7 @@ class ForecastExcelCellStyleBuilder:
     EXCEL_STYLES_WORKSHEET_HEADER = "Headline 1"
     EXCEL_ROW_HEADER_LABEL = "Row Header Label"
     EXCEL_STYLES_DEFAULT_INIT_STEP_HEADER = "Headline 3"
-
+    EXCEL_STYLES_DEFAULT_INIT_GROUP_HEADER = "Row Header Label"
 
 
 
@@ -91,6 +91,10 @@ class ForecastExcelCellStyleBuilder:
     @staticmethod
     def generate_init_step_header(cell: Cell):
          cell.style = ForecastExcelCellStyleBuilder.EXCEL_STYLES_DEFAULT_INIT_STEP_HEADER
+         
+    @staticmethod
+    def generate_init_group_header(cell: Cell):
+         cell.style = ForecastExcelCellStyleBuilder.EXCEL_STYLES_DEFAULT_INIT_GROUP_HEADER
          
     @staticmethod
     def generate_row_header_label(cell: Cell):
