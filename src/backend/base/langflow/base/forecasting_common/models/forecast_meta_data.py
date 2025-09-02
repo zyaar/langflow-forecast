@@ -6,7 +6,7 @@
 #
 #####################################################################
 
-from typing import Type, Tuple
+from typing import Type, Tuple, Any
 import nanoid
 from langflow.schema.data import Data
 
@@ -92,6 +92,14 @@ class ForecastDataSeriesMetaDataAction(str, Enum):
     YEAR_TO_MONTH = "year_to_month" # convert a yearly series to monthly
     MONTH_TO_YEAR = "month_to_year" # convert a monthly series to yearly
     SHIFT = "shift" # shift a series by a number of months (positive or negative)
+
+# Enum of ACTION PRED TYPES
+# Does the action take no preds, one pred max, two preds max, three or more preds max
+# this is useful for determing when to add the last_id() in the factory for ForecastMetaDataContainer
+class ForecastDataSeriesMetaDataActionPredTypes(str, Enum):
+    NO_PREDS = "no_preds" # this action does not take any preds (i.e. DATES)
+    ONE_PRED = "one_pred" # this action take ONE AND ONLY ONE pred (i.e. YEAR_TO_MONTH, MONTH_TO_YEAR)
+    TWO_OR_MORE_PREDS = "two_or_more_preds" # this action takes AT LEAST TWO preds (i.e SUM, PROD, SUB, etc.)
 
 
 # Enum of STEP_TYPE
@@ -187,7 +195,7 @@ class ForecastDataSeriesMetaDataComparisonType(str, Enum):
     BETWEEN = "BETWEEN"
     NOT_BETWEEN = "NOT_BETWEEN"
 
-
+FORECAST_READ_ONLY_VALIDATION = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}]
 
 
 
@@ -200,14 +208,16 @@ class ForecastDataSeriesMetaDataComparisonType(str, Enum):
 # This class encapsulates ID generation and ID parsing for all IDs generated in ForecastMetaData and DataFrame as part of
 # the data-model
 class ForecastMetaDataSeriesIdGenerator():
-    # SAMPLE ID FORMAT:  (FULL_ID.)REL_ID():SINGLE_VALUE)(NUM_TO_SHIFT)     () = optional
-    # EXAMPLE:  ABC.XYZ:2[1]        full_id = ABC, rel_id = XYZ, element = 2, shift address by left 1 time
+    # SAMPLE ID FORMAT:  (EXTERNAL_ID|)(FULL_ID.)REL_ID():SINGLE_VALUE)(NUM_TO_SHIFT)     () = optional
+    # EXAMPLE:  EXTERNAL|ABC.XYZ:2[1]        external_id = EXTERNAL, full_id = ABC, rel_id = XYZ, element = 2, shift address by left 1 time
 
     NANOID_CHAR_SET = "(A-Za-z0-9_-)"
     PREFIX_SEP_CHAR = "_"
+    EXTERNAL_ID_SEP_CHAR = "|"
     FULL_ID_SEP_CHAR = "."
     SINGLE_VALUE_SEP_CHAR = ":"
 
+    #external_match_regex = ??? TODO:  finish this to expand to EXTERNAL_ID
     full_match_regex = r"^\s*([\w-]+)\.(?!.*\.)"
     rel_match_regex = r"^([\w-]+)(:|\[|$)"
     shift_match_regex = r"\[(-?\d+)\]\s*$"
@@ -218,7 +228,7 @@ class ForecastMetaDataSeriesIdGenerator():
     # container: ForecastMetaDataFrame - the object holding this instance
     # container_id: str - the id of the object holding this instance
 
-    def __init__(self, container: Type["ForecastMetaDataFrame"]):
+    def __init__(self, container: Type["ForecastMetaDataFrame"] | Type["ForecastMetaDataContainer"]):
         self.container = container
 
 
@@ -552,8 +562,6 @@ class ForecastMetaDataRange():
         else:
             return None
 
-
-    
     
     def has_objs(self):
         if (ForecastMetaDataRangeSchema.OBJS in self._meta_data.keys()) and (self._meta_data[ForecastMetaDataRangeSchema.OBJS] is not None) and (len(self._meta_data[ForecastMetaDataRangeSchema.OBJS]) > 0):
@@ -575,9 +583,7 @@ class ForecastMetaDataRange():
                 return None
         else:
             return None
-
-
-
+        
 
 
     # __str__
@@ -593,7 +599,7 @@ class ForecastMetaDataRange():
         results = super().__str__()
 
         for attrib in ForecastMetaDataRangeSchema:
-            results += f"\n{attrib} = {self._meta_data[attrib]}"
+            results += f"{attrib} = {self._meta_data[attrib]}\n"
 
         return results
     
@@ -614,18 +620,17 @@ class ForecastMetaDataRange():
 
 
 
-
-# ForecastMetaDataSeries
-# Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
-class ForecastMetaDataSeries():
-
-    # CLASS VARIABLES
-    # ---------------
-    NON_VALUE_ACTIONS = [ForecastDataSeriesMetaDataAction.STEP_INIT]
+# ForecastMetaDataObject
+# Root object for all objects in ForecastMetaData hierarchy
+class ForecastMetaDataObject():
 
     # INSTANCE VARIABLES
     # ------------------
-    _meta_data: dict = None
+    id: str = None
+    parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None
+
+    # meta_data attributes
+    display_name: str = None
 
 
     # __init__
@@ -637,34 +642,1099 @@ class ForecastMetaDataSeries():
     # OUTPUTS:
     #   NA
 
-    def __init__(self, *args, **kwargs):
-        self._meta_data: dict = {}
-
-        # init all meta_data attributes
-        for attrib in ForecastMetaDataSeriesSchema:
-            if attrib in kwargs:
-                self._meta_data[attrib] = kwargs.get(attrib)
-            else:
-                self._meta_data[attrib] = None
+    def __init__(self, display_name, id: str, parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None, *args, **kwargs):
+        
+        # initialize all instance variables
+        self.id: str = None
+        self.display_name: str = None
+        self.parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None
 
 
+        # load any attributes provided in the init function
+        self.id = id
+        self.display_name: str = display_name
 
-    # set_forecast_meta_data
-    # Takes all the meta_data forecast as a set of arguments and stuffs them in the attributes of the object
-    # easier to do than manually updating each attribute in the DataFrame object
+        if parent is not None:
+            self.parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = parent
+
+
+    # __str__
+    # Return a printable version of the class instance
     #  
     # INPUTS:
-    #   Each meta-data field in the ForecastDataSeriesMetaDataSchema
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Str with printable version of instance data
+
+    def __str__(self):
+        results = ""
+
+        # add meta-data attributes
+        results += f"id = {self.id}\n"
+        results += f"display_name = {self.display_name}\n"
+
+        if(self.parent is not None):
+            results += f"parent = {self.parent.id}\n"
+        else:
+            results += f"no parent\n"
+
+        results += super().__str__()
+        return results
+
+
+    # to_dict
+    # Serialize this object as a dictionary
+    
+    def to_dict(self) -> dict:
+        out_dict = {}
+        out_dict["id"] = self.id
+        out_dict["display_name"] = self.display_name
+
+        if(self.parent is not None):
+            out_dict["parent"] = self.parent.id
+
+        return(out_dict)
+
+    
+    # to_json
+    # Serialize this object to a JSON string
+    #  
+    # INPUTS:
+    #   ident (optional: 4) - number of spaces to indent the JSON
+    # 
+    # OUTPUTS:
+    #   JSON string
+
+    def to_json(self, indent:int = 4) -> str:
+        import json
+        return json.dumps(self, default=FormatMetaDataObjectsJsonSerializer, indent=indent)
+
+
+
+
+
+
+
+
+
+# ForecastMetaDataContainer
+# Root object for all Meta Data objects which hold other meta-data objects
+class ForecastMetaDataContainer(ForecastMetaDataObject):
+
+    # CLASS VARIABLES
+    # ---------------
+    class ContainerType(str, Enum):
+        STEP = "step"
+        GROUP = "group"
+
+
+    # INSTANCE VARIABLES
+    # ------------------
+
+    container_type: ContainerType = None                # type of container this is (STEP, GROUP, etc.)
+    id_generator: ForecastMetaDataSeriesIdGenerator = None  # an id generator
+
+
+    # data structure to hold the container's objects
+    _model: dict[str, ForecastMetaDataObject] = None
+
+
+    # pointers to ForecastMetaDataSeries IDs which are often needed
+    _input_id: str = None   # this is the FormatDataSeries which is an INPUT into this container (i.e. external to the container)
+    _first_id: str = None   # this is the FIRST FormatDataSeries generated by the container
+    _last_id: str = None    # this is the last FormatDataSeries which was generated in the container (up until this point)
+
+
+    # convenience attributes based on _last_id
+    _last_data_type: ForecastDataSeriesMetaDataDataType = None
+    _last_display_type: ForecastDataSeriesMetaDataDataType = None
+
+
+    # defaults for use to set actions (FormatMetaDataSeries) if not overriden
+    default_data_type: ForecastDataSeriesMetaDataDataType = None
+    default_display_type: ForecastDataSeriesMetaDataDataType = None
+    default_validation = None
+    default_pred: list[str] = None
+    default_update_last_id: bool = None
+    default_verify_integrity: bool = None
+    default_drop_dups: bool = None
+
+
+    # __init__
+    # Adds initializing all meta-data attributes to None.
+    #  
+    # INPUTS:
+    #   Any of the meta-data attributes can be set
     # 
     # OUTPUTS:
     #   NA
 
-    def set_forecast_meta_data(self, *args, **kwargs):
-        for arg_name in kwargs:
-            if arg_name in ForecastMetaDataSeriesSchema:
-                self._meta_data[arg_name] = kwargs.get(arg_name)
-            else:
-                raise ValueError(f"\n*  set_forecast_meta_data:  invalid arg_name '{arg_name}'")
+    def __init__(self, 
+                 id_prefix: str, 
+                 display_name: str, 
+                 container_type: ContainerType, 
+                 id: str = None, 
+                 parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None, 
+                 id_generator: ForecastMetaDataSeriesIdGenerator = None,
+                 input_id: str = None,
+                 default_data_type: ForecastDataSeriesMetaDataDataType = None,
+                 default_display_type: ForecastDataSeriesMetaDataDataType = None,
+                 default_validation = None,
+                 default_pred: list[str] = None,
+                 default_update_last_id: bool = None,
+                 default_verify_integrity: bool = None,
+                 default_drop_dups: bool = None,
+                 *args, 
+                 **kwargs):
+        
+        # set container_type
+        self.container_type: ForecastMetaDataContainer.ContainerType = container_type
+       
+       # id_generator
+       # ZIV
+        if(id_generator is None):
+            self.id_generator: ForecastMetaDataSeriesIdGenerator = ForecastMetaDataSeriesIdGenerator(container = self)
+        else:
+            self.id_generator = id_generator
+
+        # _model
+        self._model: dict[str, ForecastMetaDataObject] = {}
+
+        # input_id
+        if input_id is not None:
+            self.input_id: str = input_id
+        elif parent is not None:
+            self.input_id: str = parent.last_id()
+        else:
+            self._input_id = None  # NOTE:  We bypass the setter to set the value internally to None
+
+        # first_id
+        self._first_id = None # NOTE:  We bypass the setter to set the value internally to None
+
+        # last_id
+        self._last_id = None # NOTE:  We bypass the setter to set the value internally to None
+
+
+        # initialize defaults for new action (also making class variables to instance variables)
+
+        # default_data_type
+        if(default_data_type is not None):
+            self.default_data_type: ForecastDataSeriesMetaDataDataType = default_data_type
+        else:
+            self.default_data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.FLOAT
+        
+        # default_display_type
+        if(default_display_type is not None):
+            self.default_display_type: ForecastDataSeriesMetaDataDataType = default_display_type
+        else:
+            self.default_display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT
+        
+        # default_validation
+        if(default_validation is not None):
+            self.default_validation = default_validation
+        else:
+            self.default_validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+        
+        # default_pred
+        if(default_pred is not None):
+            self.default_pred: list[str] = default_pred
+        else:
+            self.default_pred: list[str] = None
+
+        # default_update_last_id
+        if(default_update_last_id is not None):
+            self.default_update_last_id: bool = default_update_last_id
+        else:
+            self.default_update_last_id: bool = None
+        
+        # default_verify_integrity
+        if(default_verify_integrity is not None):
+            self.default_verify_integrity: bool = default_verify_integrity
+        else:
+            self.default_verify_integrity: bool = None
+        
+        # default_drop_dups
+        if(default_drop_dups is not None):
+            self.default_drop_dups: bool = None
+        else:
+            self.default_drop_dups: bool = None
+
+
+        if(id is None):
+            id = self.id_generator.gen_rel_id(prefix = id_prefix)
+
+        # kick up to parent (meta_data_object) to set the rest
+        super().__init__(id = id, display_name = display_name, parent = parent, *args, **kwargs)        
+
+
+
+    # Getter / setter methods
+    # -----------------------
+
+    # input_id
+    @property
+    def input_id(self) -> str:
+        return self._input_id
+    
+    @input_id.setter
+    def input_id(self, value: str):
+        # guarantees that we only set input_id ONCE
+        # only add the input id if there isn't one already
+        if self._input_id is None:
+            self._input_id = value
+
+            # if this is a legit input id, then chances are future values will use the same
+            # formatting, so if there is a parent that this came from, set the last_data_type
+            # and last_display_type if they are currently None
+            if(self.parent is not None):
+                if(self._last_data_type is not None):
+                    self._last_data_type = self.parent[value].get_data_type()
+
+                if(self._last_display_type is not None):
+                    self._last_display_type = self.parent[value].get_display_type()
+
+
+    # last_id
+    @property
+    def last_id(self) -> str:
+        return self._last_id
+    
+    @last_id.setter
+    def last_id(self, value: str):
+        if value is not None:
+            self._last_id = value
+
+            # update the last_data_type and last_display_type 
+            # (convenience because the next action will probably be in the same format as the previous action)
+            self._last_data_type = self[value].get_data_type()
+            self._last_display_type = self[value].get_display_type()
+
+            # the assumption is that the currently worked on group is the latest group in a container, so if we
+            # are setting it's last_id, than this last_id needs to ripple all the way up to all containers of this group
+            if(self.parent is not None):
+                self.parent.last_id = value
+
+            # if it's a legit last_id, it could be a first_id as well, so if no first id, set it here
+            if(self._first_id is None):
+                self.first_id = value
+
+        else:
+            raise ValueError(f"\n* set last_id:  Error, None value submitted to last_id")
+
+
+    # first_id   
+    @property
+    def first_id(self) -> str:
+        return self._first_id
+    
+    @first_id.setter
+    def first_id(self, value: str):
+        # guarantees that we only set first_id ONCE
+        if self._first_id is None:
+            self._first_id = value
+
+            # if this is a legit first_id, then chances are future values will use the same
+            # formatting, so if there is a parent that this came from, set the last_data_type
+            # and last_display_type if they are currently None
+            if(self.parent is not None):
+                if(self._last_data_type is not None):
+                    self._last_data_type = self.parent[value].get_data_type()
+
+                if(self._last_display_type is not None):
+                    self._last_display_type = self.parent[value].get_display_type()
+
+
+    # last_data_type
+    @property
+    def last_data_type(self) -> str:
+        return self._last_data_type
+    
+    @last_data_type.setter
+    def last_data_type(self, value: str):
+        # we do not allow external updating of last_data_type so discard it here
+        return
+
+
+    # last_display_type
+    @property
+    def last_display_type(self) -> str:
+        return self._last_display_type
+
+    @last_display_type.setter
+    def last_display_type(self, value: str):
+        # we do not allow external updating of last_display_type so discard it here
+        return
+
+
+
+
+
+    # iterator interface(s)
+    # ---------------------
+    def __iter__(self):
+        return self._model.__iter__()
+
+    def __next__(self):
+        return self._model.__next__()
+
+    def keys(self):
+        return(self._model.keys())
+    
+    def values(self):
+        return(self._model.values())
+    
+    def items(self):
+        return(self._model.items())
+
+
+
+
+    # dict/list interface implementation 
+    # ----------------------------------
+    def __getitem__(self, item: int | str) -> ForecastMetaDataObject:
+        
+        if isinstance(item, int):
+            item = list(self._model.keys())[item]
+
+        return(self._model[item])
+    
+    
+    def __setitem__(self, key: int | str, value: ForecastMetaDataObject):
+
+        if isinstance(key, int):
+            key = list(self._model.keys())[key]
+
+        value.parent = self
+        self._model[key] = value
+
+
+
+
+    # with interface implementation
+    # -----------------------------
+    def __enter__(self):
+        return(self)
+    
+    def __exit__(self, exc_type, exc_value, tradeback):
+
+        if(exc_type is None) and (exc_value is None) and (tradeback is None):
+            return True
+        else:
+            print(f"Problem occured:  {exc_type.__name__}: {exc_value}")
+    
+
+    # __str__
+    # Return a printable version of the class instance
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Str with printable version of instance data
+
+    def __str__(self):
+        results = ""
+
+        # add meta-data attributes
+        results += f"container_type = {self.container_type}\n"
+
+        results += super().__str__()
+        results += "\n"
+
+        if(len(self._model) > 0):
+            results += "\n"
+
+        # iterate on all objects in the dict and print their meta-data
+        for obj in self._model:
+            results += f"{self._model[obj]}\n\n"
+
+        return results
+
+    
+    # to_dict
+    # Serialize this object as a dictionary
+    
+    def to_dict(self) -> dict:
+        out_dict = super().to_dict()
+        out_dict["container_type"] = self.container_type
+        out_dict["model"] = self._model
+
+        return(out_dict)
+
+
+
+
+    # FACTORY METHODS TO CREATE DIFFERENT CONTAINER TYPES
+    # ---------------------------------------------------
+
+    # create different CONTAINER types
+    # --------------------------------
+
+    # GROUP
+
+    # add_group
+    # Create a new GROUP object, in the factory
+    #  
+    # INPUTS:
+    #   ident (optional: 4) - number of spaces to indent the JSON
+    # 
+    # OUTPUTS:
+    #   JSON string
+    def add_group(self,
+                  display_name: str,
+                  id: str = None,
+                  new_defaults: bool = False,
+                  new_id_gen: bool = False) -> Type['ForecastMetaDataGroup']:
+        
+        # pass the id_generator to the child
+        if not new_id_gen:
+            id_generator = self.id_generator
+        else:
+            id_generator = None
+
+        new_group = ForecastMetaDataGroup(display_name = display_name, 
+                                          id = id, 
+                                          parent = self, # set parent to current container 
+                                          id_generator = id_generator)
+        self._model[new_group.id] = new_group
+
+        # pass defaults through
+        if not new_defaults:
+            new_group.default_data_type = self.default_data_type
+            new_group.default_display_type = self.default_display_type
+            new_group.default_validation = self.default_validation
+            new_group.default_pred = self.default_pred
+            new_group.default_update_last_id = self.default_update_last_id
+            new_group.default_verify_integrity = self.default_verify_integrity
+            new_group.default_drop_dups = self.default_drop_dups
+
+        return(new_group)
+
+
+    # STEP
+
+    # _add_step
+    # Hidden method to create a new STEP object in the factory
+    #  
+    # INPUTS:
+    #   display_name
+    #   step_type
+    #   ident (optional: 4) - number of spaces to indent the JSON
+    # 
+    # OUTPUTS:
+    #   JSON string
+
+    def _add_step(self,
+                  display_name: str,
+                  step_type: ForecastDataSeriesMetaDataStepTypes,
+                  id_prefix: str = None, 
+                  id: str = None,
+                  new_defaults: bool = False,
+                  new_id_gen: bool = False) -> Type['ForecastMetaDataStep']:
+        
+        # pass the id_generator to the child
+        if not new_id_gen:
+            id_generator = self.id_generator
+        else:
+            id_generator = None
+
+        new_step = ForecastMetaDataStep(display_name = display_name, 
+                                        step_type = step_type, 
+                                        id_prefix = id_prefix, 
+                                        id = id, 
+                                        parent = self, # set parent to current container 
+                                        id_generator = id_generator)
+
+        self._model[new_step.id] = new_step
+
+
+        # pass defaults through
+        if not new_defaults:
+            new_step.default_data_type = self.default_data_type
+            new_step.default_display_type = self.default_display_type
+            new_step.default_validation = self.default_validation
+            new_step.default_pred = self.default_pred
+            new_step.default_update_last_id = self.default_update_last_id
+            new_step.default_verify_integrity = self.default_verify_integrity
+            new_step.default_drop_dups = self.default_drop_dups
+
+        return(new_step)
+    
+
+    # define the PUBLIC step creation methods that we offer
+    def add_epidemiology(self, display_name: str, id: str = None, new_defaults = False, new_id_gen = False) -> Type['ForecastMetaDataStep']:
+        return self._add_step(id_prefix = "Epidemiology", display_name = display_name, step_type = ForecastDataSeriesMetaDataStepTypes.EPIDEMIOLOGY, id = id)
+
+    def add_pricing(self, display_name: str, id: str = None, new_defaults = False, new_id_gen = False) -> Type['ForecastMetaDataStep']:
+        return self._add_step(id_prefix = "Pricing", display_name = display_name, step_type = ForecastDataSeriesMetaDataStepTypes.PRICING, id = id)
+
+    def add_delay(self, display_name: str, id: str = None, new_defaults = False, new_id_gen = False) -> Type['ForecastMetaDataStep']:
+        return self._add_step(id_prefix = "Delay", display_name = display_name, step_type = ForecastDataSeriesMetaDataStepTypes.DELAY, id = id)
+
+    def add_pop_cut(self, display_name: str, id: str = None, new_defaults = False, new_id_gen = False) -> Type['ForecastMetaDataStep']:
+        return self._add_step(id_prefix = "Pop_cut", display_name = display_name, step_type = ForecastDataSeriesMetaDataStepTypes.POPULATION_CUT, id = id)
+
+    def add_segment(self, display_name: str, id: str = None, new_defaults = False, new_id_gen = False) -> Type['ForecastMetaDataStep']:
+        return self._add_step(id_prefix = "Segment", display_name = display_name, step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT, id = id)
+
+    def add_summation(self, display_name: str, id: str = None, new_defaults = False, new_id_gen = False) -> Type['ForecastMetaDataStep']:
+        return self._add_step(id_prefix = "Summation", display_name = display_name, step_type = ForecastDataSeriesMetaDataStepTypes.SUMMATION, id = id)
+
+    def add_treatment(self, display_name: str, id: str = None, new_defaults = False, new_id_gen = False) -> Type['ForecastMetaDataStep']:
+        return self._add_step(id_prefix = "Treatment", display_name = display_name, step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT, id = id)
+
+
+
+
+    # create different SERIES / ACTION types
+    # --------------------------------------
+
+
+    # _add_action
+    # Hidden method to create a new action object in the factory
+    #  
+    # INPUTS:
+    #   display_name
+    #   step_type
+    #   ident (optional: 4) - number of spaces to indent the JSON
+    # 
+    # OUTPUTS:
+    #   JSON string
+    
+    def _add_action(self,
+                    action_pred_type: ForecastDataSeriesMetaDataActionPredTypes,
+                    id_prefix: str,
+                    display_name: str,
+                    action: ForecastDataSeriesMetaDataAction,
+                    data_type: ForecastDataSeriesMetaDataDataType,
+                    display_type: ForecastDataSeriesMetaDataDataType,
+                    data_values: list | pd.Series = None,
+                    validation:  list[dict] = None,
+                    ranges: list[ForecastMetaDataRange] = None,
+                    pred: list[str] = None,
+                    args: dict = None,
+                    objs: dict = None,
+                    update_last_id: bool = None,
+                    verify_integrity: bool = None,
+                    drop_dups: bool = None,
+                    id: str = None,
+                    id_postfix: str = None,
+                    **kwargs) -> Type['ForecastMetaDataSeries']:
+        
+        # generate an ID
+        if(id is None):
+            id = f"{self.id_generator.gen_rel_id(prefix = id_prefix)}_{id_postfix}"
+
+
+
+        # set any DEFAULT values that need to be set
+
+        # data_type
+        if(data_type is None):
+            data_type = self.default_data_type
+
+        # display_type
+        if(display_type is None):
+            display_type = self.default_display_type
+
+        # validation
+        if(validation is None):
+            validation = self.default_validation
+
+        # pred
+        if(pred is None):
+            pred = self.default_pred
+
+        # update_last_id
+        if(update_last_id is None):
+            update_last_id = self.default_update_last_id
+
+        # verify_integrity
+        if(verify_integrity is None):
+            verify_integrity = self.default_verify_integrity
+
+        # drop_dups
+        if(drop_dups is None):
+            drop_dups = self.default_drop_dups
+
+
+
+        # determine if we can automatically add any information to the pred based on the
+        # ForecastDataSeriesMetaDataActionPredTypes.  This is a major convience as many of our actions form:
+        # take some ACTION on the last_id(), so if we can figure out where to auto-fill that last id, the 
+        # using the api will be much clear and less error prone
+
+        # class ForecastDataSeriesMetaDataActionPredTypes(str, Enum):
+        #     NO_PREDS = "no_preds" # this action does not take any preds (i.e. DATES)
+        #     ONE_PRED = "one_pred" # this action take ONE AND ONLY ONE pred (i.e. YEAR_TO_MONTH, MONTH_TO_YEAR)
+        #     TWO_OR_MORE_PREDS = "two_or_more_preds" # this action takes AT LEAST TWO preds (i.e SUM, PROD, SUB, etc.)
+
+
+        #     INPUTS
+        #     DATES
+        #     VALUES = "values" # display read-only values
+        #     SUM = "sum" # sum up a series of col ids (in preds) or constants
+        #     TOTAL = "total" # same as sum, but may be treated different visually
+        #     PROD = "prod" # multiply a series of col ids (preds) or constants
+        #     SUB = "sub"  # subtract a series of col ids (preds) or constants
+        #     YEAR_TO_MONTH = "year_to_month" # convert a yearly series to monthly
+        #     MONTH_TO_YEAR = "month_to_year" # convert a monthly series to yearly
+
+        if (pred is None):
+            num_preds = 0
+        else:
+            num_preds = len(pred)
+
+        match action_pred_type:
+            # INPUTS, DATES, VALUES
+            case ForecastDataSeriesMetaDataActionPredTypes.NO_PREDS:
+                pass
+
+            # YEAR_TO_MONTH, MONTH_TO_YEAR
+            case ForecastDataSeriesMetaDataActionPredTypes.ONE_PRED:
+                if num_preds == 0:
+                    pred = self.last_id()
+
+            # SUM, TOTAL, PROD, SUB
+            case ForecastDataSeriesMetaDataActionPredTypes.TWO_OR_MORE_PREDS:
+                if num_preds < 2:
+                    pred.insert(0, self.last_id())
+
+
+        # create the new action / series
+        new_action = ForecastMetaDataSeries(id = id,
+                                            display_name = display_name, 
+                                            action = action,
+                                            ranges = ranges,
+                                            data_type = data_type,
+                                            display_type = display_type,
+                                            data_values = data_values,
+                                            validation =  validation,
+                                            pred = pred,
+                                            args = args,
+                                            objs = objs,
+                                            parent = self, # set the parent to this container
+                                            **kwargs)
+        
+        # TODO: verify_integrity implementation
+
+        # TODO: drop_dups implementation
+
+        self._model[new_action.id] = new_action
+
+        # update_last_id
+        # check if we should update the last_id for this (this means its a row of values for later use)
+        if(update_last_id):
+            self.last_id = new_action.id
+
+            # if this is a legit last_id, then it can also serve as a first_id, IF NO first_id is already defined
+            if self.first_id is None:
+                self.first_id = new_action.id
+
+        return(new_action)
+    
+
+
+    # define the PUBLIC action creation methods that we offer
+    # NOTE ON CODING STYLE HERE:
+    #   since these are all very long with lots of the same args being defined / passed, for each action,
+    #   have used a single line instead of one line per argument.  HOWEVER:  in the _add_action() call, 
+    #   I've moved the arguments to the front which change from action to action, to make them easier to see
+
+    # add_action:
+    #                 display_name: str,
+    #                 pred: list[str] = None,
+    #                 data_values: list | pd.Series = None,
+
+    #                 BLANK MOST OF THE TIME
+    #                 ranges: list[ForecastMetaDataRange] = None,
+    #                 id_postfix: str = None,
+
+    #                 DEFAULTS TYPICALLY COVER
+    #                 data_type: ForecastDataSeriesMetaDataDataType,
+    #                 display_type: ForecastDataSeriesMetaDataDataType,
+    #                 validation:  list[dict] = None,
+    #                 args: dict = None,
+    #                 objs: dict = None,
+    #                 update_last_id: bool = None,
+    #                 verify_integrity: bool = None,
+    #                 drop_dups: bool = None,
+    #                 id: str = None,
+    #                 **kwargs) -> Type['ForecastMetaDataSeries']:
+    
+    # def _add_action(self,
+    #                 action_pred_type: ForecastDataSeriesMetaDataActionPredTypes,
+    #                 id_prefix: str,
+    #                 display_name: str,
+    #                 action: ForecastDataSeriesMetaDataAction,
+    #                 data_type: ForecastDataSeriesMetaDataDataType,
+    #                 display_type: ForecastDataSeriesMetaDataDataType,
+    #                 data_values: list | pd.Series = None,
+    #                 validation:  list[dict] = None,
+    #                 ranges: list[ForecastMetaDataRange] = None,
+    #                 pred: list[str] = None,
+    #                 args: dict = None,
+    #                 objs: dict = None,
+    #                 update_last_id: bool = None,
+    #                 verify_integrity: bool = None,
+    #                 drop_dups: bool = None,
+    #                 id: str = None,
+    #                 id_postfix: str = None,
+    #                 **kwargs) -> Type['ForecastMetaDataSeries']:
+
+
+    def _add_action(self,
+                    action_pred_type: ForecastDataSeriesMetaDataActionPredTypes, id_prefix: str, display_name: str, action: ForecastDataSeriesMetaDataAction, data_type: ForecastDataSeriesMetaDataDataType, display_type: ForecastDataSeriesMetaDataDataType, data_values: list | pd.Series = None, validation:  list[dict] = None,
+                    ranges: list[ForecastMetaDataRange] = None,
+                    pred: list[str] = None,
+                    args: dict = None,
+                    objs: dict = None,
+                    update_last_id: bool = None,
+                    verify_integrity: bool = None,
+                    drop_dups: bool = None,
+                    id: str = None,
+                    id_postfix: str = None,
+                    **kwargs) -> Type['ForecastMetaDataSeries']:
+        pass
+
+
+    # DATES
+    def add_dates(self, display_name: str, values: pd.Series | list, id_postfix: str = None, id: str = None):
+        self._add_step()
+
+    # INPUTS
+    def add_input(self, display_name: str, values: pd.Series | list, validation: dict[ForecastDataSeriesMetaDataValidationSchema, Any], id_postfix: str = None, data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, id: str = None, update_last_id: bool = True):
+        pass
+
+    # VALUES
+    def add_values(self, display_name: str, values: pd.Series | list, id_postfix: str = None, data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.FLOAT, display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, validation: dict[ForecastDataSeriesMetaDataValidationSchema, Any] = FORECAST_READ_ONLY_VALIDATION, id: str = None, update_last_id: bool = True):
+        pass
+
+    # COPY
+    def add_copy(self, display_name: str, pred: str, id_postfix: str = None, update_last_id: bool = True):
+        pass
+
+    # SUM
+    def add_sum(self, display_name: str, pred: list[str], id_postfix: str = None, data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.FLOAT, display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, validation: dict[ForecastDataSeriesMetaDataValidationSchema, Any] = FORECAST_READ_ONLY_VALIDATION, id: str = None, update_last_id: bool = True):
+        pass
+
+    # PROD
+    def add_prod(self, display_name: str, pred: list[str], id_postfix: str = None, data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.FLOAT, display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, validation: dict[ForecastDataSeriesMetaDataValidationSchema, Any] = FORECAST_READ_ONLY_VALIDATION, id: str = None, update_last_id: bool = True):
+        pass
+
+    # SUB
+    def add_sub(self, display_name: str, pred: list[str], id_postfix: str = None, data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.FLOAT, display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, validation: dict[ForecastDataSeriesMetaDataValidationSchema, Any] = FORECAST_READ_ONLY_VALIDATION, id: str = None, update_last_id: bool = True):
+        pass
+
+    # YEAR_TO_MONTH
+    def add_ytm(self, display_name: str, pred: str, id_postfix: str = None, data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.FLOAT, display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, validation: dict[ForecastDataSeriesMetaDataValidationSchema, Any] = FORECAST_READ_ONLY_VALIDATION, id: str = None, update_last_id: bool = True):
+        pass
+
+    # MONTH_TO_YEAR
+    def add_mty(self, display_name: str, pred: str, id_postfix: str = None, data_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.FLOAT, display_type: ForecastDataSeriesMetaDataDataType = ForecastDataSeriesMetaDataDataType.INT, validation: dict[ForecastDataSeriesMetaDataValidationSchema, Any] = FORECAST_READ_ONLY_VALIDATION, id: str = None, update_last_id: bool = True):
+        pass
+
+        
+
+
+    # def add_input(self, display_name: str, id_postfix: str, data_type: ForecastDataSeriesMetaDataDataType, display_type: ForecastDataSeriesMetaDataDataType, data_values: list | pd.Series = None, validation:  list[dict] = None, ranges: list[ForecastMetaDataRange] = None, pred: list[str] = None, args: dict = None, objs: dict = None, update_last_id: bool = None, verify_integrity: bool = None, drop_dups: bool = None, id: str = None, **kwargs) -> Type['ForecastMetaDataSeries']:
+    #     id_postfix = f"Inputs_{id_postfix}" if (id_postfix is not None) else "Inputs"
+    #     return self._add_action(action_pred_type = ForecastDataSeriesMetaDataActionPredTypes.NO_PREDS, action = ForecastDataSeriesMetaDataAction.INPUT, validation = validation, id_postfix = id_postfix, id_prefix = self.id, data_type = data_type, display_type =  display_type, data_values = data_values, ranges = ranges, pred = pred, args = args, objs = objs, update_last_id = update_last_id, verify_integrity = verify_integrity, drop_dups = drop_dups, id = id, **kwargs)
+
+    # # DATES
+    # def add_dates(self, display_name: str, data_values: list | pd.Series, id_postfix: str = None, drop_dups: bool = True, id: str = None, **kwargs) -> Type['ForecastMetaDataSeries']:
+    #     id_postfix = f"Dates_{id_postfix}" if (id_postfix is not None) else "Dates"
+    #     return self._add_action(action_pred_type = ForecastDataSeriesMetaDataActionPredTypes.NO_PREDS, action = ForecastDataSeriesMetaDataAction.DATES, data_type = ForecastDataSeriesMetaDataDataType.DATE, display_type =  ForecastDataSeriesMetaDataDataType.DATE, validation = FORECAST_READ_ONLY_VALIDATION, id_postfix = id_postfix, id_prefix = self.id, display_name = display_name, ranges = None, pred = None, args = None, objs = None, update_last_id = False, drop_dups = drop_dups, verify_integrity = False, data_values = data_values, id = id, **kwargs)
+
+    # # VALUES
+    # def add_values(self, display_name: str, id_postfix: str, data_type: ForecastDataSeriesMetaDataDataType, display_type: ForecastDataSeriesMetaDataDataType, data_values: list | pd.Series = None, validation:  list[dict] = None, ranges: list[ForecastMetaDataRange] = None, pred: list[str] = None, args: dict = None, objs: dict = None, update_last_id: bool = None, verify_integrity: bool = None, drop_dups: bool = None, id: str = None, **kwargs) -> Type['ForecastMetaDataSeries']:
+    #     id_postfix = f"Values_{id_postfix}" if (id_postfix is not None) else "Values"
+    #     return self._add_action(action_pred_type = ForecastDataSeriesMetaDataActionPredTypes.NO_PREDS, id_postfix = id_postfix, action = ForecastDataSeriesMetaDataAction.INPUT, validation = validation, id_prefix = self.id, data_type = data_type, display_type =  display_type, data_values = data_values, ranges = ranges, pred = pred, args = args, objs = objs, update_last_id = update_last_id, verify_integrity = verify_integrity, drop_dups = drop_dups, id = id, **kwargs)
+
+
+
+
+
+
+
+
+# ForecastMetaDataStep
+# Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
+class ForecastMetaDataStep(ForecastMetaDataContainer):
+    
+    # CLASS VARIABLES
+    # ---------------
+    NON_VALUE_ACTIONS = [ForecastDataSeriesMetaDataAction.STEP_INIT]
+
+    
+    # INSTANCE VARIABLE
+    step_type: ForecastDataSeriesMetaDataStepTypes = None
+
+
+    # __init__
+    # Adds initializing all meta-data attributes to None.
+    #  
+    # INPUTS:
+    #   Any of the meta-data attributes can be set
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def __init__(self,
+                 display_name: str, 
+                 step_type: ForecastDataSeriesMetaDataStepTypes,
+                 id_postfix: str = None, 
+                 id: str = None,
+                 parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None,
+                 id_generator: ForecastMetaDataSeriesIdGenerator = None,
+                 *args, 
+                 **kwargs):
+        
+        # initialize all instance variables
+        self.step_type: ForecastDataSeriesMetaDataStepTypes = step_type
+
+        if(id_postfix is None):
+            id_prefix = "Step"
+
+
+        super().__init__(id_prefix = id_prefix,
+                         display_name = display_name,
+                         container_type = ForecastMetaDataContainer.ContainerType.STEP, 
+                         id = id, 
+                         parent = parent,
+                         id_generator = id_generator,
+                         *args, 
+                         **kwargs)   
+
+
+        
+
+
+    # __str__
+    # Return a printable version of the class instance
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Str with printable version of instance data
+
+    def __str__(self):
+
+        # add meta-data attributes
+        results = f"step_type = {self.step_type}\n"
+
+        # call parent's str function
+        results += super().__str__()
+
+        return results
+    
+    # to_dict
+    # Serialize this object as a dictionary
+    
+    def to_dict(self) -> dict:
+        out_dict = super().to_dict()
+        out_dict["step_type"] = self.step_type
+
+        return(out_dict)
+
+    
+# ForecastMetaDataGroup
+# Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
+class ForecastMetaDataGroup(ForecastMetaDataContainer):
+    
+    # CLASS VARIABLES
+    # ---------------
+
+    
+    # INSTANCE VARIABLE
+    # -----------------
+
+
+    # __init__
+    # Adds initializing all meta-data attributes to None.
+    #  
+    # INPUTS:
+    #   Any of the meta-data attributes can be set
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def __init__(self, 
+                 display_name: str, 
+                 id: str = None,
+                 parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None,
+                 id_generator: ForecastMetaDataSeriesIdGenerator = None,
+                 *args, 
+                 **kwargs):
+        
+        super().__init__(id_prefix = "Group", 
+                         display_name = display_name,
+                         container_type = ForecastMetaDataContainer.ContainerType.GROUP,
+                         id = id,  
+                         parent = parent,
+                         id_generator = id_generator, 
+                         *args, **kwargs)     
+
+        # initialize all instance variables
+        pass
+
+
+    # __str__
+    # Return a printable version of the class instance
+    #  
+    # INPUTS:
+    #   NA
+    # 
+    # OUTPUTS:
+    #   Str with printable version of instance data
+
+    def __str__(self):
+
+        # add meta-data attributes
+        results = "\n"
+
+        # call parent's str function
+        results += super().__str__()
+
+        return results
+
+        
+    # to_dict
+    # Serialize this object as a dictionary
+    
+    def to_dict(self) -> dict:
+        out_dict = super().to_dict()
+
+        return(out_dict)
+
+
+    # to_json
+    # Serialize this object to a JSON string
+    #  
+    # INPUTS:
+    #   ident (optional: 4) - number of spaces to indent the JSON
+    # 
+    # OUTPUTS:
+    #   JSON string
+
+    def to_json(self, indent:int = 4) -> str:
+        import json
+        return json.dumps(self, default=ForecastMetaDataJsonSerializer, indent=indent)
+
+
+
+
+
+
+
+# ForecastMetaDataSeries
+# ----------------------
+
+# Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
+class ForecastMetaDataSeries(ForecastMetaDataObject):
+
+    
+    # CLASS VARIABLES
+    # ---------------
+
+
+    # INSTANCE VARIABLE
+    # -----------------
+    action: ForecastDataSeriesMetaDataAction = None
+    ranges: list[ForecastMetaDataRange] = None
+    data_type: ForecastDataSeriesMetaDataDataType = None
+    display_type: ForecastDataSeriesMetaDataDataType = None
+    data_values: list | pd.Series = None
+    validation:  list[dict] = None
+    pred: list[str] = None
+    args: dict = None
+    objs: dict = None
+
+
+    # __init__
+    # Adds initializing all meta-data attributes to None.
+    #  
+    # INPUTS:
+    #   Any of the meta-data attributes can be set
+    # 
+    # OUTPUTS:
+    #   NA
+
+    def __init__(self,
+                 id: str,
+                 display_name: str, 
+                 action: ForecastDataSeriesMetaDataAction,
+                 ranges: list[ForecastMetaDataRange] = None,
+                 data_type: ForecastDataSeriesMetaDataDataType = None,
+                 display_type: ForecastDataSeriesMetaDataDataType = None,
+                 data_values: list | pd.Series = None,
+                 validation:  list[dict] = None,
+                 pred: list[str] = None,
+                 args: dict = None,
+                 objs: dict = None,
+                 parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None,
+                 **kwargs):
+        
+        # action
+        if(action is not None):
+            self.action: ForecastDataSeriesMetaDataAction = action
+        else:
+            raise ValueError(f"\n* ForecastMetaDataSeries:  error, no action type provided.")
+        
+        # ranges
+        if(ranges is not None):
+            self.ranges: list[ForecastMetaDataRange] = ranges
+        else:
+            ranges: list[ForecastMetaDataRange] = None
+
+        # data_type
+        if(data_type is not None):
+            self.data_type: ForecastDataSeriesMetaDataDataType = data_type
+        else:
+            raise ValueError(f"\n* ForecastMetaDataSeries:  error, no data type provided.")
+
+        # display_type
+        if(display_type is not None):
+            self.display_type: ForecastDataSeriesMetaDataDataType = display_type
+        else:
+            raise ValueError(f"\n* ForecastMetaDataSeries:  error, no display type provided.")
+
+        # data_values
+        if(data_values is not None):
+            self.data_values: list | pd.Series = data_values
+        else:
+            self.data_values: list | pd.Series = None
+
+        # validation
+        if(validation is not None):
+            self.validation:  list[dict] = validation
+        else:
+            self.validation: list[dict] = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+
+        # pred
+        if(pred is not None):
+            self.pred: list[str] = pred
+        else:
+            self.pred: list[str] = None
+
+        # args
+        if(args is not None):
+            self.args: dict = args
+        else:
+            self.args: dict = None
+
+        # objs
+        if(objs is not None):
+            self.objs: dict = objs
+        else:
+            self.objs: dict = None
+
+        super().__init__(display_name = display_name,
+                         id = id,
+                         parent = parent, 
+                         **kwargs)
         
 
     # __str__
@@ -677,278 +1747,644 @@ class ForecastMetaDataSeries():
     #   Str with printable version of instance data
 
     def __str__(self):
-        results = super().__str__()
+        results = ""
 
-        for attrib in ForecastMetaDataSeriesSchema:
-            results += f"\n{attrib} = {self._meta_data[attrib]}"
+        # add meta-data attributes
+        results += f"action = {self.action}\n"
+        results += f"ranges = {self.ranges}\n"
+        results += f"data_type = {self.data_type}\n"
+        results += f"display_type = {self.display_type}\n"
+        results += f"data_values = {self.data_values}\n"
+        results += f"validation = {self.validation}\n"
+        results += f"pred = {self.pred}\n"
+        results += f"args = {self.args}\n"
+        results += f"objs = {self.objs}\n"
 
+        results += super().__str__()
         return results
-    
 
+        
+    # to_dict
+    # Serialize this object as a dictionary
     
+    def to_dict(self) -> dict:
+        out_dict = super().to_dict()
+
+        out_dict["action"] = self.action
+        out_dict["ranges"] = self.ranges
+        out_dict["data_type"] = self.data_type
+        out_dict["display_type"] = self.display_type
+        out_dict["data_values"] = self.data_values
+        out_dict["validation"] = self.validation
+        out_dict["pred "]= self.pred
+        out_dict["args"] = self.args
+        out_dict["objs"] = self.objs
+
+        return(out_dict)
+
+
     # to_json
-    # Return a printable version of the class instance
+    # Serialize this object to a JSON string
     #  
     # INPUTS:
-    #   NA
+    #   ident (optional: 4) - number of spaces to indent the JSON
     # 
     # OUTPUTS:
-    #   Str with printable version of instance data
-    def to_json(self, indent: int = 4) -> str:
+    #   JSON string
+
+    def to_json(self, indent:int = 4) -> str:
         import json
-        return json.dumps(self, default=ForecastMetaDataJsonSerializer, indent=indent)
-    
+        return json.dumps(self, default=FormatMetaDataObjectsJsonSerializer, indent=indent)
 
-    # get_id
-    # get the id of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   the id of this Series
-    def get_id(self) -> str:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.ID])        
-
-
-    # get_action
-    # get the action of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   the action of this Series
-    def get_action(self) -> ForecastDataSeriesMetaDataAction:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.ACTION])
-
-
-    # get_step_type
-    # get the step_type of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   Step_type
-    def get_step_type(self) -> ForecastDataSeriesMetaDataStepTypes:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE])
-    
-    # get_data_type
-    # get the data_type of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   data_type
-    def get_data_type(self) -> ForecastDataSeriesMetaDataDataType:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
-
-
-    # get_display_type
-    # get the display_type of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   display_type
-    def get_display_type(self) -> ForecastDataSeriesMetaDataDataType:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
-    
-
-    # display_name
-    # get the display_name of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   the display_name of this Series
-    def get_display_name(self) -> str:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
-    
 
     # has_data_values
-    # Checks if there are data_values for the Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   True or False
     def has_data_values(self) -> bool:
-        if (ForecastMetaDataSeriesSchema.DATA_VALUES in self._meta_data) and (self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES] is not None) and (len(self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES]) > 0):
+        if(self.data_values is not None):
             return True
-        else:
-            return False
         
-
-    # get_data_values
-    # get the data_values of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   the data_values of this Series
-    def get_data_values(self) -> list:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
-
-
-    # get_validation
-    # get the validation of this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   the validation of this Series
-    def get_validation(self) -> dict[ForecastDataSeriesMetaDataValidationSchema]:
-        return(self._meta_data[ForecastMetaDataSeriesSchema.VALIDATION])
-
-
-    # has_ranges
-    # Return true if this Series has ranges (i.e. one or more entries in the ranges meta_data), False otherwise
-    #  
-    # INPUTS:
-    #   NA
-    # 
-    # OUTPUTS:
-    #   True or False
+    # has ranges
     def has_ranges(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.RANGES not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.RANGES] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.RANGES]) < 1):
-            return False
+        if(self.ranges is not None):
+            return True
+
+    # has args
+    def has_args(self) -> bool:
+        if(self.args is not None):
+            return True
+
+    # has arg (check INDIVIDUAL arg)
+    def has_arg(self, key: str) -> bool:
+        if self.has_args() and (key in self.args.keys()):
+            return True
         else:
+            return False
+        
+    # has objs
+    def has_objs(self) -> bool:
+        if(self.objs is not None):
             return True
         
-
-    # get_ranges
-    # get the ranges (a list of ForecastMetaDataRange) for this Series
-    # INPUTS:
-    #   NA
-    # OUTPUTS:
-    #   list of ForecastMetaDataRange, or None if there are none
-    def get_ranges(self) -> list[ForecastMetaDataRange]:
-        if self.has_ranges():
-            return self._meta_data[ForecastMetaDataSeriesSchema.RANGES]
-        else:
-            return None
-        
-
-    # is_value_action
-    # Return true if this Series generates/has values (i.e. not a pure meta_data / command action like STEP_INIT)
-    #  
-    # INPUTS:
-    #   NA
-    # 
-    # OUTPUTS:
-    #   True or False
-
-    def is_value_action(self) -> bool:
-        if self._meta_data[ForecastMetaDataSeriesSchema.ACTION] in self.NON_VALUE_ACTIONS:
-            return(False)
-        else:
-            return(True)
-        
-
-    # has_arg
-    # Return true if this Series has args (i.e. one or more entries in the args meta_data), False otherwise
-    #  
-    # INPUTS:
-    #   NA
-    # 
-    # OUTPUTS:
-    #   True or False
-    def has_arg(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.ARGS not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.ARGS] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.ARGS]) < 1):
-            return False
-        else:
+    # has obj (check INDIVIDUAL obj)
+    def has_obj(self, key: str) -> bool:
+        if self.has_objs() and (key in self.objs.keys()):
             return True
-        
-        
-    # get_args
-    # return all args as a dict   
-    def get_args(self):
-        if self.has_arg():
-            return self._meta_data[ForecastMetaDataSeriesSchema.ARGS]
         else:
-            return None
-            
-    
-    # get_arg
-    # get a specific arg by name    
-    def get_arg(self, arg_name: str):
-        if self.has_arg():
-            if arg_name in self._meta_data[ForecastMetaDataSeriesSchema.ARGS].keys():
-                return self._meta_data[ForecastMetaDataSeriesSchema.ARGS][arg_name]
-            else:
-                return None
-        else:
-            return None
-            
-    
-    # has_obj
-    # Return true if this Series has objs (i.e. one or more entries in the objs meta_data), False otherwise
-    #  
-    # INPUTS:
-    #   NA
-    # 
-    # OUTPUTS:
-    #   True or False
-    def has_obj(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.OBJS not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.OBJS] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.OBJS]) < 1):
             return False
-        else:
-            return True
         
-
-    # get_objs
-    # return all objs as a dict
-    #
-    # INPUTS:
-    #   NA
-    #
-    # OUTPUTS:
-    #  dict of all objects {name of obj: obj}
-    def get_objs(self):
-        if(self.has_obj()):
-            return self._meta_data[ForecastMetaDataSeriesSchema.OBJS]
-        else:
-            return None
-
-    # get_obj
-    # get a specific obj by name
-    #
-    # INPUTS:
-    #   obj_name - the name of the object to get
-    #
-    # OUTPUTS:
-    #   the object, or None if it doesn't exist
-    def get_obj(self, obj_name: str):
-        if(self.has_obj()):
-            if obj_name in self._meta_data[ForecastMetaDataSeriesSchema.OBJS].keys():
-                return self._meta_data[ForecastMetaDataSeriesSchema.OBJS][obj_name]
-            else:
-                return None
-        else:
-            return None
-
-
-    # has_pred
-    # Return true if this Series has pred (i.e. one or more entries in the ranges meta_data), False otherwise
-    #  
-    # INPUTS:
-    #   NA
-    # 
-    # OUTPUTS:
-    #   True or False
+    # has preds
     def has_preds(self) -> bool:
-        if(ForecastMetaDataSeriesSchema.PRED not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.PRED] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.PRED]) < 1):
-            return False
-        else:
+        if (self.pred is not None):
             return True
-
-
-    # get pred
-    # get the preds (a list of column ids) for this Series
-    # INPUTS:
-    #   NA
-    #
-    # OUTPUTS:
-    #   list of column ids, or None if there are none
-    def get_pred(self):
-        if(self.has_preds()):
-            return self._meta_data[ForecastMetaDataSeriesSchema.PRED]
         else:
-            return None
+            return False
+
+    # has pred (check INDIVIDUAL pred)
+    def has_pred(self, key: str) -> bool:
+        if self.has_preds() and (key in self.pred):
+            return True
+        else:
+            return False
+        
+    
+
+# # Holds all the meta data for a pandas series (i.e. column) we need to render a forecast model
+# class ForecastMetaDataSeries(ForecastMetaDataObject):
+
+    
+#     # CLASS VARIABLES
+#     # ---------------
+
+
+#     # INSTANCE VARIABLE
+#     # -----------------
+#     action: ForecastDataSeriesMetaDataAction = None
+#     ranges: list[ForecastMetaDataRange] = None
+#     data_type: ForecastDataSeriesMetaDataDataType = None
+#     display_type: ForecastDataSeriesMetaDataDataType = None
+#     data_values: list | pd.Series = None
+#     validation:  list[dict] = None
+#     pred: list[str] = None
+#     args: dict = None
+#     objs: dict = None
+
+
+#     # __init__
+#     # Adds initializing all meta-data attributes to None.
+#     #  
+#     # INPUTS:
+#     #   Any of the meta-data attributes can be set
+#     # 
+#     # OUTPUTS:
+#     #   NA
+
+#     def __init__(self,
+#                  id: str,
+#                  display_name: str, 
+#                  action: ForecastDataSeriesMetaDataAction,
+#                  ranges: list[ForecastMetaDataRange] = None,
+#                  data_type: ForecastDataSeriesMetaDataDataType = None,
+#                  display_type: ForecastDataSeriesMetaDataDataType = None,
+#                  data_values: list | pd.Series = None,
+#                  validation:  list[dict] = None,
+#                  pred: list[str] = None,
+#                  args: dict = None,
+#                  objs: dict = None,
+#                  update_last_id: bool = None,
+#                  verify_integrity: bool = None,
+#                  drop_dups: bool = None,
+#                  parent: Type['ForecastMetaDataContainer'] | Type['ForecastMetaDataFrame'] = None,
+#                  **kwargs):
+        
+#         # action
+#         if(action is not None):
+#             self.action: ForecastDataSeriesMetaDataAction = action
+#         else:
+#             raise ValueError(f"\n* ForecastMetaDataSeries:  error, no action type provided.")
+        
+#         # ranges
+#         if(ranges is not None):
+#             self.ranges: list[ForecastMetaDataRange] = ranges
+#         else:
+#             ranges: list[ForecastMetaDataRange] = None
+
+#         # data_type
+#         if(data_type is not None):
+#             self.data_type: ForecastDataSeriesMetaDataDataType = data_type
+#         else:
+#             raise ValueError(f"\n* ForecastMetaDataSeries:  error, no data type provided.")
+
+#         # display_type
+#         if(display_type is not None):
+#             self.display_type: ForecastDataSeriesMetaDataDataType = display_type
+#         else:
+#             raise ValueError(f"\n* ForecastMetaDataSeries:  error, no display type provided.")
+
+#         # data_values
+#         if(data_values is not None):
+#             self.data_values: list | pd.Series = data_values
+#         else:
+#             self.data_values: list | pd.Series = None
+
+#         # validation
+#         if(validation is not None):
+#             self.validation:  list[dict] = validation
+#         else:
+#             self.validation: list[dict] = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+
+#         # pred
+#         if(pred is not None):
+#             self.pred: list[str] = pred
+#         else:
+#             self.pred: list[str] = None
+
+#         # args
+#         if(args is not None):
+#             self.args: dict = args
+#         else:
+#             self.args: dict = None
+
+#         # objs
+#         if(objs is not None):
+#             self.objs: dict = objs
+#         else:
+#             self.objs: dict = None
+
+#         # update_last_id
+#         if(update_last_id is not None):
+#             self.update_last_id: bool = update_last_id
+#         else:
+#             self.update_last_id: bool = False
+
+#         # verify_integrity
+#         if(verify_integrity is not None):
+#             self.verify_integrity: bool = verify_integrity
+#         else:
+#             self.verify_integrity: bool = False
+
+#         # drop_dups
+#         if(drop_dups is not None):
+#             self.drop_dups: bool = drop_dups
+#         else:
+#             self.drop_dups: bool = False
+
+#         super().__init__(display_name = display_name,
+#                          id = id,
+#                          parent = parent, 
+#                          **kwargs)
+
+
+
+
+
+
+
+
+
+
+#     # CLASS VARIABLES
+#     # ---------------
+#     NON_VALUE_ACTIONS = [ForecastDataSeriesMetaDataAction.STEP_INIT]
+
+#     # INSTANCE VARIABLES
+#     # ------------------
+#     _meta_data: dict = None
+
+
+#     # # __init__
+#     # # Adds initializing all meta-data attributes to None.
+#     # #  
+#     # # INPUTS:
+#     # #   Any of the meta-data attributes can be set
+#     # # 
+#     # # OUTPUTS:
+#     # #   NA
+
+#     # def __init__(self, *args, **kwargs):
+#     #     self._meta_data: dict = {}
+
+#     #     # init all meta_data attributes
+#     #     for attrib in ForecastMetaDataSeriesSchema:
+#     #         if attrib in kwargs:
+#     #             self._meta_data[attrib] = kwargs.get(attrib)
+#     #         else:
+#     #             self._meta_data[attrib] = None
+
+
+
+#     # set_forecast_meta_data
+#     # Takes all the meta_data forecast as a set of arguments and stuffs them in the attributes of the object
+#     # easier to do than manually updating each attribute in the DataFrame object
+#     #  
+#     # INPUTS:
+#     #   Each meta-data field in the ForecastDataSeriesMetaDataSchema
+#     # 
+#     # OUTPUTS:
+#     #   NA
+
+#     def set_forecast_meta_data(self, *args, **kwargs):
+#         for arg_name in kwargs:
+#             if arg_name in ForecastMetaDataSeriesSchema:
+#                 self._meta_data[arg_name] = kwargs.get(arg_name)
+#             else:
+#                 raise ValueError(f"\n*  set_forecast_meta_data:  invalid arg_name '{arg_name}'")
+        
+
+#     # __str__
+#     # Return a printable version of the class instance
+#     #  
+#     # INPUTS:
+#     #   NA
+#     # 
+#     # OUTPUTS:
+#     #   Str with printable version of instance data
+
+#     def __str__(self):
+#         results = super().__str__()
+
+#         for attrib in ForecastMetaDataSeriesSchema:
+#             results += f"\n{attrib} = {self._meta_data[attrib]}"
+
+#         return results
+    
+
+    
+#     # to_json
+#     # Return a printable version of the class instance
+#     #  
+#     # INPUTS:
+#     #   NA
+#     # 
+#     # OUTPUTS:
+#     #   Str with printable version of instance data
+#     def to_json(self, indent: int = 4) -> str:
+#         import json
+#         return json.dumps(self, default=ForecastMetaDataJsonSerializer, indent=indent)
+    
+
+#     # get_id
+#     # get the id of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   the id of this Series
+#     def get_id(self) -> str:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.ID])        
+
+
+#     # get_action
+#     # get the action of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   the action of this Series
+#     def get_action(self) -> ForecastDataSeriesMetaDataAction:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.ACTION])
+
+
+#     # get_step_type
+#     # get the step_type of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   Step_type
+#     def get_step_type(self) -> ForecastDataSeriesMetaDataStepTypes:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.STEP_TYPE])
+    
+#     # get_data_type
+#     # get the data_type of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   data_type
+#     def get_data_type(self) -> ForecastDataSeriesMetaDataDataType:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.DATA_TYPE])
+
+
+#     # get_display_type
+#     # get the display_type of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   display_type
+#     def get_display_type(self) -> ForecastDataSeriesMetaDataDataType:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.DISPLAY_TYPE])
+    
+
+#     # display_name
+#     # get the display_name of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   the display_name of this Series
+#     def get_display_name(self) -> str:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.DISPLAY_NAME])
+    
+
+#     # has_data_values
+#     # Checks if there are data_values for the Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   True or False
+#     def has_data_values(self) -> bool:
+#         if (ForecastMetaDataSeriesSchema.DATA_VALUES in self._meta_data) and (self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES] is not None) and (len(self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES]) > 0):
+#             return True
+#         else:
+#             return False
+        
+
+#     # get_data_values
+#     # get the data_values of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   the data_values of this Series
+#     def get_data_values(self) -> list:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.DATA_VALUES])
+
+
+#     # get_validation
+#     # get the validation of this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   the validation of this Series
+#     def get_validation(self) -> dict[ForecastDataSeriesMetaDataValidationSchema]:
+#         return(self._meta_data[ForecastMetaDataSeriesSchema.VALIDATION])
+
+
+#     # has_ranges
+#     # Return true if this Series has ranges (i.e. one or more entries in the ranges meta_data), False otherwise
+#     #  
+#     # INPUTS:
+#     #   NA
+#     # 
+#     # OUTPUTS:
+#     #   True or False
+#     def has_ranges(self) -> bool:
+#         if(ForecastMetaDataSeriesSchema.RANGES not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.RANGES] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.RANGES]) < 1):
+#             return False
+#         else:
+#             return True
+        
+
+#     # get_ranges
+#     # get the ranges (a list of ForecastMetaDataRange) for this Series
+#     # INPUTS:
+#     #   NA
+#     # OUTPUTS:
+#     #   list of ForecastMetaDataRange, or None if there are none
+#     def get_ranges(self) -> list[ForecastMetaDataRange]:
+#         if self.has_ranges():
+#             return self._meta_data[ForecastMetaDataSeriesSchema.RANGES]
+#         else:
+#             return None
+        
+
+#     # is_value_action
+#     # Return true if this Series generates/has values (i.e. not a pure meta_data / command action like STEP_INIT)
+#     #  
+#     # INPUTS:
+#     #   NA
+#     # 
+#     # OUTPUTS:
+#     #   True or False
+
+#     def is_value_action(self) -> bool:
+#         if self._meta_data[ForecastMetaDataSeriesSchema.ACTION] in self.NON_VALUE_ACTIONS:
+#             return(False)
+#         else:
+#             return(True)
+        
+
+#     # has_arg
+#     # Return true if this Series has args (i.e. one or more entries in the args meta_data), False otherwise
+#     #  
+#     # INPUTS:
+#     #   NA
+#     # 
+#     # OUTPUTS:
+#     #   True or False
+#     def has_arg(self) -> bool:
+#         if(ForecastMetaDataSeriesSchema.ARGS not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.ARGS] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.ARGS]) < 1):
+#             return False
+#         else:
+#             return True
+        
+        
+#     # get_args
+#     # return all args as a dict   
+#     def get_args(self):
+#         if self.has_arg():
+#             return self._meta_data[ForecastMetaDataSeriesSchema.ARGS]
+#         else:
+#             return None
+            
+    
+#     # get_arg
+#     # get a specific arg by name    
+#     def get_arg(self, arg_name: str):
+#         if self.has_arg():
+#             if arg_name in self._meta_data[ForecastMetaDataSeriesSchema.ARGS].keys():
+#                 return self._meta_data[ForecastMetaDataSeriesSchema.ARGS][arg_name]
+#             else:
+#                 return None
+#         else:
+#             return None
+            
+    
+#     # has_obj
+#     # Return true if this Series has objs (i.e. one or more entries in the objs meta_data), False otherwise
+#     #  
+#     # INPUTS:
+#     #   NA
+#     # 
+#     # OUTPUTS:
+#     #   True or False
+#     def has_obj(self) -> bool:
+#         if(ForecastMetaDataSeriesSchema.OBJS not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.OBJS] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.OBJS]) < 1):
+#             return False
+#         else:
+#             return True
+        
+
+#     # get_objs
+#     # return all objs as a dict
+#     #
+#     # INPUTS:
+#     #   NA
+#     #
+#     # OUTPUTS:
+#     #  dict of all objects {name of obj: obj}
+#     def get_objs(self):
+#         if(self.has_obj()):
+#             return self._meta_data[ForecastMetaDataSeriesSchema.OBJS]
+#         else:
+#             return None
+
+#     # get_obj
+#     # get a specific obj by name
+#     #
+#     # INPUTS:
+#     #   obj_name - the name of the object to get
+#     #
+#     # OUTPUTS:
+#     #   the object, or None if it doesn't exist
+#     def get_obj(self, obj_name: str):
+#         if(self.has_obj()):
+#             if obj_name in self._meta_data[ForecastMetaDataSeriesSchema.OBJS].keys():
+#                 return self._meta_data[ForecastMetaDataSeriesSchema.OBJS][obj_name]
+#             else:
+#                 return None
+#         else:
+#             return None
+
+
+#     # has_pred
+#     # Return true if this Series has pred (i.e. one or more entries in the ranges meta_data), False otherwise
+#     #  
+#     # INPUTS:
+#     #   NA
+#     # 
+#     # OUTPUTS:
+#     #   True or False
+#     def has_preds(self) -> bool:
+#         if(ForecastMetaDataSeriesSchema.PRED not in self._meta_data.keys()) or (self._meta_data[ForecastMetaDataSeriesSchema.PRED] is None) or (len(self._meta_data[ForecastMetaDataSeriesSchema.PRED]) < 1):
+#             return False
+#         else:
+#             return True
+
+
+#     # get pred
+#     # get the preds (a list of column ids) for this Series
+#     # INPUTS:
+#     #   NA
+#     #
+#     # OUTPUTS:
+#     #   list of column ids, or None if there are none
+#     def get_pred(self):
+#         if(self.has_preds()):
+#             return self._meta_data[ForecastMetaDataSeriesSchema.PRED]
+#         else:
+#             return None
+
+
+#             # updated_meta_data = updated_meta_data.add_col_meta_data(frame = updated_meta_data,
+#             #                                                         id = totals_col_id,
+#             #                                                         step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+#             #                                                         action = ForecastDataSeriesMetaDataAction.TOTAL,
+#             #                                                         data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+#             #                                                         display_type = ForecastDataSeriesMetaDataDataType.INT,
+#             #                                                         display_name = f"# of '{product_display_name}' Rx for patients in '{treatment_display_name}' Total",
+#             #                                                         data_values = updated_data[totals_col_id].to_list(),
+#             #                                                         validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+#             #                                                         pred = list_of_by_treatment_month_rx,
+#             #                                                         update_last_id = True,
+#             #                                                         verify_integrity=True,
+#             #                                                         drop_dups = False)
+
+
+
 
 
         
+# # ZIV
+# # Test
 
+# class ForecastMetaDataFactory():
+
+#     # INSTANCE VARIABLES
+#     # ------------------
+#     default_data_type: ForecastDataSeriesMetaDataDataType = None
+#     default_display_type: ForecastDataSeriesMetaDataDataType = None
+#     default_validation = None
+#     default_pred: list[str] = None
+#     default_update_last_id: bool = None
+#     default_verify_integrity: bool = None
+#     default_drop_dups: bool = None
+
+
+#     def __init__(self,
+#                  default_data_type = default_data_type,
+#                  default_display_type = default_display_type,
+#                  default_validation: list[dict] = None,
+#                  default_pred : list[str] = None,
+#                  default_update_last_id: bool = False,
+#                  default_verify_integrity: bool = False,
+#                  default_drop_dups: bool = False):
+        
+#         # set-up factory default values
+#         self.default_data_type: ForecastDataSeriesMetaDataDataType = default_data_type
+#         self.default_display_type: ForecastDataSeriesMetaDataDataType = default_display_type
+        
+#         if(default_validation is None):
+#             self.default_validation: list[dict] = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}]
+        
+#         self.default_pred: list[str] = default_pred
+#         self.default_update_last_id: bool = default_update_last_id
+#         self.default_verify_integrity: bool = default_verify_integrity
+#         self.default_drop_dups: bool = default_drop_dups
+
+
+
+
+#     def add_step(display_name: str, step_type: ForecastDataSeriesMetaDataStepTypes, id: str = None, parent: ForecastMetaDataContainer = None) -> ForecastMetaDataStep:
+#         return(ForecastMetaDataStep(display_name = display_name,
+#                                     step_type = step_type,
+#                                     id = id,
+#                                     parent = parent))
+        
+
+#     def add_group(display_name: str, id: str = None, parent: ForecastMetaDataContainer = None) -> ForecastMetaDataGroup:
+#         return(ForecastMetaDataGroup(display_name = display_name,
+#                                      id = id,
+#                                      parent = parent))
+    
+
+#     def add_action() -> ForecastMetaDataSeries:
+#         pass
+
+    
 
 
 
@@ -1690,6 +3126,35 @@ class ForecastMetaDataFrame():
     
 
 
+# NEW
+
+# FormatMetaDataObjectsJsonSerializer
+def FormatMetaDataObjectsJsonSerializer(obj):
+    if isinstance(obj, ForecastMetaDataSeries):
+        return obj.to_dict()
+    elif isinstance(obj, ForecastMetaDataGroup):
+        return obj.to_dict()
+    elif isinstance(obj, ForecastMetaDataStep):
+        return obj.to_dict()
+    elif isinstance(obj, ForecastMetaDataGroup):
+        return obj.to_dict()
+    elif isinstance(obj, ForecastMetaDataObject):
+        return obj.to_dict()
+    elif isinstance(obj, pd.Timestamp):
+        return obj.date().strftime("%Y-%m-%d%Z") # adding the timezone (%Z) seems to makes the JSON formatter put in a date instead of a datetime, which is what we want
+    else:
+        raise TypeError(f"Type {type(obj)} not serializable by FormatMetaDataObjectsJsonSerializer")
+
+
+
+
+
+
+
+
+
+
+# OLD
 
 # ForecastMetaDataJsonSerializer
 def ForecastMetaDataJsonSerializer(obj):
@@ -1714,3 +3179,4 @@ def ForecastMetaDataJsonSerializer(obj):
     else:
         raise TypeError(f"Type {type(obj)} not serializable by ForecastMetaDataJsonSerializer")
     
+
