@@ -310,6 +310,9 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                                               verify_integrity=True,
                                                                                               drop_dups = False)
         
+        # save this location, we will need it later when we set the last_value_id for the ON_TREATMENT meta_data vs. the LEAVING_TREATMENT meta_data
+        last_id_for_on_treatment_month_meta_data = pat_on_treatment_total_id
+        
 
         # Add a group end for this subgroup
         updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
@@ -335,9 +338,9 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
         #
         # However, we calculate this in three different ways depending on what we use for PM
 
-        # we add this to the existing data and meta_data that already has the patients on treatment calculations
-        pat_leaving_by_treatment_month_data = copy.deepcopy(pat_by_treatment_month_data)
-        pat_leaving_by_treatment_month_meta_data = copy.deepcopy(pat_by_treatment_month_meta_data)
+      #   # we add this to the existing data and meta_data that already has the patients on treatment calculations
+      #   pat_leaving_by_treatment_month_data = copy.deepcopy(pat_by_treatment_month_data)
+      #   pat_leaving_by_treatment_month_meta_data = copy.deepcopy(pat_by_treatment_month_meta_data)
 
 
         # Add a group set-up for this subgroup
@@ -367,32 +370,32 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
 
             # FIRST TREATMENT MONTH
             # As with the calculation for PATIONS ON TREATMENT BY TREATMENT MONTH, the first TREATMENT MONTH is a special case, we simply subtract the patients by current EOM
-            # that we calculated above (pat_leaving_by_treatment_month_data OR pat_leaving_by_treatment_month_meta_data) from the input patient flow (last id of pat_leaving_by_treatment_month_data or update_meta_data).
+            # that we calculated above (pat_by_treatment_month_data OR pat_by_treatment_month_meta_data) from the input patient flow (last id of pat_by_treatment_month_data or update_meta_data).
             # this represents the number of diagnosed patients who get to the end of the first month.
 
             # In the DATA calculations:
-            # PM = pat_leaving_by_treatment_month_data[incoming_patient_flow]
-            # CM = pat_leaving_by_treatment_month_data[curr_on_treat_col_id]
-            pat_leaving_by_treatment_month_data[curr_leaving_treat_col_id] = pat_leaving_by_treatment_month_data[incoming_patient_flow] - pat_leaving_by_treatment_month_data[curr_on_treat_col_id]
+            # PM = pat_by_treatment_month_data[incoming_patient_flow]
+            # CM = pat_by_treatment_month_data[curr_on_treat_col_id]
+            pat_by_treatment_month_data[curr_leaving_treat_col_id] = pat_by_treatment_month_data[incoming_patient_flow] - pat_by_treatment_month_data[curr_on_treat_col_id]
 
 
             # In the META-DATA calculation:
             # We specify a SUB for the action and for the preds we feed the last update_meta_data id for PM ref_id and the number of patients at the end of the current month
             # id for the CM ref_id:
-            # PM = pat_leaving_by_treatment_month_meta_data.get_last_id()
+            # PM = pat_by_treatment_month_meta_data.get_last_id()
             # CM = curr_on_treat_col_id
             pred_pm_col_id = incoming_patient_flow
             pred_cm_col_id = curr_on_treat_col_id
             preds_leaving = [pred_pm_col_id, pred_cm_col_id]
 
-            pat_leaving_by_treatment_month_meta_data = pat_leaving_by_treatment_month_meta_data.add_col_meta_data(frame = pat_leaving_by_treatment_month_meta_data,
+            pat_by_treatment_month_meta_data = pat_by_treatment_month_meta_data.add_col_meta_data(frame = pat_by_treatment_month_meta_data,
                                                                                                                   id = curr_leaving_treat_col_id,
                                                                                                                   step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                                                                   action = ForecastDataSeriesMetaDataAction.SUB,
                                                                                                                   data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
                                                                                                                   display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                                                                   display_name = f"# of patients leaving '{display_name}' treatment, in treatment month {i+1}",
-                                                                                                                  data_values = pat_leaving_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
+                                                                                                                  data_values = pat_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
                                                                                                                   validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                                                   pred = preds_leaving,
                                                                                                                   verify_integrity=True,
@@ -411,15 +414,15 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
 
                # Part 1
                # For the first month of the forecast (and only the first month), to get the number of patients leaving, we have to subtract the number of patients at the end of the
-               # first month (CM) (i.e. pat_leaving_by_treatment_month_data[curr_on_treat_col_id]), that we just calculated from the number of patients in the month BEFORE THE 
+               # first month (CM) (i.e. pat_by_treatment_month_data[curr_on_treat_col_id]), that we just calculated from the number of patients in the month BEFORE THE 
                # FORECAST (PM) (i.e. pre_forecast_patient_flow_data) for the same MONTH OF TREATMENT.  Again, we do this ONLY for the first element (i.e. forecast month)
                pfpf_col_id = f"{pmpf_col_prefix}_{i}"
 
 
                # In the DATA calculations:
                # PM = pre_forecast_patient_flow_data.loc[0, f"{pmpf_col_prefix}_{i}"]
-               # CM = pat_leaving_by_treatment_month_data.loc[0, curr_on_treat_col_id]
-               pat_leaving_by_treatment_month_data.loc[0, curr_leaving_treat_col_id] = pre_forecast_patient_flow_data.loc[0, pfpf_col_id] - pat_leaving_by_treatment_month_data.loc[0, curr_on_treat_col_id]
+               # CM = pat_by_treatment_month_data.loc[0, curr_on_treat_col_id]
+               pat_by_treatment_month_data.loc[0, curr_leaving_treat_col_id] = pre_forecast_patient_flow_data.loc[0, pfpf_col_id] - pat_by_treatment_month_data.loc[0, curr_on_treat_col_id]
 
 
                # In the META-DATA calculations:
@@ -433,13 +436,13 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
 
                # Part 2
                # The remaining months of the forecast are much more straightforward, as we simply subtract the number of patients at the end of the current month (CM) 
-               # (i.e. pat_leaving_by_treatment_month_data[curr_on_treat_col_id], same as in part one), from the number of patients at the end of the prevous month (PM)
-               # (i.e. pat_leaving_by_treatment_month_data[prev_on_treat_col_id] shifted by 1 month prior) for the same MONTH OF TREATMENT
+               # (i.e. pat_by_treatment_month_data[curr_on_treat_col_id], same as in part one), from the number of patients at the end of the prevous month (PM)
+               # (i.e. pat_by_treatment_month_data[prev_on_treat_col_id] shifted by 1 month prior) for the same MONTH OF TREATMENT
 
                # In the DATA calculations:
-               # PM = pat_leaving_by_treatment_month_data[prev_on_treat_col_id].shift(1)[1:].reset_index(drop=True)
-               # CM = pat_leaving_by_treatment_month_data.loc[1:, curr_on_treat_col_id].reset_index(drop=True)
-               pat_leaving_by_treatment_month_data.loc[1:, curr_leaving_treat_col_id] = (pat_leaving_by_treatment_month_data[prev_on_treat_col_id].shift(1)[1:].reset_index(drop=True) - pat_leaving_by_treatment_month_data.loc[1:, curr_on_treat_col_id].reset_index(drop=True)).to_list()
+               # PM = pat_by_treatment_month_data[prev_on_treat_col_id].shift(1)[1:].reset_index(drop=True)
+               # CM = pat_by_treatment_month_data.loc[1:, curr_on_treat_col_id].reset_index(drop=True)
+               pat_by_treatment_month_data.loc[1:, curr_leaving_treat_col_id] = (pat_by_treatment_month_data[prev_on_treat_col_id].shift(1)[1:].reset_index(drop=True) - pat_by_treatment_month_data.loc[1:, curr_on_treat_col_id].reset_index(drop=True)).to_list()
                
 
                # In the META-DATA calculations:
@@ -452,14 +455,14 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
 
 
                # create the meta_data row with the ranges added instead of regular preds
-               pat_leaving_by_treatment_month_meta_data = pat_leaving_by_treatment_month_meta_data.add_col_meta_data(frame = pat_leaving_by_treatment_month_meta_data,
+               pat_by_treatment_month_meta_data = pat_by_treatment_month_meta_data.add_col_meta_data(frame = pat_by_treatment_month_meta_data,
                                                                                                                      id = curr_leaving_treat_col_id,
                                                                                                                      step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                                                                      action = ForecastDataSeriesMetaDataAction.SUB,
                                                                                                                      data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
                                                                                                                      display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                                                                      display_name = f"# of patients leaving '{display_name}' treatment, in treatment month {i+1}",
-                                                                                                                     data_values = pat_leaving_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
+                                                                                                                     data_values = pat_by_treatment_month_data[curr_leaving_treat_col_id].to_list(),
                                                                                                                      validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                                                      ranges = list_of_ranges_leaving,
                                                                                                                      verify_integrity=True,
@@ -479,17 +482,17 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
         # Add by column all the patients leaving by treatment month columns to get the total patients leaving treatment for that month
         pat_leaving_treat_total_id = ForecastTreatmentTBController._gen_pat_leaving_id(id = id, month_prefix = month_prefix, isTotal=True) # ZIV
 
-        pat_leaving_by_treatment_month_data = ForecastDataModel.to_pandas(pat_leaving_by_treatment_month_data)
-        pat_leaving_by_treatment_month_data[pat_leaving_treat_total_id] = pat_leaving_by_treatment_month_data[pat_leaving_treatment_list_of_col_ids].sum(axis=1)
+        pat_by_treatment_month_data = ForecastDataModel.to_pandas(pat_by_treatment_month_data)
+        pat_by_treatment_month_data[pat_leaving_treat_total_id] = pat_by_treatment_month_data[pat_leaving_treatment_list_of_col_ids].sum(axis=1)
 
-        pat_leaving_by_treatment_month_meta_data = pat_leaving_by_treatment_month_meta_data.add_col_meta_data(frame = pat_leaving_by_treatment_month_meta_data,
+        pat_by_treatment_month_meta_data = pat_by_treatment_month_meta_data.add_col_meta_data(frame = pat_by_treatment_month_meta_data,
                                                                                                               id = pat_leaving_treat_total_id,
                                                                                                               step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
                                                                                                               action = ForecastDataSeriesMetaDataAction.TOTAL,
                                                                                                               data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
                                                                                                               display_type = ForecastDataSeriesMetaDataDataType.INT,
                                                                                                               display_name = f"Total # patients leaving '{display_name}' treatment",
-                                                                                                              data_values = pat_leaving_by_treatment_month_data[pat_leaving_treat_total_id] ,
+                                                                                                              data_values = pat_by_treatment_month_data[pat_leaving_treat_total_id] ,
                                                                                                               validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                                                               pred = pat_leaving_treatment_list_of_col_ids,
                                                                                                               update_last_id = True,
@@ -508,6 +511,13 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                     validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
                                                                     pred = None,
                                                                     update_last_id=True)
+        
+        # separate out the leaving versions from the on treatment version by doing a copy and then just changing the last_value_id
+        pat_leaving_by_treatment_month_data = copy.deepcopy(pat_by_treatment_month_data)
+        pat_leaving_by_treatment_month_meta_data = copy.deepcopy(pat_by_treatment_month_meta_data)
+
+        pat_by_treatment_month_meta_data.set_last_id(last_id_for_on_treatment_month_meta_data)
+
 
 
         # ==============
@@ -666,6 +676,7 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
             
 
             # Add a group end for this subgroup
+            # ZIV
             updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
                                                                         id = f"{group_start_end_prefix}Group_End",
                                                                         display_name = f"# of '{product_display_name}' Rx for patients in '{treatment_display_name}' treatment",
