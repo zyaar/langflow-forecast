@@ -482,6 +482,8 @@ class ForecastTreatmentTBView(ForecastSumInputTB, Component):
         updated_data = results["pat_on_treatment"]["updated_data"]
 
         # calculate the number of Rx for this product, total and by treatment month
+        treatment_group_id = self._id
+
         product_id = f"{ForecastTreatmentTBView.COL_PREFIX}_{seg_num}"
         product_display_name = DataFrame(self.product_names)["prod_name"][seg_num-1] # subtract 1 because seg_num starts at 1, not 0
 
@@ -505,6 +507,21 @@ class ForecastTreatmentTBView(ForecastSumInputTB, Component):
         if(self.timescale == ForecastModelTimescale.YEAR):
             (updated_data, updated_meta_data, last_col_id) = ForecastDataModel.convert_timescale(updated_data, updated_meta_data, target = ForecastModelTimescale.YEAR)
 
+        # TREATMENT STEP_END
+        
+        # add the dates into the values (used only to get the value length)
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{treatment_group_id}_End",
+                                                                    display_name = self.get_display_name(),
+                                                                    data_values = updated_meta_data.get_series(updated_meta_data.get_last_value_id()).get_data_values(),
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.STEP_END,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = [updated_meta_data.get_last_value_id()],
+                                                                    update_last_id = True,)
+                
         return self._forecast_model_common_output(data = updated_data, meta_data = updated_meta_data, check_ids = self.CHECK_OUTPUT_ID)
 
 

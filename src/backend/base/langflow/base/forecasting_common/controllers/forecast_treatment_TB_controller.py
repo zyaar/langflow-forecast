@@ -12,9 +12,10 @@ from langflow.base.forecasting_common.models.forecast_meta_data import (Forecast
                                                                         ForecastDataSeriesMetaDataValidationSchema, 
                                                                         ForecastDataSeriesMetaDataValidateInputRestrictions,
                                                                         ForecastMetaDataRange,
-                                                                        ForecastMetaDataRangeSchema)
+                                                                        ForecastMetaDataRangeSchema,)
 
 from langflow.base.forecasting_common.controllers.forecast_sum_input_TB_controller import ForecastSumInputTBController
+
 
 
 # COMPONENT SPECIFIC IMPORTS
@@ -23,9 +24,12 @@ from typing import Any, List, Tuple
 import copy
 import pandas as pd
 
+
 # CLASSES
 # =======
 class ForecastTreatmentTBController(ForecastSumInputTBController):
+    
+
 
     # calc_treatment_pat_forecast
     # For each month of the forecast, calculate the number of patients in treatment, total and by treatment month, as well as the number of patients leaving each month,
@@ -93,6 +97,20 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
 
         # PATIENTS ON TREATMENT BY TREATMENT MONTH
         # ========================================
+        
+        # Add a group set-up for this subgroup
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Patients_Group_Start",
+                                                                    display_name = f"# of patients in '{display_name}'",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_INIT,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
+
 
         # The overall calcuation for patients in treatment is:
         #
@@ -293,6 +311,18 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                                               drop_dups = False)
         
 
+        # Add a group end for this subgroup
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Patients_Group_End",
+                                                                    display_name = f"# of patients in '{display_name}'",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_END,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
 
 
 
@@ -308,6 +338,22 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
         # we add this to the existing data and meta_data that already has the patients on treatment calculations
         pat_leaving_by_treatment_month_data = copy.deepcopy(pat_by_treatment_month_data)
         pat_leaving_by_treatment_month_meta_data = copy.deepcopy(pat_by_treatment_month_meta_data)
+
+
+        # Add a group set-up for this subgroup
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Patients_Leaving_Group_Start",
+                                                                    display_name = f"# of patients leaving '{display_name}'",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_INIT,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
+
+
 
 
         for i in range(num_months_treatment):
@@ -450,6 +496,19 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                                                               verify_integrity=True,
                                                                                                               drop_dups = False)
         
+        # Add a group endfor this subgroup
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_Patients_Leaving_Group_End",
+                                                                    display_name = f"# of patients leaving '{display_name}'",
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.GROUP_END,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = None,
+                                                                    update_last_id=True)
+
 
         # ==============
         # RETURN RESULTS
@@ -514,6 +573,24 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
             
             # set-up list to hold all col_id references used to calculate the _Total Rx at the end
             list_of_by_treatment_month_rx = []
+
+
+
+            # Add a group set-up for this subgroup
+            # ZIV
+            group_start_end_prefix = ForecastTreatmentTBController._gen_rx_per_month_id(treatment_id = treatment_id, product_id = product_id, month_prefix = None, month_num = None)
+            updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                        id = f"{group_start_end_prefix}Group_Start",
+                                                                        display_name = f"# of '{product_display_name}' Rx for patients in '{treatment_display_name}' treatment",
+                                                                        data_values = None,
+                                                                        step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                        action = ForecastDataSeriesMetaDataAction.GROUP_INIT,
+                                                                        data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                        display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                        pred = None,
+                                                                        update_last_id=True)
+
 
             # CALCULATE BY TREATMENT MONTH
             # calculate the number of RXs by multipying to total number of patients in each month of their treatment (for every month of the forecast)
@@ -584,6 +661,25 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
                                                                     update_last_id = True,
                                                                     verify_integrity=True,
                                                                     drop_dups = False)
+            
+
+            
+
+            # Add a group end for this subgroup
+            updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                        id = f"{group_start_end_prefix}Group_End",
+                                                                        display_name = f"# of '{product_display_name}' Rx for patients in '{treatment_display_name}' treatment",
+                                                                        data_values = None,
+                                                                        step_type = ForecastDataSeriesMetaDataStepTypes.TREATMENT,
+                                                                        action = ForecastDataSeriesMetaDataAction.GROUP_END,
+                                                                        data_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                        display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                        validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                        pred = None,
+                                                                        update_last_id=True)
+
+
+
 
             return(ForecastDataModel.to_langflow(updated_data), updated_meta_data)
     
@@ -638,9 +734,11 @@ class ForecastTreatmentTBController(ForecastSumInputTBController):
 
          # if no month_num provided, just spit out the prefix
          elif(month_num is None):
-              return(f"{treatment_id}_{product_id}_{ForecastDataModel.TREATMENT_PRODUCT_RX_BY_MONTH}_{month_prefix}_")
+              return(f"{treatment_id}_{product_id}_{ForecastDataModel.TREATMENT_PRODUCT_RX_BY_MONTH}_")
 
          # if month_num provided, return a relative ID
          else:
               return(f"{treatment_id}_{product_id}_{ForecastDataModel.TREATMENT_PRODUCT_RX_BY_MONTH}_{month_prefix}_{month_num}")
               
+
+   

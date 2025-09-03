@@ -624,7 +624,10 @@ class ForecastMetaDataSeries():
 
     # CLASS VARIABLES
     # ---------------
-    NON_VALUE_ACTIONS = [ForecastDataSeriesMetaDataAction.STEP_INIT]
+    NON_VALUE_ACTIONS = [ForecastDataSeriesMetaDataAction.STEP_INIT, 
+                         ForecastDataSeriesMetaDataAction.STEP_END, 
+                         ForecastDataSeriesMetaDataAction.GROUP_INIT,
+                         ForecastDataSeriesMetaDataAction.GROUP_END]
 
     # INSTANCE VARIABLES
     # ------------------

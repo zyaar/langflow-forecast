@@ -337,6 +337,18 @@ class ForecastSegmentTBController(ForecastSumInputTBController):
                                                                     update_last_id=True)
 
 
+        # Add a step for this step
+        updated_meta_data = ForecastMetaDataFrame.add_col_meta_data(frame = updated_meta_data,
+                                                                    id = f"{id}_End",
+                                                                    display_name = display_name,
+                                                                    data_values = None,
+                                                                    step_type = ForecastDataSeriesMetaDataStepTypes.SEGMENT,
+                                                                    action = ForecastDataSeriesMetaDataAction.STEP_END,
+                                                                    data_type = ForecastDataSeriesMetaDataDataType.FLOAT,
+                                                                    display_type = ForecastDataSeriesMetaDataDataType.INT,
+                                                                    validation = [{ForecastDataSeriesMetaDataValidationSchema.INPUT_RESTRICTION: ForecastDataSeriesMetaDataValidateInputRestrictions.READ_ONLY}],
+                                                                    pred = [updated_meta_data.get_last_value_id()],
+                                                                    update_last_id=True)
 
 
         # if we're calculating totals for the seg_num, then save the total patients for this segment id
