@@ -48,7 +48,7 @@ class ForecastExcelCellStyleBuilder:
     EXCEL_STYLES_WORKSHEET_HEADER = "Headline 1"
     EXCEL_ROW_HEADER_LABEL = "Row Header Label"
     EXCEL_STYLES_DEFAULT_INIT_STEP_HEADER = "Headline 3"
-    EXCEL_STYLES_DEFAULT_INIT_GROUP_HEADER = "Row Header Label"
+    EXCEL_STYLES_DEFAULT_INIT_GROUP_HEADER = "Headline 4"
 
 
 

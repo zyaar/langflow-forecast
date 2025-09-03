@@ -73,12 +73,13 @@ class ForecastPopulationCutTBView(ForecastSingleFixedColTransformerTB, Component
     VAR_IN_DISPLAY_NAME = "Forecast(s)"
     VAR_IN_INFO = "Time-based forecast Data"
 
-    VAR_OUT_DISPLAY_NAME = "Cut patients"
+    VAR_OUT_DISPLAY_NAME = "# of population cut"
     VAR_OUT_INFO = "Patients cut by the parameter"
     VAR_OUT_HIDDEN = True
 
     VAR_REMAINDER_OUTPUT = True
-    VAR_OUT_REMAINDER_DISPLAY_NAME = "Remaining patients"
+    VAR_OUT_PCT_REMAINDER_DISPLAY_NAME = "% of population remaining"
+    VAR_OUT_REMAINDER_DISPLAY_NAME = "# of population remaining"
     VAR_OUT_REMAINDER_INFO = "Patients not cut by the parameter"
     VAR_REMAINDER_OUT_HIDDEN = False
 
@@ -86,7 +87,7 @@ class ForecastPopulationCutTBView(ForecastSingleFixedColTransformerTB, Component
     VAR_TABLE_DISPLAY_NAME = "Population cut"
     VAR_TABLE_INFO = f"{description}"
     VAR_TABLE_COL_VAR_NAME_POSTFIX = "Percent"
-    VAR_TABLE_COL_DISPLAY_NAME = "Population cut"
+    VAR_TABLE_COL_DISPLAY_NAME = "% of population cut"
     VAR_TABLE_COL_INFO = "% of total incoming population which is reduced in this time period"
     VAR_TABLE_COL_DATA_TYPE = "float"
 
@@ -201,7 +202,7 @@ class ForecastPopulationCutTBView(ForecastSingleFixedColTransformerTB, Component
 
         (updated_model, updated_meta_data, var_col_remainder_pct_id) = self.controller.calc_remainder_common(var_col_input_id = var_col_input_id,
                                                                                                              var_col_remainder_pct_id = self.var_col_remainder_pct_id,
-                                                                                                             var_out_remainder_display_name = self.VAR_OUT_DISPLAY_NAME,
+                                                                                                             var_out_pct_remainder_display_name = self.VAR_OUT_PCT_REMAINDER_DISPLAY_NAME,
                                                                                                              var_step_type = self.VAR_STEP_TYPE,
                                                                                                              var_in_type = self.VAR_IN_TYPE,
                                                                                                              var_in_display_type = self.VAR_IN_DISPLAY_TYPE,

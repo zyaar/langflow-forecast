@@ -81,10 +81,10 @@ class ForecastPricingTBView(ForecastSingleFixedColTransformerTB, Component):
     # VAR_REMAINDER_OUT_HIDDEN = True
 
     # INPUTTABLE INFO
-    VAR_TABLE_DISPLAY_NAME = "Price per SKU"
+    VAR_TABLE_DISPLAY_NAME = "Price"
     VAR_TABLE_INFO = f"{description}"
     VAR_TABLE_COL_VAR_NAME_POSTFIX = "Per_SKU"
-    VAR_TABLE_COL_DISPLAY_NAME = "Price"
+    VAR_TABLE_COL_DISPLAY_NAME = "Price per SKU"
     VAR_TABLE_COL_INFO = "Price per SKU for each time period"
     VAR_TABLE_COL_DATA_TYPE = "float"
 
