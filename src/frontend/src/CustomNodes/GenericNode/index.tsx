@@ -346,7 +346,10 @@ function GenericNode({
               "transform transition-all duration-300 ease-out",
               showNode
                 ? "top-2 translate-x-[10.4rem]"
-                : "top-0 translate-x-[6.4rem]",
+                // CUSTOM:  Set the 10.4rem in the minimized node to be the same as the non-minimized to make sure you can
+                // see the edit title button next to it
+                //: "top-0 translate-x-[6.4rem]",
+                : "top-0 translate-x-[10.4rem]",
               editedNameDescription
                 ? "bg-accent-emerald"
                 : "bg-zinc-foreground",
@@ -503,7 +506,9 @@ function GenericNode({
       <div
         className={cn(
           borderColor,
-          showNode ? "w-80" : `w-48`,
+          // CUSTOM: expanded the w-90 width of the minimzed version of the node to show more of the title  
+          // showNode ? "w-80" : `w-48`,
+          showNode ? "w-80" : `w-90`,
           "generic-node-div group/node relative rounded-xl border shadow-sm hover:shadow-md",
           !hasOutputs && "pb-4",
         )}
