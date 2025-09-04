@@ -100,12 +100,18 @@ export default function NodeName({
         <div className="flex cursor-grab items-center gap-2">
           <span
             className={cn(
-              "max-w-44 cursor-grab truncate text-sm",
+              // NOTE:  removed the truncate from the class so that text can run long
+              //"max-w-44 cursor-grab truncate text-sm",
+              "max-w-44 cursor-grab text-sm",
               validationStatus?.data?.duration && "max-w-36",
               beta && "max-w-36",
               validationStatus?.data?.duration && beta && "max-w-20",
               isOutdated && "max-w-40",
-              !showNode && "max-w-28",
+
+              // CUSTOM:  this sets the max width of the minimized node, have
+              // adjusted this to something much larger
+              //!showNode && "max-w-28",
+              !showNode && "max-w-70",
             )}
           >
             {display_name}

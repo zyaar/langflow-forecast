@@ -173,6 +173,7 @@ const NodeToolbarComponent = memo(
     };
 
     const handleMinimize = useCallback(() => {
+      // CUSTOM:  Removed to enable minimize on multi-output components
       //if (isMinimal || !showNode) {
       if (true) {
         setShowNode(!showNode);
@@ -186,8 +187,10 @@ const NodeToolbarComponent = memo(
     }, [isMinimal, showNode, data.id]);
 
     useEffect(() => {
+      // CUSTOM:  Removed to enable minimize on multi-output components
       //if (!isMinimal && !showNode) {
       if (!showNode) {
+        // CUSTOM:  Removed to enable minimize on multi-output components
         //setShowNode(true);
         setShowNode(false);
         updateNodeInternals(data.id);
@@ -646,7 +649,8 @@ const NodeToolbarComponent = memo(
                     dataTestId="docs-button-modal"
                   />
                 </SelectItem>
-                {/* ZIV:  (isMinimal || !showNode) && (*/
+                { /* CUSTOM:  Removed to enable minimize on multi-output components */
+                /* (isMinimal || !showNode) && (*/
                 (true) && (
                   <SelectItem
                     value={"show"}
