@@ -173,7 +173,8 @@ const NodeToolbarComponent = memo(
     };
 
     const handleMinimize = useCallback(() => {
-      if (isMinimal || !showNode) {
+      //if (isMinimal || !showNode) {
+      if (true) {
         setShowNode(!showNode);
         updateNodeInternals(data.id);
         return;
@@ -185,8 +186,10 @@ const NodeToolbarComponent = memo(
     }, [isMinimal, showNode, data.id]);
 
     useEffect(() => {
-      if (!isMinimal && !showNode) {
-        setShowNode(true);
+      //if (!isMinimal && !showNode) {
+      if (!showNode) {
+        //setShowNode(true);
+        setShowNode(false);
         updateNodeInternals(data.id);
         return;
       }
@@ -643,7 +646,8 @@ const NodeToolbarComponent = memo(
                     dataTestId="docs-button-modal"
                   />
                 </SelectItem>
-                {(isMinimal || !showNode) && (
+                {/* ZIV:  (isMinimal || !showNode) && (*/
+                (true) && (
                   <SelectItem
                     value={"show"}
                     data-testid={`${showNode ? "minimize" : "expand"}-button-modal`}
