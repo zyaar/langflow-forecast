@@ -13,6 +13,9 @@ import {
   ICON_STROKE_WIDTH,
   TOOLTIP_HIDDEN_OUTPUTS,
   TOOLTIP_OPEN_HIDDEN_OUTPUTS,
+
+  // CUSTOM:
+  COLOR_OPTIONS,
 } from "../../constants/constants";
 import NodeToolbarComponent from "../../pages/FlowPage/components/nodeToolbarComponent";
 import { useChangeOnUnfocus } from "../../shared/hooks/use-change-on-unfocus";
@@ -102,6 +105,13 @@ function GenericNode({
   );
 
   const showNode = data.showNode ?? true;
+
+  // CUSTOM: BEGIN
+  const bgColor = useMemo(() => data?.node?.template["backgroundColor"] ?? "white", [data?.node?.template["backgroundColor"]]);
+  const getNode = useFlowStore((state) => state.getNode);
+  // CUSTOM: END
+
+
 
   const getValidationStatus = (data) => {
     setValidationStatus(data);
@@ -313,7 +323,14 @@ function GenericNode({
           )}
         >
           <NodeToolbarComponent
-            data={data}
+
+            // CUSTOM: START
+            bgColor={bgColor}
+
+            setGenericNode={setNode}
+            // CUSTOM: END
+
+            data={data}  
             deleteNode={(id) => {
               takeSnapshot();
               deleteNode(id);
@@ -377,6 +394,11 @@ function GenericNode({
       <></>
     );
   }, [
+    
+    // CUSTOM:
+    bgColor,
+
+
     data,
     deleteNode,
     takeSnapshot,
@@ -536,6 +558,10 @@ function GenericNode({
             showNode ? "border-b" : "relative",
             hasDescription && "gap-3",
           )}
+
+          // CUSTOM:  ADDED
+          style={{backgroundColor: COLOR_OPTIONS[bgColor ?? "white"] ?? "#FFFFFF" }}
+
         >
           <div
             data-testid={"div-generic-node"}

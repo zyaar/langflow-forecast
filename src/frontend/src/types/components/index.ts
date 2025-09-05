@@ -574,6 +574,11 @@ export type fileCardPropsType = {
 };
 
 export type nodeToolbarPropsType = {
+  // CUSTOM: START
+  bgColor: string;
+  setGenericNode: (id: string, update: any) => void;
+  // CUSTOM: END
+
   data: NodeDataType;
   deleteNode: (idx: string) => void;
   setShowNode: (boolean: any) => void;

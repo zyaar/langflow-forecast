@@ -41,8 +41,25 @@ import useShortcuts from "./hooks/use-shortcuts";
 import ShortcutDisplay from "./shortcutDisplay";
 import ToolbarSelectItem from "./toolbarSelectItem";
 
+// CUSTOM:  START
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+import { COLOR_OPTIONS } from "@/constants/constants";
+
+import { ToolbarColorPickerButtons } from "./components/toolbar-color-picker-button";
+// CUSTOM:  END
+
 const NodeToolbarComponent = memo(
   ({
+    // CUSTOM: START
+    bgColor,
+    setGenericNode,
+    // CUSTOM: END
+
     data,
     deleteNode,
     setShowNode,
@@ -93,6 +110,16 @@ const NodeToolbarComponent = memo(
         });
       },
     });
+
+    // CUSTOM: START
+    // Memoize the color picker background style
+    const colorPickerStyle = useMemo(
+      () => ({
+        backgroundColor: COLOR_OPTIONS["#00000000"] ?? "#00000000",
+      }),
+      [],
+    );
+    // CUSTOM: END
 
     const postToolModeValue = usePostTemplateValue({
       node: data.node!,
@@ -546,6 +573,37 @@ const NodeToolbarComponent = memo(
       <>
         <div className="noflow nopan nodelete nodrag">
           <div className="toolbar-wrapper">
+
+            { /* CUSTOM: START */ }
+            <Popover>
+              <ShadTooltip content="Pick Color">
+                <PopoverTrigger>
+                  <div>
+                    <div
+                      data-testid="color_picker"
+                      className="relative inline-flex items-center rounded-l-md bg-background px-2 py-2 text-foreground transition-all duration-500 ease-in-out hover:bg-muted focus:z-10"
+                    >
+                      <div
+                        style={colorPickerStyle}
+                        className={cn(
+                          "h-4 w-4 rounded-full ring-black ring-1",
+                          COLOR_OPTIONS["#00000000"] === null && "border",
+                        )}
+                      />
+                    </div>
+                  </div>
+                </PopoverTrigger>
+              </ShadTooltip>
+              <PopoverContent side="top" className="w-fit px-2 py-2">
+                <ToolbarColorPickerButtons
+                  bgColor={bgColor}
+                  data={data}
+                  setNode={setGenericNode}
+                />
+              </PopoverContent>
+            </Popover>
+            { /* CUSTOM: END */ }
+
             {renderToolbarButtons}
             <Select
               onValueChange={handleSelectChange}

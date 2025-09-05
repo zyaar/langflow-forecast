@@ -986,6 +986,10 @@ export const COLOR_OPTIONS = {
   rose: "hsl(var(--note-rose))",
   blue: "hsl(var(--note-blue))",
   lime: "hsl(var(--note-lime))",
+
+  // CUSTOM:
+  white: "#FFFFFF",
+  
   transparent: null,
 };
 
