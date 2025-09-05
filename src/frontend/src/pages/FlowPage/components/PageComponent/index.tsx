@@ -20,6 +20,8 @@ import {
   OnNodeDrag,
   OnSelectionChangeParams,
   ReactFlow,
+  // CUSTOM:  Added MiniMap feature
+  MiniMap,
   reconnectEdge,
   SelectionDragHandler,
 } from "@xyflow/react";
@@ -594,6 +596,12 @@ export default function Page({
             onPaneClick={onPaneClick}
             onEdgeClick={handleEdgeClick}
           >
+            <MiniMap 
+              nodeBorderRadius={2}
+              style={{
+                  border: "1px solid black"
+              }}
+              nodeStrokeWidth={3} zoomable pannable />
             <MemoizedBackground />
             {!view && (
               <>
