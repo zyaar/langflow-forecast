@@ -975,8 +975,14 @@ export const DRAG_EVENTS_CUSTOM_TYPESS = {
   "text/plain": "text/plain",
 };
 
-export const NOTE_NODE_MIN_WIDTH = 324;
-export const NOTE_NODE_MIN_HEIGHT = 324;
+
+// CUSTOM:  START
+export const NOTE_NODE_MIN_WIDTH = 50;
+export const NOTE_NODE_MIN_HEIGHT = 50;
+//export const NOTE_NODE_MIN_WIDTH = 324;
+//export const NOTE_NODE_MIN_HEIGHT = 324;
+// CUSTOM:  END
+
 export const NOTE_NODE_MAX_HEIGHT = 800;
 export const NOTE_NODE_MAX_WIDTH = 600;
 
@@ -990,9 +996,9 @@ export const COLOR_OPTIONS = {
   // CUSTOM: START
   violet: "#FEDBFE",
   white: "#FFFFFF",
+  transparent: "#FFFFFF00",
   // CUSTOM: END
-  
-  transparent: null,
+
 };
 
 export const maxSizeFilesInBytes = 10 * 1024 * 1024; // 10MB in bytes

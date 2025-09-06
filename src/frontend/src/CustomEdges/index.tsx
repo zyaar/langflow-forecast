@@ -1,6 +1,6 @@
 import useFlowStore from "@/stores/flowStore";
 import { scapeJSONParse } from "@/utils/reactflowUtils";
-import { BaseEdge, EdgeProps, getBezierPath, Position } from "@xyflow/react";
+import { BaseEdge, EdgeProps, getBezierPath, getSmoothStepPath, Position } from "@xyflow/react";
 
 export function DefaultEdge({
   sourceHandleId,
@@ -47,7 +47,9 @@ export function DefaultEdge({
 
   const edgePathLoop = `M ${sourceXNew} ${sourceYNew} C ${sourceXNew + distance} ${sourceYNew + sourceDistanceY}, ${targetXNew - distance} ${targetYNew + distanceY}, ${targetXNew} ${targetYNew}`;
 
-  const [edgePath] = getBezierPath({
+  // CUSTOM:  BEGIN
+  // Switched the line rendering style to Smooth Step instead of Bezier curves to be more aligned with the Epi flow style
+  const [edgePath] = getSmoothStepPath({
     sourceX: sourceXNew,
     sourceY: sourceYNew,
     sourcePosition: Position.Right,
@@ -55,6 +57,17 @@ export function DefaultEdge({
     targetX: targetXNew,
     targetY: targetYNew,
   });
+
+  // const [edgePath] = getBezierPath({
+  //   sourceX: sourceXNew,
+  //   sourceY: sourceYNew,
+  //   sourcePosition: Position.Right,
+  //   targetPosition: Position.Left,
+  //   targetX: targetXNew,
+  //   targetY: targetYNew,
+  // });
+
+  // CUSTOM:  END
 
   const {
     animated,

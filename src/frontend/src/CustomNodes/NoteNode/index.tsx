@@ -109,8 +109,11 @@ function NoteNode({
   return (
     <>
       <NodeResizer
-        minWidth={Math.max(DEFAULT_WIDTH, NOTE_NODE_MIN_WIDTH)}
-        minHeight={Math.max(DEFAULT_HEIGHT, NOTE_NODE_MIN_HEIGHT)}
+        // CUSTOM:  START
+        minWidth={NOTE_NODE_MIN_WIDTH}
+        minHeight={NOTE_NODE_MIN_HEIGHT}
+        // CUSTOM:  END
+
         onResize={(_, params) => {
           const { width, height } = params;
           debouncedResize(width, height);
@@ -129,8 +132,13 @@ function NoteNode({
       <div
         data-testid="note_node"
         style={{
-          minWidth: Math.max(DEFAULT_WIDTH, NOTE_NODE_MIN_WIDTH),
-          minHeight: Math.max(DEFAULT_HEIGHT, NOTE_NODE_MIN_HEIGHT),
+          // CUSTOM: START
+          minWidth: NOTE_NODE_MIN_WIDTH,
+          minHeight: NOTE_NODE_MIN_HEIGHT,
+          //minWidth: Math.max(DEFAULT_WIDTH, NOTE_NODE_MIN_WIDTH),
+          //minHeight: Math.max(DEFAULT_HEIGHT, NOTE_NODE_MIN_HEIGHT),
+          // CUSTOM:  END
+
           backgroundColor: COLOR_OPTIONS[bgColor] ?? "#00000000",
         }}
         ref={nodeDiv}
