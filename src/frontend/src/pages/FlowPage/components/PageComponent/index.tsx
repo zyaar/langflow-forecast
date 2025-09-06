@@ -556,6 +556,13 @@ export default function Page({
     maxZoom: MAX_ZOOM,
   };
 
+  // CUSTOM:  START
+  // Auto-colors the minimap based on the node's colors
+  function nodeColor(node) {
+    return COLOR_OPTIONS[node.data.node?.template.backgroundColor] ?? '#e2e2e2'
+  }
+  // CUSTOM:  END
+
   return (
     <div className="h-full w-full bg-canvas" ref={reactFlowWrapper}>
       {showCanvas ? (
@@ -598,12 +605,16 @@ export default function Page({
             onPaneClick={onPaneClick}
             onEdgeClick={handleEdgeClick}
           >
-            <MiniMap 
+            { /*CUSTOM:  START */ }
+            <MiniMap
+              nodeColor={nodeColor} 
               nodeBorderRadius={2}
               style={{
                   border: "1px solid black"
               }}
               nodeStrokeWidth={3} zoomable pannable />
+            { /*CUSTOM:  END */ }
+            
             <MemoizedBackground />
             {!view && (
               <>
