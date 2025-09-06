@@ -92,18 +92,12 @@ function GenericNode({
   // CUSTOM: START
   // set the color for this GenericNode
   const bgColor = useCallback(() => {
-      console.log(
-        Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,)
-        ?? FORECAST_COLOR_MAP[data.type]
-        ?? forecast_default_color
-      )
-
       return(
         Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,)
         ?? FORECAST_COLOR_MAP[data.type]
         ?? forecast_default_color
       )
-    }, [data.node.template.backgroundColor, NodeToolbarComponent]
+    }, [data.node.template.backgroundColor]
   )
   // CUSTOM: END
 
