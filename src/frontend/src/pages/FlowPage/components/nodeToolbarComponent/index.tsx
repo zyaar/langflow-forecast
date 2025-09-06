@@ -115,9 +115,9 @@ const NodeToolbarComponent = memo(
     // Memoize the color picker background style
     const colorPickerStyle = useMemo(
       () => ({
-        backgroundColor: COLOR_OPTIONS["#00000000"] ?? "#00000000",
+        backgroundColor: COLOR_OPTIONS[bgColor] ?? "#00000000",
       }),
-      [],
+      [bgColor],
     );
     // CUSTOM: END
 

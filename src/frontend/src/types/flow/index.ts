@@ -36,7 +36,10 @@ export type FlowType = {
   mcp_enabled?: boolean;
 };
 
-export type GenericNodeType = Node<NodeDataType, "genericNode">;
+// CUSTOM:
+//export type GenericNodeType = Node<NodeDataType, "genericNode">;
+export type GenericNodeType = Node<GenericNodeDataType, "genericNode">;
+
 export type NoteNodeType = Node<NoteDataType, "noteNode">;
 
 export type AllNodeType = GenericNodeType | NoteNodeType;
@@ -54,12 +57,37 @@ export type noteClassType = Pick<
   outputs?: OutputFieldType[];
 };
 
+// CUSTOM: START
+// add the attribute backgroundColor as a string to the GenericNode definition
+export type genericNodeClassType = APIClassType & {template: {backgroundColor?: string;};}
+export type GenericNodeDataType = {
+  showNode?: boolean;
+  type: string;
+  node: genericNodeClassType; // CHANGED HERE MADE FROM 'nodeDataType' (defined below)
+  id: string;
+  output_types?: string[];
+  selected_output_type?: string;
+  buildStatus?: BuildStatus;
+}
+// CUSTOM:  END
+
+
+
 export type NoteDataType = {
   showNode?: boolean;
   type: string;
   node: noteClassType;
   id: string;
 };
+
+// CUSTOM: 
+// NOTE:  no changes made, just a note that we really don't need 
+// NodeDataType anymore, since only GenericNode was using it, but leaving it
+// hear just in case future code updated by Langflow (or us) create NodeTypes
+// beyond Note and Generic and assume it's there and available.
+// However, this requires that any changes made to this NodeDataType
+// for the benefit of GenericNode will need to be reflected back in the same updates
+// manually entered into GenericNodeDataType
 export type NodeDataType = {
   showNode?: boolean;
   type: string;

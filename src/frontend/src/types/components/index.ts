@@ -14,6 +14,9 @@ import {
   FlowStyleType,
   FlowType,
   NodeDataType,
+
+  // CUSTOM:
+  GenericNodeDataType,
 } from "../flow/index";
 import { sourceHandleType, targetHandleType } from "./../flow/index";
 export type InputComponentType = {
@@ -577,9 +580,11 @@ export type nodeToolbarPropsType = {
   // CUSTOM: START
   bgColor: string;
   setGenericNode: (id: string, update: any) => void;
+
+  data: GenericNodeDataType;
+  //data: NodeDataType;
   // CUSTOM: END
 
-  data: NodeDataType;
   deleteNode: (idx: string) => void;
   setShowNode: (boolean: any) => void;
   numberOfOutputHandles: number;

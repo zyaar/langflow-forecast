@@ -25,7 +25,11 @@ import useFlowsManagerStore from "../../stores/flowsManagerStore";
 import { useShortcutsStore } from "../../stores/shortcuts";
 import { useTypesStore } from "../../stores/typesStore";
 import { VertexBuildTypeAPI } from "../../types/api";
-import { NodeDataType } from "../../types/flow";
+
+// CUSTOM:
+//import { NodeDataType } from "../../types/flow";
+import { GenericNodeDataType } from "../../types/flow";
+
 import { checkHasToolMode } from "../../utils/reactflowUtils";
 import { classNames, cn } from "../../utils/utils";
 import { processNodeAdvancedFields } from "../helpers/process-node-advanced-fields";
@@ -38,6 +42,10 @@ import NodeUpdateComponent from "./components/NodeUpdateComponent";
 import RenderInputParameters from "./components/RenderInputParameters";
 import { NodeIcon } from "./components/nodeIcon";
 import { useBuildStatus } from "./hooks/use-get-build-status";
+
+// CUSTOM:
+import {FORECAST_COLOR_MAP, forecast_default_color} from "@/forecast_common/forecast_constants"
+
 
 const MemoizedOutputParameter = memo(OutputParameter);
 const MemoizedRenderInputParameters = memo(RenderInputParameters);
@@ -72,11 +80,49 @@ function GenericNode({
   data,
   selected,
 }: {
-  data: NodeDataType;
+  // CUSTOM:
+  //data: NodeDataType;
+  data: GenericNodeDataType;
+
   selected?: boolean;
   xPos?: number;
   yPos?: number;
 }): JSX.Element {
+
+  // CUSTOM: START
+  // set the color for this GenericNode
+  const bgColor = useCallback(() => {
+      console.log(
+        Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,)
+        ?? FORECAST_COLOR_MAP[data.type]
+        ?? forecast_default_color
+      )
+
+      return(
+        Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,)
+        ?? FORECAST_COLOR_MAP[data.type]
+        ?? forecast_default_color
+      )
+    }, [data.node.template.backgroundColor, NodeToolbarComponent]
+  )
+  // CUSTOM: END
+
+
+  // // CUSTOM: START
+  // // set the color for this GenericNode
+  // const bgColor = 
+  //   // use the background color if one has been set
+  //   Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,) 
+    
+  //   // if not, use the default color for the Component Type (i.e. Segment, Treatment, etc.)
+  //   //?? Object.keys(FORECAST_COLOR_MAP).find((key) => key === data.type,)
+  //   ?? FORECAST_COLOR_MAP[data.type]
+    
+  //   // if not, use the overall default background color (white)
+  //   ?? forecast_default_color;
+  // // CUSTOM: END
+
+
   const [borderColor, setBorderColor] = useState<string>("");
   const [loadingUpdate, setLoadingUpdate] = useState(false);
   const [showHiddenOutputs, setShowHiddenOutputs] = useState(false);
@@ -105,13 +151,6 @@ function GenericNode({
   );
 
   const showNode = data.showNode ?? true;
-
-  // CUSTOM: BEGIN
-  const bgColor = useMemo(() => data?.node?.template["backgroundColor"] ?? "white", [data?.node?.template["backgroundColor"]]);
-  const getNode = useFlowStore((state) => state.getNode);
-  // CUSTOM: END
-
-
 
   const getValidationStatus = (data) => {
     setValidationStatus(data);
@@ -325,7 +364,7 @@ function GenericNode({
           <NodeToolbarComponent
 
             // CUSTOM: START
-            bgColor={bgColor}
+            bgColor={bgColor()}
 
             setGenericNode={setNode}
             // CUSTOM: END
@@ -363,10 +402,14 @@ function GenericNode({
               "transform transition-all duration-300 ease-out",
               showNode
                 ? "top-2 translate-x-[10.4rem]"
-                // CUSTOM:  Set the 10.4rem in the minimized node to be the same as the non-minimized to make sure you can
+
+                // CUSTOM:  BEGIN  
+                // Set the 10.4rem in the minimized node to be the same as the non-minimized to make sure you can
                 // see the edit title button next to it
                 //: "top-0 translate-x-[6.4rem]",
                 : "top-0 translate-x-[10.4rem]",
+                // CUSTOM: END
+
               editedNameDescription
                 ? "bg-accent-emerald"
                 : "bg-zinc-foreground",
@@ -394,11 +437,7 @@ function GenericNode({
       <></>
     );
   }, [
-    
-    // CUSTOM:
     bgColor,
-
-
     data,
     deleteNode,
     takeSnapshot,
@@ -523,6 +562,7 @@ function GenericNode({
     );
   }, [data, types, isToolMode, showNode, shownOutputs, showHiddenOutputs]);
 
+
   return (
     <div className={cn(shouldShowUpdateComponent ? "relative -mt-10" : "")}>
       <div
@@ -555,13 +595,16 @@ function GenericNode({
           data-testid={`${data.id}-main-node`}
           className={cn(
             "grid text-wrap p-4 leading-5",
-            showNode ? "border-b" : "relative",
+
+            // CUSTOM:
+            showNode ? "border-b rounded-xl overflow-hidden" : "relative rounded-xl",
+            //showNode ? "border-b" : "relative",
+
             hasDescription && "gap-3",
           )}
 
           // CUSTOM:  ADDED
-          style={{backgroundColor: COLOR_OPTIONS[bgColor ?? "white"] ?? "#FFFFFF" }}
-
+          style={{backgroundColor: COLOR_OPTIONS[bgColor()]}}
         >
           <div
             data-testid={"div-generic-node"}
