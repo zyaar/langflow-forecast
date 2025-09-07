@@ -65,6 +65,9 @@ class ForecastSegmentTBView(ForecastSumInputTB, Component):
     icon = "Puzzle"
     name: str = "SegmentTBView"
 
+    # SPECIAL FORECAST COMPONENT COMMON VARS
+    ENABLE_EDGE_LABELS: bool = True
+
     # COL_SET_VAR
     COL_PREFIX = "segment_"
     MAX_SEGMENTS = 100

@@ -57,7 +57,6 @@ const NodeToolbarComponent = memo(
   ({
     // CUSTOM: START
     bgColor,
-    setGenericNode,
     // CUSTOM: END
 
     data,
@@ -335,7 +334,15 @@ const NodeToolbarComponent = memo(
       showconfirmShare,
     ]);
 
+
+    // CUSTOM:  BEGIN
+    // Set a state for the colorpicker popover
+    const [colorPickerOpen, setColorPickerOpen] = useState(false)
+    // CUSTOM:  END
+
+
     const [selectedValue, setSelectedValue] = useState(null);
+
 
     const handleSelectChange = useCallback(
       (event) => {
@@ -408,6 +415,12 @@ const NodeToolbarComponent = memo(
           case "toolMode":
             handleActivateToolMode();
             break;
+
+          // CUSTOM: START
+          case "colorChange":
+            // TODO:  figure out how to close the toolbar for here
+            break;
+          // CUSTOM: END
         }
 
         setSelectedValue(null);
@@ -575,7 +588,7 @@ const NodeToolbarComponent = memo(
           <div className="toolbar-wrapper">
 
             { /* CUSTOM: START */ }
-            <Popover>
+            <Popover open={colorPickerOpen} onOpenChange={setColorPickerOpen}>
               <ShadTooltip content="Pick Color">
                 <PopoverTrigger>
                   <div>
@@ -587,7 +600,7 @@ const NodeToolbarComponent = memo(
                         style={colorPickerStyle}
                         className={cn(
                           "h-4 w-4 rounded-full ring-black ring-1",
-                          COLOR_OPTIONS["#00000000"] === null && "border",
+                          COLOR_OPTIONS[bgColor] === null && "border",
                         )}
                       />
                     </div>
@@ -598,7 +611,8 @@ const NodeToolbarComponent = memo(
                 <ToolbarColorPickerButtons
                   bgColor={bgColor}
                   data={data}
-                  setNode={setGenericNode}
+                  setColorPickerOpen={setColorPickerOpen}
+                  handleSelectChange={handleSelectChange}
                 />
               </PopoverContent>
             </Popover>

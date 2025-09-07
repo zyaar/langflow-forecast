@@ -82,6 +82,9 @@ class ForecastTreatmentTBView(ForecastSumInputTB, Component):
     icon = "Syringe"
     name: str = "TreatmentTBView"
 
+    # SPECIAL FORECAST COMPONENT COMMON VARS
+    ENABLE_EDGE_LABELS: bool = True
+
     # OUTPUT INFO
     NUM_STATIC_OUTPUTS = 2 # one static output (# patients leaving/month), rest is product
 

@@ -88,33 +88,21 @@ function GenericNode({
   xPos?: number;
   yPos?: number;
 }): JSX.Element {
-
+  
   // CUSTOM: START
   // set the color for this GenericNode
   const bgColor = useCallback(() => {
-      return(
-        Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,)
-        ?? FORECAST_COLOR_MAP[data.type]
-        ?? forecast_default_color
-      )
-    }, [data.node.template.backgroundColor]
+    const bg_color =  Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,) ?? FORECAST_COLOR_MAP[data.type] ?? forecast_default_color
+    
+    data.node.template.backgroundColor = data.node?.template.backgroundColor ?? bg_color
+
+    return(
+      Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,)
+      ?? FORECAST_COLOR_MAP[data.type]
+      ?? forecast_default_color
+    )}, [data.node.template.backgroundColor]
   )
   // CUSTOM: END
-
-
-  // // CUSTOM: START
-  // // set the color for this GenericNode
-  // const bgColor = 
-  //   // use the background color if one has been set
-  //   Object.keys(COLOR_OPTIONS).find((key) => key === data.node?.template.backgroundColor,) 
-    
-  //   // if not, use the default color for the Component Type (i.e. Segment, Treatment, etc.)
-  //   //?? Object.keys(FORECAST_COLOR_MAP).find((key) => key === data.type,)
-  //   ?? FORECAST_COLOR_MAP[data.type]
-    
-  //   // if not, use the overall default background color (white)
-  //   ?? forecast_default_color;
-  // // CUSTOM: END
 
 
   const [borderColor, setBorderColor] = useState<string>("");

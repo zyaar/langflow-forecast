@@ -7,7 +7,7 @@
 #####################################################################
 
 from langflow.custom import Component
-from langflow.io import TableInput, IntInput, StrInput, NestedDictInput
+from langflow.io import TableInput, IntInput, StrInput, NestedDictInput, BoolInput
 from langflow.schema import DataFrame, Data
 from langflow.schema.table import Column
 from langflow.template import Output
@@ -63,6 +63,10 @@ class ForecastComponent(Component):
     icon: str = f""
     name: str = f"ForecastComponentTB"
 
+
+    # SPECIAL FORECAST COMPONENT COMMON VARS
+    ENABLE_EDGE_LABELS: bool = False
+
     # MISC CONFIG
     DEBUG_MODE = True
     COMM = "React_Conf"
@@ -100,6 +104,19 @@ class ForecastComponent(Component):
     # -------------------------
     def _gen_inputs(self) -> list:
         inputs_list = [
+
+        # hidden field used to turn on or off the labels in edges
+            BoolInput(
+                name="edge_labels",
+                display_name="Edge Labels",
+                info="Turn on labels for all edges/lines coming out of the outputs.  The labels will use the name of the source output they are connected to.",
+                required = True,
+                advanced = True,
+                dynamic = True,
+                real_time_refresh = True,
+                is_list = False,
+                value = self.ENABLE_EDGE_LABELS
+            ),
             
         # hidden field which holds the current configuration of the outputs
             NestedDictInput(

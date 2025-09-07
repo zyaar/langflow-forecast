@@ -7,17 +7,19 @@ import { GenericNodeDataType } from "@/types/flow";
 
 import { cn } from "@/utils/utils";
 
-import { memo } from "react";
+import { memo, VoidFunctionComponent } from "react";
 
 export const ToolbarColorPickerButtons = memo(
   ({
     bgColor,
     data,
-    setNode,
+    setColorPickerOpen,
+    handleSelectChange,
   }: {
     bgColor: string;
     data: GenericNodeDataType;
-    setNode: (id: string, updater: any) => void;
+    setColorPickerOpen: (state: boolean) => void;
+    handleSelectChange: (event: string) => void;
   }) => (
     <div className="flew-row flex gap-3">
       {Object.entries(COLOR_OPTIONS).map(([color, code]) => (
@@ -26,7 +28,11 @@ export const ToolbarColorPickerButtons = memo(
           unstyled
           key={color}
 
-          onClick={() => { data.node.template["backgroundColor"] = color }}
+          onClick={() => { 
+            data.node.template.backgroundColor = color;
+            setColorPickerOpen(false);
+            handleSelectChange("colorChange");
+           }}
         >
           <div
             className={cn(

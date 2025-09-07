@@ -559,12 +559,16 @@ export default function Page({
   // CUSTOM:  START
   // Auto-colors the minimap based on the node's colors
   function nodeColor(node) {
-    if(node.type == "noteNode")
+    switch(node.type)
     {
-      return(COLOR_OPTIONS.transparent);
+      case "noteNode":
+        return(COLOR_OPTIONS.transparent);
+        break;
+      case "forecastLabelNode":
+        break;
+      default:
+        return COLOR_OPTIONS[node.data.node?.template.backgroundColor] ?? '#e2e2e2'
     }
-
-    return COLOR_OPTIONS[node.data.node?.template.backgroundColor] ?? '#e2e2e2'
   }
   // CUSTOM:  END
 
