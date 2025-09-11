@@ -61,7 +61,7 @@ export function DefaultEdge({
   // HANDLE EDGE-LABLES
   // determine if the source object allows for edge labels, if yes, go down the edge_label display route, if no, use the default edges
   let src_display_name: string = "undefined";
-  const edgeLabelsEnabled: boolean = sourceNode?.data.node.template.edge_labels.value ?? false
+  const edgeLabelsEnabled: boolean = sourceNode?.data.node.template.edge_labels?.value ?? false
 
   if(edgeLabelsEnabled)
   {
