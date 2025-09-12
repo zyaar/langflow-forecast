@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, } from "react";
 
 import { useCustomNavigate } from "@/customization/hooks/use-custom-navigate";
 import useAddFlow from "@/hooks/flows/use-add-flow";
@@ -34,6 +34,11 @@ import { swatchColors } from "@/utils/styleUtils";
 import { cn, getNumberFromString } from "@/utils/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
+
+// CUSTOM: START
+import ExportDiagramModal from "@/forecast_common/modals/exportDiagramModal";
+// CUSTOM:  END
+
 
 export const MenuBar = memo((): JSX.Element => {
   const shortcuts = useShortcutsStore((state) => state.shortcuts);
@@ -397,6 +402,19 @@ export const MenuBar = memo((): JSX.Element => {
                 />
                 Logs
               </DropdownMenuItem>
+
+              {/* CUSTOM: BEGIN */}
+              <ExportDiagramModal>
+                <div className="header-menubar-item">
+                  <IconComponent
+                    name="ImageDown"
+                    className="header-menu-options"
+                  />
+                  Export Diagram
+                </div>
+              </ExportDiagramModal>
+              {/* CUSTOM: END */}
+
               <DropdownMenuItem
                 className="cursor-pointer"
                 onClick={() => {
@@ -445,7 +463,7 @@ export const MenuBar = memo((): JSX.Element => {
                       ?.shortcut!
                   }
                 />
-              </DropdownMenuItem>
+              </DropdownMenuItem>              
               <DropdownMenuItem
                 onClick={() => {
                   redo();

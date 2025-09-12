@@ -995,6 +995,7 @@ export const COLOR_OPTIONS = {
 
   // CUSTOM: START
   violet: "#FEDBFE",
+  pink: "#FFE6E9",
   white: "#FFFFFF",
   transparent: "#FFFFFF00",
   // CUSTOM: END

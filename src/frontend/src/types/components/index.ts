@@ -312,6 +312,24 @@ export type InputProps = {
   invalidNameList?: string[];
 };
 
+// CUSTOM:  START
+
+export type SnapshotProps = {
+  name: string | null;
+  width: number | null;
+  height: number | null;
+  scale: number | null;
+  backgroundColor: string | null;
+  setName?: (name: string) => void;
+  setWidth?: (width: number) => void;
+  setHeight?: (height: number) => void;
+  setScale?: (scale: number) => void;
+  setBackgroundColor?: (backgroundColor: string) => void;
+}
+
+
+// CUSTOM:  END
+
 export type TooltipProps = {
   selector: string;
   content?: string;

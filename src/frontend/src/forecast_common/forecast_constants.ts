@@ -6,7 +6,8 @@ export const forecast_default_color = "white"
 export const FORECAST_COLOR_MAP = {
   "DelayTB": forecast_default_color,
   "EpidemiologyTB": "violet",
-  "PopulationCutTB": "rose",
+  "PopulationCutTB": "neutral",
+  "TreatmentSharesTB": "rose",
   "PricingTB": forecast_default_color,
   "SegmentTB": "blue",
   "SummationTB": forecast_default_color,
@@ -15,7 +16,8 @@ export const FORECAST_COLOR_MAP = {
 }
 
 
-
+//export const EXPORT_DIAGRAM_TARGET_NODE = ".react-flow__viewport"
+export const EXPORT_DIAGRAM_TARGET_NODE = "#react-flow-id"
 
 
 
