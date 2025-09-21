@@ -571,8 +571,8 @@
             "beta": false,
             "conditional_paths": [],
             "custom_fields": {},
-            "description": "Use as a template to create your own component.",
-            "display_name": "Custom Component",
+            "description": "Takes the JSON generated from the LLM prompt and converts it into a Langflow JSON file which has the ForecastFlow and can be imported into Langflow as a forecast",
+            "display_name": "Convert LLM JSON to ForecastFlow JSON",
             "documentation": "https://docs.langflow.org/components-custom-components",
             "edited": true,
             "field_order": [
@@ -657,14 +657,14 @@
         "dragging": false,
         "id": "CustomComponent-T5vG8",
         "measured": {
-          "height": 249,
+          "height": 251,
           "width": 320
         },
         "position": {
           "x": 745.8667346412365,
           "y": 700.8894145809369
         },
-        "selected": false,
+        "selected": true,
         "type": "genericNode"
       },
       {
@@ -1079,12 +1079,12 @@
       }
     ],
     "viewport": {
-      "x": 208.21950837618442,
-      "y": 291.6964729164188,
-      "zoom": 0.5659585856720265
+      "x": 175.32685222560508,
+      "y": 144.68401677060342,
+      "zoom": 0.8578328042618849
     }
   },
-  "description": "Promptly Ingenious!",
+  "description": "Given a prompt for a condition/disease, uses an LLM to determine an epidemiological forecast and generates the necessary Flow in Langflow-Forecast for that forecast.",
   "endpoint_name": null,
   "id": "65604351-23f7-464e-93fe-5d1fd1d66da2",
   "is_component": false,
