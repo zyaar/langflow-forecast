@@ -65,6 +65,7 @@ class ForecastSumInputTB(ForecastComponent):
     name: str = f"SumInputTB"
 
     # INPUT INFO
+    VAR_IN_NAME = "forecasts_in"
     VAR_IN_DISPLAY_NAME = "Forecast(s)"
     VAR_IN_INFO = "Time-based forecast Data"
 
@@ -92,7 +93,8 @@ class ForecastSumInputTB(ForecastComponent):
 
             # dataframes in List[DataFrame]
             DataInput(
-                name=f"forecasts_in",
+                #name=f"forecasts_in",
+                name=f"{self.VAR_IN_NAME}",
                 display_name=f"{self.VAR_IN_DISPLAY_NAME}",
                 info=f"{self.VAR_IN_INFO}",
                 dynamic=True,

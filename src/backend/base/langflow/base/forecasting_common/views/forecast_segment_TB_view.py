@@ -66,7 +66,7 @@ class ForecastSegmentTBView(ForecastSumInputTB, Component):
     name: str = "SegmentTBView"
 
     # SPECIAL FORECAST COMPONENT COMMON VARS
-    ENABLE_EDGE_LABELS: bool = True
+    ENABLE_EDGE_LABELS: bool = False
 
     # COL_SET_VAR
     COL_PREFIX = "segment_"

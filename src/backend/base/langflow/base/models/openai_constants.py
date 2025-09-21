@@ -1,4 +1,8 @@
 OPENAI_MODEL_NAMES = [
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5-chat-latest",
     "gpt-4o-mini",
     "gpt-4o",
     "gpt-4.1",
